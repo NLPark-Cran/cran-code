@@ -145,6 +145,7 @@ def test_pyinstaller_hiddenimports():
 
     assert sorted(hiddenimports) == snapshot(
         [
+            "kimi_cli._build_info",
             "kimi_cli.cli.export",
             "kimi_cli.cli.info",
             "kimi_cli.cli.mcp",
