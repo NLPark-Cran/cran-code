@@ -5,7 +5,6 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -621,6 +620,9 @@ class KimiSoul:
 
             wire_send(TurnBegin(user_input=user_input))
             turn_started = True
+            from kimi_cli.telemetry import track as _track_telemetry
+
+            _track_telemetry("turn_started", mode="plan" if self._plan_mode else "agent")
             user_message = Message(role="user", content=user_input)
             text_input = user_message.extract_text(" ").strip()
 
@@ -690,6 +692,13 @@ class KimiSoul:
         finally:
             if turn_started and not turn_finished:
                 wire_send(TurnEnd())
+                from kimi_cli.telemetry import track as _track_telemetry
+
+                _track_telemetry(
+                    "turn_interrupted",
+                    mode="plan" if self._plan_mode else "agent",
+                    at_step=getattr(self, "_current_step_no", 0),
+                )
             if created_approval_source is not None and self._runtime.approval_runtime is not None:
                 self._runtime.approval_runtime.cancel_by_source(
                     created_approval_source.kind,
@@ -886,10 +895,16 @@ class KimiSoul:
                 from kimi_cli.telemetry import track
 
                 error_type, status_code = classify_api_error(e)
+                track_kwargs: dict[str, Any] = {"error_type": error_type}
                 if status_code is not None:
-                    track("api_error", error_type=error_type, status_code=status_code)
-                else:
-                    track("api_error", error_type=error_type)
+                    track_kwargs["status_code"] = status_code
+                # Enrich with context attached by _step() (model, duration, input_tokens)
+                _kimi_ctx = getattr(e, "_kimi_api_error_context", None)
+                if _kimi_ctx is not None:
+                    for key in ("model", "duration_ms", "input_tokens"):
+                        if key in _kimi_ctx:
+                            track_kwargs[key] = _kimi_ctx[key]
+                track("api_error", **track_kwargs)
                 # --- StopFailure hook ---
                 from kimi_cli.hooks import events as _hook_events
 
@@ -1016,7 +1031,18 @@ class KimiSoul:
             )
 
         t0 = time.monotonic()
-        result = await _kosong_step_with_retry()
+        try:
+            result = await _kosong_step_with_retry()
+        except Exception as _step_exc:
+            # Attach known context so the outer loop can enrich api_error telemetry
+            _ctx: dict[str, Any] = {
+                "model": self._runtime.llm.model_name,
+                "duration_ms": int((time.monotonic() - t0) * 1000),
+            }
+            if self._context.token_count > 0:
+                _ctx["input_tokens"] = self._context.token_count
+            _step_exc._kimi_api_error_context = _ctx  # type: ignore[attr-defined]
+            raise
         llm_elapsed = time.monotonic() - t0
         usage = result.usage
         logger.info(
@@ -1148,9 +1174,17 @@ class KimiSoul:
                 self._context.history, self._runtime.llm, custom_instruction=custom_instruction
             )
 
+        start_time = time.monotonic()
+        retry_count = 0
+
+        def _retry_log_compaction(retry_state: RetryCallState) -> None:
+            nonlocal retry_count
+            retry_count = retry_state.attempt_number
+            self._retry_log("compaction", retry_state)
+
         @tenacity.retry(
             retry=retry_if_exception(self._is_retryable_error),
-            before_sleep=partial(self._retry_log, "compaction"),
+            before_sleep=_retry_log_compaction,
             wait=wait_exponential_jitter(initial=0.3, max=5, jitter=0.5),
             stop=stop_after_attempt(self._loop_control.max_retries_per_step),
             reraise=True,
@@ -1185,14 +1219,16 @@ class KimiSoul:
         wire_send(CompactionBegin())
         try:
             compaction_result = await _compact_with_retry()
-        except Exception:
+        except Exception as _compact_exc:
             from kimi_cli.telemetry import track
 
             track(
-                "compaction_triggered",
+                "compaction_failed",
                 trigger_type=trigger_reason,
                 before_tokens=before_tokens,
-                success=False,
+                duration_ms=int((time.monotonic() - start_time) * 1000),
+                retry_count=retry_count,
+                error_type=type(_compact_exc).__name__,
             )
             raise
         await self._context.clear()
@@ -1230,13 +1266,18 @@ class KimiSoul:
 
         from kimi_cli.telemetry import track
 
-        track(
-            "compaction_triggered",
+        duration_ms = int((time.monotonic() - start_time) * 1000)
+        track_kwargs = dict(
             trigger_type=trigger_reason,
             before_tokens=before_tokens,
             after_tokens=estimated_token_count,
-            success=True,
+            duration_ms=duration_ms,
+            retry_count=retry_count,
         )
+        if compaction_result.usage is not None:
+            track_kwargs["llm_input_tokens"] = compaction_result.usage.input
+            track_kwargs["llm_output_tokens"] = compaction_result.usage.output
+        track("compaction_finished", **track_kwargs)
 
         _hook_task = asyncio.create_task(
             self._hook_engine.trigger(
