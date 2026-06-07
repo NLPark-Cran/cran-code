@@ -55,6 +55,7 @@
     "react-dom": "^19.2.0",
     "react-error-boundary": "^6.0.0",
     "react-resizable-panels": "^4.0.7",
+    "react-router-dom": "^7.17.0",
     "react-scan": "^0.4.3",
     "react-virtuoso": "4.17.0",
     "refractor": "^5.0.0",

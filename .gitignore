@@ -23,7 +23,9 @@ src/kimi_cli/deps/tmp
 src/kimi_cli/_build_info.py
 
 # Web build artifacts
-src/kimi_cli/web/static/assets/
+# NOTE: We intentionally commit web/static/ so that uv tool install includes
+# the built frontend. Only ignore during local dev if needed.
+# src/kimi_cli/web/static/assets/
 
 # Vis build artifacts
 src/kimi_cli/vis/static/
