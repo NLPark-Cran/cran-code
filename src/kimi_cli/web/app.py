@@ -32,12 +32,14 @@ from kimi_cli.web.api import (
     sessions_router,
     work_dirs_router,
 )
+from kimi_cli.web.api_v2 import v2_router
 from kimi_cli.web.auth import (
     DEFAULT_ALLOWED_ORIGIN_REGEX,
     AuthMiddleware,
     is_private_ip,
     normalize_allowed_origins,
 )
+from kimi_cli.web.db import init_db
 from kimi_cli.web.runner.process import KimiCLIRunner
 
 # Configure logging based on LOG_LEVEL environment variable
@@ -153,6 +155,9 @@ def create_app(
         app.state.max_public_path_depth = max_public_path_depth
         app.state.lan_only = lan_only
 
+        # Initialize collaboration database
+        await init_db()
+
         # Start KimiCLI runner
         runner = KimiCLIRunner()
         app.state.runner = runner
@@ -202,6 +207,7 @@ def create_app(
     application.include_router(config_router)
     application.include_router(sessions_router)
     application.include_router(work_dirs_router)
+    application.include_router(v2_router)
     if not restrict_sensitive_apis:
         application.include_router(open_in_router)
 
