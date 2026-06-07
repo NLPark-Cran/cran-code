@@ -278,7 +278,7 @@ function App() {
 
       if (reason === "config_update") {
         console.log("[App] Config update detected, refreshing global config");
-        window.dispatchEvent(new Event("kimi:config-update"));
+        window.dispatchEvent(new Event("cran:config-update"));
       }
 
       if (!reason.startsWith("prompt_")) {
@@ -417,14 +417,14 @@ function App() {
                   )}
                 >
                   <a
-                    href="https://www.kimi.com/code"
+                    href="https://crys.tt2.li"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="hover:opacity-80 transition-opacity"
                   >
                     <img
                       src="/logo.png"
-                      alt="Kimi"
+                      alt="Cran"
                       width={24}
                       height={24}
                       className="size-6"

@@ -1,17 +1,17 @@
-import { kimiCliVersion } from "@/lib/version";
+import { cranCliVersion } from "@/lib/version";
 import { cn } from "@/lib/utils";
 
-type KimiCliBrandProps = {
+type CranCliBrandProps = {
   className?: string;
   size?: "sm" | "md";
   showVersion?: boolean;
 };
 
-export function KimiCliBrand({
+export function CranCliBrand({
   className,
   size = "md",
   showVersion = true,
-}: KimiCliBrandProps) {
+}: CranCliBrandProps) {
   const textSizeClass = size === "sm" ? "text-base" : "text-lg";
   const versionPadding = size === "sm" ? "text-xs" : "text-sm";
   const logoSize = size === "sm" ? "size-6" : "size-7";
@@ -20,27 +20,27 @@ export function KimiCliBrand({
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <a
-        href="https://www.kimi.com/code"
+        href="https://crys.tt2.li"
         target="_blank"
         rel="noopener noreferrer"
         className="flex items-center gap-2 hover:opacity-80 transition-opacity"
       >
         <img
           src="/logo.png"
-          alt="Kimi"
+          alt="Cran"
           width={logoPx}
           height={logoPx}
           className={logoSize}
         />
         <span className={cn(textSizeClass, "font-semibold text-foreground")}>
-          Kimi Code
+          Cran Code
         </span>
       </a>
       {showVersion && (
         <span
           className={cn("text-muted-foreground font-medium", versionPadding)}
         >
-          v{kimiCliVersion}
+          v{cranCliVersion}
         </span>
       )}
     </div>

@@ -91,8 +91,8 @@ export function useGlobalConfig(): UseGlobalConfigReturn {
     const handler = () => {
       refresh();
     };
-    window.addEventListener("kimi:config-update", handler);
-    return () => window.removeEventListener("kimi:config-update", handler);
+    window.addEventListener("cran:config-update", handler);
+    return () => window.removeEventListener("cran:config-update", handler);
   }, [refresh]);
 
   return {

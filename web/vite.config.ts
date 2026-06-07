@@ -8,8 +8,8 @@ import { nodePolyfills } from "vite-plugin-node-polyfills";
 
 const PYPROJECT_VERSION_REGEX = /^\s*version\s*=\s*"([^"]+)"/m;
 
-function readKimiCliVersion(): string {
-  const fallback = process.env.KIMI_CLI_VERSION ?? "dev";
+function readCranCliVersion(): string {
+  const fallback = process.env.CRAN_CLI_VERSION ?? "dev";
   const pyprojectPath = path.resolve(__dirname, "../pyproject.toml");
 
   try {
@@ -25,7 +25,7 @@ function readKimiCliVersion(): string {
   return fallback;
 }
 
-const kimiCliVersion = readKimiCliVersion();
+const cranCliVersion = readCranCliVersion();
 const shouldAnalyze = process.env.ANALYZE === "true";
 
 // https://vite.dev/config/
@@ -51,7 +51,7 @@ export default defineConfig({
       : []),
   ],
   define: {
-    __KIMI_CLI_VERSION__: JSON.stringify(kimiCliVersion),
+    __CRAN_CLI_VERSION__: JSON.stringify(cranCliVersion),
   },
   resolve: {
     alias: {

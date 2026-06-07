@@ -24,7 +24,7 @@ export function hasPlatformModifier(
 }
 
 /**
- * Get the API base URL for connecting to the Kimi backend.
+ * Get the API base URL for connecting to the Cran backend.
  * - Vite dev: uses Vite proxy, so empty string (relative URLs like /api/...)
  * - Production web: same-origin, so empty string
  */

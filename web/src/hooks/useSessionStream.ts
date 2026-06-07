@@ -75,7 +75,7 @@
  *    - `useLayoutEffect([sessionId])` teardown before paint
  *    - identity guard `if (wsRef.current !== ws) return;` in every callback
  *
- * 2) Browser tabs (two Kimi pages open in Chrome, etc.):
+ * 2) Browser tabs (two Cran pages open in Chrome, etc.):
  *
  *    Each browser tab is its own JS runtime, so it has its own hook instance and
  *    its own `wsRef/messages/state`. They are naturally isolated on the client.
@@ -136,7 +136,7 @@ import {
   extractEvent,
 } from "./wireTypes";
 import { createMessageId, getApiBaseUrl } from "./utils";
-import { kimiCliVersion } from "@/lib/version";
+import { cranCliVersion } from "@/lib/version";
 import { handleToolResult, useToolEventsStore, type TodoItem } from "@/features/tool/store";
 import { v4 as uuidV4 } from "uuid";
 
@@ -1463,7 +1463,7 @@ export function useSessionStream(
               }))
               .filter((p) => p.url);
 
-            // For non-browser-renderable URLs (e.g. ms:// from Kimi model),
+            // For non-browser-renderable URLs (e.g. ms:// from Cran model),
             // try to construct serving URLs from file paths in text output tags
             const hasNonBrowserUrl = mediaParts.some((p) => !isBrowserUrl(p.url));
             if (hasNonBrowserUrl) {
@@ -2153,7 +2153,7 @@ export function useSessionStream(
         protocol_version: WIRE_PROTOCOL_VERSION,
         client: {
           name: "kiwi",
-          version: kimiCliVersion,
+          version: cranCliVersion,
         },
         capabilities: {
           supports_question: true,

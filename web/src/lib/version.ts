@@ -1,6 +1,6 @@
-declare const __KIMI_CLI_VERSION__: string | undefined;
+declare const __CRAN_CLI_VERSION__: string | undefined;
 
-export const kimiCliVersion =
-  typeof __KIMI_CLI_VERSION__ !== "undefined" && __KIMI_CLI_VERSION__
-    ? __KIMI_CLI_VERSION__
+export const cranCliVersion =
+  typeof __CRAN_CLI_VERSION__ !== "undefined" && __CRAN_CLI_VERSION__
+    ? __CRAN_CLI_VERSION__
     : "dev";

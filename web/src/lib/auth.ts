@@ -1,5 +1,5 @@
-const AUTH_TOKEN_KEY = "kimi_auth_token";
-const AUTH_TOKEN_TIMESTAMP_KEY = "kimi_auth_token_ts";
+const AUTH_TOKEN_KEY = "cran_auth_token";
+const AUTH_TOKEN_TIMESTAMP_KEY = "cran_auth_token_ts";
 const AUTH_TOKEN_PARAM = "token";
 const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 

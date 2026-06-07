@@ -31,7 +31,7 @@ import {
   PanelLeftClose,
 } from "lucide-react";
 import { Virtuoso } from "react-virtuoso";
-import { KimiCliBrand } from "@/components/kimi-cli-brand";
+import { CranCliBrand } from "@/components/cran-cli-brand";
 import {
   Dialog,
   DialogContent,
@@ -76,7 +76,7 @@ type SessionGroup = {
   sessions: SessionSummary[];
 };
 
-const VIEW_MODE_KEY = "kimi-sessions-view-mode";
+const VIEW_MODE_KEY = "cran-sessions-view-mode";
 
 /**
  * Shorten a path to fit in limited space
@@ -625,7 +625,7 @@ export const SessionsSidebar = memo(function SessionsSidebarComponent({
       <aside className="flex h-full min-h-0 flex-col">
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
           <div className="flex items-center justify-between px-3 pt-2">
-            <KimiCliBrand size="sm" showVersion={true} />
+            <CranCliBrand size="sm" showVersion={true} />
             {onClose && (
               <button
                 type="button"

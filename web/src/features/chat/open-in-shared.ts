@@ -29,7 +29,7 @@ export const ALL_OPEN_TARGETS: OpenTargetDef[] = [
   { id: "terminal", label: "Terminal", backendApp: "terminal", macOnly: true },
 ];
 
-const LAST_OPEN_TARGET_KEY = "kimi-open-in-last-target";
+const LAST_OPEN_TARGET_KEY = "cran-open-in-last-target";
 
 /** In-memory subscribers for same-tab reactivity. */
 const listeners = new Set<() => void>();

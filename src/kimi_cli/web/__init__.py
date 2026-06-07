@@ -1,4 +1,4 @@
-"""Kimi Code CLI Web Interface."""
+"""Cran Code CLI Web Interface."""
 
 from kimi_cli.web.app import create_app, run_web_server
 

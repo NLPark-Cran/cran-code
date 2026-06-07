@@ -1,4 +1,4 @@
-"""Kimi Code CLI Web UI application."""
+"""Cran Code CLI Web UI application."""
 
 import os
 import secrets
@@ -164,7 +164,7 @@ def create_app(
             await runner.stop()
 
     application = FastAPI(
-        title="Kimi Code CLI Web Interface",
+        title="Cran Code CLI Web Interface",
         docs_url=None,
         lifespan=lifespan,
         separate_input_output_schemas=False,
@@ -354,14 +354,13 @@ def run_web_server(
         thread.start()
 
     banner_lines = [
-        "<center>██╗  ██╗██╗███╗   ███╗██╗     ██████╗ ██████╗ ██████╗ ███████╗",
-        "<center>██║ ██╔╝██║████╗ ████║██║    ██╔════╝██╔═══██╗██╔══██╗██╔════╝",
-        "<center>█████╔╝ ██║██╔████╔██║██║    ██║     ██║   ██║██║  ██║█████╗  ",
-        "<center>██╔═██╗ ██║██║╚██╔╝██║██║    ██║     ██║   ██║██║  ██║██╔══╝  ",
-        "<center>██║  ██╗██║██║ ╚═╝ ██║██║    ╚██████╗╚██████╔╝██████╔╝███████╗",
-        "<center>╚═╝  ╚═╝╚═╝╚═╝     ╚═╝╚═╝     ╚═════╝ ╚═════╝ ╚═════╝ ╚══════╝",
+        "<center>  ____ ____      _    _   _ ",
+        "<center> / ___|  _ \\    / \\  | \\ | |",
+        "<center>| |   | |_) |  / _ \\ |  \\| |",
+        "<center>| |___|  _ <  / ___ \\| |\\  |",
+        "<center> \\____|_| \\_\\/_/   \\_\\_| \\_|",
         "",
-        "<center>WEB UI (Technical Preview)",
+        "<center>Cran Code Web UI",
         "",
         "<hr>",
         "",
