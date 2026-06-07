@@ -1,23 +1,60 @@
-# Kimi Code CLI
+# Cran Code
 
-## Quick commands (use uv)
+> Forked from [MoonshotAI/kimi-cli](https://github.com/MoonshotAI/kimi-cli). This project is being maintained independently by the NLPark-Cran team for the crys.tt2.li collaborative coding platform.
 
-- `make prepare` (sync deps for all workspace packages and install git hooks)
-- `make format`
-- `make check`
-- `make test`
-- `make ai-test`
+## Project identity constraints (CRITICAL — do not drift)
+
+### Branding rule
+- **Frontend (user-visible)**: ALL Kimi/Kimi Code branding must be replaced with `Cran` / `Cran Code`.
+  - HTML titles, logo alt text, brand component names, banner ASCII art, CLI help text, API docstrings.
+  - localStorage/sessionStorage keys: use `cran_` prefix (e.g. `cran_auth_token`, `cran-theme`).
+  - Custom event names: use `cran:` prefix (e.g. `cran:config-update`).
+- **Backend API requests (MUST preserve)**: `USER_AGENT` in `src/kimi_cli/constant.py` must stay as `KimiCLI/{version}`.
+  - This is required for compatibility with the Kimi Token Plan backend.
+  - Do NOT rename `get_user_agent()` or change its return format.
+- **Internal Python identifiers**: backend class names like `KimiCLI`, `KimiCLIRunner`, `KimiCLISession` do NOT need to be renamed unless they leak to the frontend.
+
+### What NOT to change
+- `src/kimi_cli/constant.py:get_user_agent()` → must return `f"KimiCLI/{get_version()}"`.
+- LLM ProviderType enum value `kimi` in API schemas → this is a provider key, not branding.
+- Package name `kimi-cli` and CLI entry command `kimi` → keep as-is until an explicit migration decision is made.
+- User config path `~/.kimi/config.toml` and share dir `~/.kimi/` → keep for now to avoid breaking existing sessions.
+
+## Quick commands
+
+### Development
+- `make prepare` — sync deps for all workspace packages and install git hooks
+- `make format` / `make check` / `make test` / `make ai-test`
 - `make build` / `make build-bin`
+- If running tools directly, use `uv run ...`.
 
-If running tools directly, use `uv run ...`.
+### Update (current workflow)
+```bash
+uv tool upgrade kimi-cli --no-cache
+```
+
+### Start web UI (current workflow)
+```bash
+kimi web --no-open --public
+```
+
+For crys.tt2.li deployment, use:
+```bash
+kimi web --host 0.0.0.0 --port 5494 --public --no-open \
+  --allowed-origins "https://crys.tt2.li"
+```
 
 ## Project overview
 
-Kimi Code CLI is a Python CLI agent for software engineering workflows. It supports an interactive
-shell UI, ACP server mode for IDE integrations, and MCP tool loading.
+Cran Code is a Python CLI agent for software engineering workflows, forked from Kimi Code CLI. It supports:
+- Interactive shell UI
+- Web UI (the primary focus for crys.tt2.li collaboration)
+- ACP server mode for IDE integrations
+- MCP tool loading
 
 ## Tech stack
 
+### Backend
 - Python 3.12+ (tooling configured for 3.14)
 - CLI framework: Typer
 - Async runtime: asyncio
@@ -26,58 +63,52 @@ shell UI, ACP server mode for IDE integrations, and MCP tool loading.
 - Logging: loguru
 - Package management/build: uv + uv_build; PyInstaller for binaries
 - Tests: pytest + pytest-asyncio; lint/format: ruff; types: pyright + ty
+- Web server: FastAPI + uvicorn
+
+### Frontend (current)
+- React 19 + TypeScript 5.9
+- Vite 7
+- Tailwind CSS v4
+- shadcn/ui + Radix UI primitives
+- AI SDK v5 (`@ai-elements`)
+- State: Zustand, SWR
+- Code highlighting: Shiki, CodeMirror
+- Diagrams: Mermaid, XYFlow
+
+### Frontend (evolution target — 2025/2026)
+We are evaluating modern frontend tech for the web UI rewrite. Candidates from nearby projects (e.g. `cran-picture-book`) and the ecosystem:
+- **Svelte 5 + Runes** — fine-grained reactivity, smaller bundle, `.svelte.ts` stores
+- **Vite 8** — faster builds, LightningCSS by default, Rolldown integration path
+- **GSAP** — advanced scroll-driven animations and UI transitions
+- **Yjs + WebSocket** — real-time collaborative editing for multi-user sessions
+- **PartyKit / Cloudflare Durable Objects** — lightweight real-time backends
+- Consider **Tauri 2** if a desktop client is ever needed
 
 ## Architecture overview
 
-- **CLI entry**: `src/kimi_cli/cli/__init__.py` (Typer) parses flags (UI mode, agent spec, config, MCP)
-  and routes into `KimiCLI` in `src/kimi_cli/app.py`.
-- **App/runtime setup**: `KimiCLI.create` loads config (`src/kimi_cli/config.py`), chooses a
-  model/provider (`src/kimi_cli/llm.py`), builds a `Runtime` (`src/kimi_cli/soul/agent.py`),
-  loads an agent spec, restores `Context`, then constructs `KimiSoul`.
+- **CLI entry**: `src/kimi_cli/cli/__init__.py` (Typer) parses flags and routes into `KimiCLI` in `src/kimi_cli/app.py`.
+- **App/runtime setup**: `KimiCLI.create` loads config (`src/kimi_cli/config.py`), chooses a model/provider (`src/kimi_cli/llm.py`), builds a `Runtime` (`src/kimi_cli/soul/agent.py`), loads an agent spec, restores `Context`, then constructs `KimiSoul`.
 - **Agent specs**: YAML under `src/kimi_cli/agents/` loaded by `src/kimi_cli/agentspec.py`.
-  Specs can `extend` base agents, select tools by import path, and register builtin subagent
-  types via the `subagents` field. Subagent instances are persisted separately under the session
-  directory and can be resumed by `agent_id`. System prompts live alongside specs; builtin args
-  include `KIMI_NOW`, `KIMI_WORK_DIR`, `KIMI_WORK_DIR_LS`, `KIMI_AGENTS_MD`, `KIMI_SKILLS`, `KIMI_OS`, `KIMI_SHELL`
-  (this file is injected via `KIMI_AGENTS_MD`).
-- **Tooling**: `src/kimi_cli/soul/toolset.py` loads tools by import path, injects dependencies,
-  and runs tool calls. Built-in tools live in `src/kimi_cli/tools/` (agent, shell, file, web,
-  todo, background, dmail, think, plan). MCP tools are loaded via `fastmcp`; CLI management is
-  in `src/kimi_cli/mcp.py` and stored in the share dir.
-- **Subagents**: `LaborMarket` in `src/kimi_cli/soul/agent.py` registers builtin subagent types.
-  The `Agent` tool (`src/kimi_cli/tools/agent/`) creates or resumes subagent instances, while
-  `SubagentStore` persists instance metadata, prompts, wire logs, and context under
-  `session/subagents/<agent_id>/`.
-- **Core loop**: `src/kimi_cli/soul/kimisoul.py` is the main agent loop. It accepts user input,
-  handles slash commands (`src/kimi_cli/soul/slash.py`), appends to `Context`
-  (`src/kimi_cli/soul/context.py`), calls the LLM (kosong), runs tools, and performs compaction
-  (`src/kimi_cli/soul/compaction.py`) when needed.
-- **Approvals**: `src/kimi_cli/soul/approval.py` is the tool-facing facade. `ApprovalRuntime`
-  in `src/kimi_cli/approval_runtime/` is the session-level source of truth for pending approvals,
-  and approval requests are projected onto the root wire stream for Shell/Web style UIs.
-- **UI/Wire**: `src/kimi_cli/soul/run_soul` connects `KimiSoul` to a `Wire`
-  (`src/kimi_cli/wire/`) so UI loops can stream events. UIs live in `src/kimi_cli/ui/`
-  (shell/print/acp/wire).
-- **Shell UI**: `src/kimi_cli/ui/shell/` handles interactive TUI input, shell command mode,
-  and slash command autocomplete; it is the default interactive experience.
-- **Slash commands**: Soul-level commands live in `src/kimi_cli/soul/slash.py`; shell-level
-  commands live in `src/kimi_cli/ui/shell/slash.py`. The shell UI exposes both and dispatches
-  based on the registry. Standard skills register `/skill:<skill-name>` and load `SKILL.md`
-  as a user prompt; flow skills register `/flow:<skill-name>` and execute the embedded flow.
+- **Tooling**: `src/kimi_cli/soul/toolset.py` loads tools by import path, injects dependencies, and runs tool calls.
+- **Core loop**: `src/kimi_cli/soul/kimisoul.py` is the main agent loop.
+- **Web UI backend**: `src/kimi_cli/web/` — FastAPI app, session store, auth middleware, config/sessions/work_dirs API.
+- **Web UI frontend**: `web/` — React SPA. Build output is copied to `src/kimi_cli/web/static/` for bundling.
 
-## Major modules and interfaces
+## Web UI development workflow
 
-- `src/kimi_cli/app.py`: `KimiCLI.create(...)` and `KimiCLI.run(...)` are the main programmatic
-  entrypoints; this is what UI layers use.
-- `src/kimi_cli/soul/agent.py`: `Runtime` (config, session, builtins), `Agent` (system prompt +
-  toolset), and `LaborMarket` (builtin subagent type registry).
-- `src/kimi_cli/soul/kimisoul.py`: `KimiSoul.run(...)` is the loop boundary; it emits Wire
-  messages and executes tools via `KimiToolset`.
-- `src/kimi_cli/soul/context.py`: conversation history + checkpoints; used by DMail for
-  checkpointed replies.
-- `src/kimi_cli/soul/toolset.py`: load tools, run tool calls, bridge to MCP tools.
-- `src/kimi_cli/ui/*`: shell/print/acp frontends; they consume `Wire` messages.
-- `src/kimi_cli/wire/*`: event types and transport used between soul and UI.
+1. Edit frontend code in `web/src/`.
+2. Run type check: `cd web && npx tsc -b --noEmit`
+3. Build: `cd web && NODE_OPTIONS="--max-old-space-size=4096" npx vite build`
+4. Copy `web/dist` → `src/kimi_cli/web/static`
+5. Commit both source and built static files.
+
+## Deployment constraints
+
+- **Target domain**: `crys.tt2.li` → `45.154.13.123`
+- **Web server port**: default `5494` (configurable via `--port`)
+- **Allowed origins**: must explicitly include `https://crys.tt2.li` when running in public mode
+- **Auth**: in public mode, the server auto-generates a bearer token. Pass it via `?token=...` query param or `Authorization: Bearer ...` header.
+- **Static files**: served from `src/kimi_cli/web/static/` (mounted at `/` as fallback)
 
 ## Repo map
 
@@ -86,62 +117,34 @@ shell UI, ACP server mode for IDE integrations, and MCP tool loading.
 - `src/kimi_cli/soul/`: core runtime/loop, context, compaction, approvals
 - `src/kimi_cli/tools/`: built-in tools
 - `src/kimi_cli/ui/`: UI frontends (shell/print/acp/wire)
+- `src/kimi_cli/web/`: Web UI backend + bundled static assets
 - `src/kimi_cli/acp/`: ACP server components
+- `web/`: Web UI frontend source (React + Vite)
 - `packages/kosong/`, `packages/kaos/`: workspace deps
-  + Kosong is an LLM abstraction layer designed for modern AI agent applications.
-    It unifies message structures, asynchronous tool orchestration, and pluggable
-    chat providers so you can build agents with ease and avoid vendor lock-in.
-  + PyKAOS is a lightweight Python library providing an abstraction layer for agents
-    to interact with operating systems. File operations and command executions via KAOS
-    can be easily switched between local environment and remote systems over SSH.
 - `tests/`, `tests_ai/`: test suites
-- `klips`: Kimi Code CLI Improvement Proposals
 
 ## Conventions and quality
 
 - Python >=3.12 (ty config uses 3.14); line length 100.
 - Ruff handles lint + format (rules: E, F, UP, B, SIM, I); pyright + ty for type checks.
 - Tests use pytest + pytest-asyncio; files are `tests/test_*.py`.
-- CLI entry points: `kimi` / `kimi-cli` -> `src/kimi_cli/__main__.py` (routes to `src/kimi_cli/cli/__init__.py`).
-- User config: `~/.kimi/config.toml`; logs, sessions, and MCP config live in `~/.kimi/`.
+- CLI entry points: `kimi` / `kimi-cli` -> `src/kimi_cli/__main__.py`.
 
-## Git commit messages
+## Git
 
-Conventional Commits format:
-
-```
-<type>(<scope>): <subject>
-```
-
-Allowed types:
-`feat`, `fix`, `test`, `refactor`, `chore`, `style`, `docs`, `perf`, `build`, `ci`, `revert`.
-
-## Versioning
-
-The project follows a **minor-bump-only** versioning scheme (`MAJOR.MINOR.PATCH`):
-
-- **Patch** version is always `0`. Never bump it.
-- **Minor** version is bumped for any change: new features, improvements, bug fixes, etc.
-- **Major** version is only changed by explicit manual decision; it stays unchanged during
-  normal development.
-
-Examples: `0.68.0` → `0.69.0` → `0.70.0`; never `0.68.1`.
-
-This rule applies to all packages in the repo (root, `packages/*`, `sdks/*`) as well as release
-and skill workflows.
+- Remote: `https://github.com/NLPark-Cran/cran-code.git`
+- Default branch: `main`
+- Commit format: Conventional Commits (`feat`, `fix`, `test`, `refactor`, `chore`, `style`, `docs`, `perf`, `build`, `ci`, `revert`).
+- **Versioning**: minor-bump-only (`MAJOR.MINOR.0`). Never bump patch.
 
 ## Release workflow
 
-For the full procedure, follow the `release` skill (`.agents/skills/release/SKILL.md`). The summary:
-
-1. Ensure `main` is up to date (pull latest).
-2. Create a release branch, e.g. `bump-0.68` or `bump-pykaos-0.5.3`.
-3. Update `CHANGELOG.md`: add a new `## 0.68 (YYYY-MM-DD)` section below `## Unreleased` (do not rename `## Unreleased`).
+1. Ensure `main` is up to date.
+2. Create a release branch, e.g. `bump-0.68`.
+3. Update `CHANGELOG.md`: add a new `## 0.68 (YYYY-MM-DD)` section below `## Unreleased`.
 4. Update `pyproject.toml` version.
 5. Run `uv sync` to align `uv.lock`.
 6. Commit the branch and open a PR.
-7. Merge the PR, then switch back to `main` and pull latest.
-8. Tag and push:
-   - `git tag 0.68` or `git tag pykaos-0.5.3`
-   - `git push --tags`
-9. GitHub Actions handles the release after tags are pushed.
+7. Merge the PR, switch back to `main`, pull latest.
+8. Tag and push: `git tag 0.68 && git push --tags`
+9. GitHub Actions handles the release.
