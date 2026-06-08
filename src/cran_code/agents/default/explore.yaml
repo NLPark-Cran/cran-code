@@ -28,19 +28,19 @@ agent:
   when_to_use: |
     Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (e.g. "src/**/*.yaml"), search code for keywords (e.g. "database connection"), or answer questions about the codebase (e.g. "how does the auth module work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "thorough" for comprehensive analysis across multiple locations and naming conventions. Use this agent for any read-only exploration that will clearly require more than 3 tool calls. Prefer launching multiple explore agents concurrently when investigating independent questions.
   allowed_tools:
-    - "kimi_cli.tools.shell:Shell"
-    - "kimi_cli.tools.file:ReadFile"
-    - "kimi_cli.tools.file:ReadMediaFile"
-    - "kimi_cli.tools.file:Glob"
-    - "kimi_cli.tools.file:Grep"
-    - "kimi_cli.tools.web:SearchWeb"
-    - "kimi_cli.tools.web:FetchURL"
+    - "cran_code.tools.shell:Shell"
+    - "cran_code.tools.file:ReadFile"
+    - "cran_code.tools.file:ReadMediaFile"
+    - "cran_code.tools.file:Glob"
+    - "cran_code.tools.file:Grep"
+    - "cran_code.tools.web:SearchWeb"
+    - "cran_code.tools.web:FetchURL"
   exclude_tools:
-    - "kimi_cli.tools.agent:Agent"
-    - "kimi_cli.tools.ask_user:AskUserQuestion"
-    - "kimi_cli.tools.todo:SetTodoList"
-    - "kimi_cli.tools.plan:ExitPlanMode"
-    - "kimi_cli.tools.plan.enter:EnterPlanMode"
-    - "kimi_cli.tools.file:WriteFile"
-    - "kimi_cli.tools.file:StrReplaceFile"
+    - "cran_code.tools.agent:Agent"
+    - "cran_code.tools.ask_user:AskUserQuestion"
+    - "cran_code.tools.todo:SetTodoList"
+    - "cran_code.tools.plan:ExitPlanMode"
+    - "cran_code.tools.plan.enter:EnterPlanMode"
+    - "cran_code.tools.file:WriteFile"
+    - "cran_code.tools.file:StrReplaceFile"
   subagents:

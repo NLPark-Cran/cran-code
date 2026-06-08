@@ -29,6 +29,15 @@
 - Tables: `users`, `teams`, `team_members`, `projects`, `project_members`, `activities`.
 - Auto-created on first startup via `init_db()` in FastAPI lifespan.
 
+### 4. Kimi API configuration (local deployment only)
+- **Model**: `kimi-for-coding` (Kimi Code subscription plan API).
+- **Endpoint**: `https://api.kimi.com/coding/v1`.
+- **API key**: Pre-filled in `~/.cran/config.toml` on the deployment server ONLY.
+- **RED LINE**: API key MUST NOT be committed to the Git repo.
+  - `~/.cran/` is already `.gitignore`d, but NEVER add config templates or scripts that embed the key.
+  - If building a setup script, it must prompt the user for their own key or leave the field empty.
+- **Why `kimi-for-coding`**: This is the Kimi subscription plan model identifier, different from the regular `kimi` model.
+
 ---
 
 ## Completed work (as of main branch)
@@ -44,12 +53,15 @@
   - `GET/POST /api/v2/teams`
   - `GET/POST /api/v2/projects`
 
-### Phase 1a: Frontend auth
+### Phase 1a: Frontend auth + v1/v2 bridging
 - [x] react-router-dom installed
 - [x] `RootApp.tsx` with `BrowserRouter` + auth-gated routes
 - [x] `LoginPage.tsx` with login/register toggle
 - [x] `useAuthStore` (Zustand + localStorage persistence)
 - [x] `v2Api` hand-written client in `web/src/lib/api/v2.ts`
+- [x] `lib/auth.ts` bridges v2 JWT into v1 API calls (`getAuthToken()` prefers JWT-format tokens)
+- [x] v1 `AuthMiddleware` skips `/api/v2/` and falls back to v2 JWT decode
+- [x] v1 WebSocket `session_stream` accepts v2 JWT in `?token=` query param
 
 ### Package migration
 - [x] Renamed `src/kimi_cli/` → `src/cran_code/`
@@ -65,9 +77,10 @@
 ## Roadmap (remaining)
 
 ### Phase 1b: Team/Project UI
+- [x] `TeamPage.tsx` — team list, create team, team detail
+- [x] `ProjectPage.tsx` — project list, create project, project detail
 - [ ] Team selector in top navigation
-- [ ] Project list page
-- [ ] Member management panel
+- [ ] Member management panel (add/remove members, role assignment)
 - [ ] Activity stream sidebar
 
 ### Phase 2: IDE core (Cursor parity)
@@ -120,17 +133,19 @@ uv tool upgrade cran-code --no-cache
 # Local dev
 cran web --no-open --public
 
-# Production (crys.tt2.li)
-cran web --host 0.0.0.0 --port 5494 --public --no-open \
+# Production (crys.tt2.li) — cran-code runs on port 5496
+# (kimi-cli original preserved on 5494, do not kill)
+cran web --host 0.0.0.0 --port 5496 --public --no-open \
   --allowed-origins "https://crys.tt2.li"
 ```
 
 ### Frontend build
 ```bash
 cd web
-npx tsc -b --noEmit                                    # type check
-NODE_OPTIONS="--max-old-space-size=4096" npx vite build  # build
+npx tsc -b --noEmit                                      # type check
+NODE_OPTIONS="--max-old-space-size=1536" npx vite build  # build (2GB RAM limit)
 cp -r dist ../src/cran_code/web/static                   # bundle
+# Note: static assets are gitignored; use `git add -f` when committing rebuilds
 ```
 
 ---
@@ -249,17 +264,26 @@ activities
 ## Deployment
 
 - **Domain**: `crys.tt2.li` → `45.154.13.123`
-- **Port**: `5494` (default)
-- **Reverse proxy**: Caddy or Nginx recommended for HTTPS
-- **Caddyfile**:
-  ```caddyfile
-  crys.tt2.li {
-      reverse_proxy localhost:5494
+- **Ports**: `5494` (kimi-cli original, preserved) / `5496` (cran-code)
+- **Reverse proxy**: Nginx (configured) → `127.0.0.1:5496`
+- **Nginx** (simplified):
+  ```nginx
+  server {
+      listen 443 ssl;
+      server_name crys.tt2.li;
+      location / {
+          proxy_pass http://127.0.0.1:5496;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "upgrade";
+      }
   }
   ```
 - **Static files**: `src/cran_code/web/static/` served by FastAPI `StaticFiles(html=True)`
 - **Allowed origins**: MUST explicitly set `--allowed-origins "https://crys.tt2.li"` in public mode
-- **Auth**: v2 uses JWT (localStorage `cran_auth_token`). v1 legacy token still active for sessions API.
+- **Auth**: v2 uses JWT (localStorage `cran_v2_auth_token`). v1 legacy token still active for sessions API.
+- **Auth bridging**: v1 `AuthMiddleware` and WebSocket `session_stream` accept v2 JWT tokens so v2-authed users can use v1 chat features without a separate v1 session.
+- **Python 3.14 compat**: `passlib` bcrypt backend detection crashes on Python 3.14. `src/cran_code/web/auth_v2/password.py` uses `bcrypt` directly instead of `passlib`.
 
 ---
 

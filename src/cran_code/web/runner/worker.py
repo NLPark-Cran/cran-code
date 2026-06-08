@@ -85,7 +85,9 @@ def main() -> None:
         sys.exit(1)
 
     # Enable logging for the subprocess
-    enable_logging(debug=False)
+    # NOTE: redirect_stderr=False so that crash tracebacks are visible
+    # to the parent process via stderr pipe (fixes "No stderr" errors).
+    enable_logging(debug=False, redirect_stderr=False)
 
     # Run the async worker
     asyncio.run(run_worker(session_id))
