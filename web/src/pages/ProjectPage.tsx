@@ -15,6 +15,7 @@ import ActivityStream from "@/components/ActivityStream";
 import FileTree from "@/components/FileTree";
 import MonacoEditor from "@/components/MonacoEditor";
 import TabBar, { type EditorTab } from "@/components/TabBar";
+import Terminal from "@/components/Terminal";
 
 export default function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -184,6 +185,8 @@ export default function ProjectPage() {
   const userMembership = project?.members.find((m) => m.user_id === user?.id);
   const canManageMembers =
     userMembership?.role === "owner" || userMembership?.role === "admin";
+
+  const [showTerminal, setShowTerminal] = useState(false);
 
   const breadcrumbs = (
     <Button
