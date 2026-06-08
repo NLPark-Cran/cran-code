@@ -124,6 +124,13 @@ export interface ActivityCreateReq {
   payload?: string;
 }
 
+export interface FsEntry {
+  name: string;
+  path: string;
+  type: string;
+  size?: number;
+}
+
 export const v2Api = {
   auth: {
     register: (data: RegisterReq) =>
@@ -204,6 +211,21 @@ export const v2Api = {
       _fetch<ActivityRes>(`/projects/${projectId}/activities`, {
         method: "POST",
         body: JSON.stringify(data),
+      }),
+  },
+  fs: {
+    list: (projectId: string, path?: string) =>
+      _fetch<{ entries: FsEntry[] }>(
+        `/projects/${projectId}/fs?path=${encodeURIComponent(path || "")}`
+      ),
+    read: (projectId: string, path: string) =>
+      _fetch<{ content: string; path: string }>(
+        `/projects/${projectId}/fs?path=${encodeURIComponent(path)}`
+      ),
+    write: (projectId: string, path: string, content: string) =>
+      _fetch<{ detail: string; path: string }>(`/projects/${projectId}/fs`, {
+        method: "POST",
+        body: JSON.stringify({ path, content }),
       }),
   },
 };
