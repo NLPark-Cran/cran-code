@@ -26,6 +26,7 @@ interface MonacoEditorProps {
   saving: boolean;
   readOnly?: boolean;
   ytext?: Y.Text;
+  awareness?: any;
 }
 
 export default function MonacoEditor({
@@ -36,6 +37,7 @@ export default function MonacoEditor({
   saving,
   readOnly,
   ytext,
+  awareness,
 }: MonacoEditorProps) {
   const editorRef = useRef<any>(null);
   const bindingRef = useRef<any>(null);
@@ -57,7 +59,7 @@ export default function MonacoEditor({
         ytext,
         editor.getModel(),
         new Set([editor]),
-        undefined
+        awareness
       );
       bindingRef.current = binding;
     };
@@ -69,7 +71,7 @@ export default function MonacoEditor({
         bindingRef.current = null;
       }
     };
-  }, [ytext]);
+  }, [ytext, awareness]);
 
   return (
     <div className="flex h-full flex-col">

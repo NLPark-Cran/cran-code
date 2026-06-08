@@ -1,22 +1,40 @@
 import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
+import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from "y-protocols/awareness";
 
 export class YjsWSProvider {
   private ws: WebSocket | null = null;
   private doc: Y.Doc;
+  private awareness: Awareness;
   private projectId: string;
   private token: string;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connected = false;
 
-  constructor(projectId: string, token: string) {
+  constructor(projectId: string, token: string, userInfo: { name: string; color: string }) {
     this.projectId = projectId;
     this.token = token;
     this.doc = new Y.Doc();
+    this.awareness = new Awareness(this.doc);
+    this.awareness.setLocalStateField("user", userInfo);
     this.connect();
 
     this.doc.on("update", (update: Uint8Array, origin: any) => {
       if (origin !== this && this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(update);
+      }
+    });
+
+    this.awareness.on("update", ({ added, updated, removed }: any) => {
+      const changedClients = added.concat(updated).concat(removed);
+      const encoder = new TextEncoder();
+      const update = encoder.encode(
+        JSON.stringify({
+          type: "awareness",
+          update: Array.from(encodeAwarenessUpdate(this.awareness, changedClients)),
+        })
+      );
+      if (this.ws?.readyState === WebSocket.OPEN) {
         this.ws.send(update);
       }
     });
@@ -30,17 +48,34 @@ export class YjsWSProvider {
 
     this.ws.onopen = () => {
       this.connected = true;
-      // Send sync step 1
       const stateVector = Y.encodeStateAsUpdate(this.doc);
       this.ws?.send(stateVector);
     };
 
     this.ws.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {
-        const update = new Uint8Array(event.data);
-        Y.applyUpdate(this.doc, update, this);
+        const data = new Uint8Array(event.data);
+        // Try to parse as JSON (awareness)
+        try {
+          const text = new TextDecoder().decode(data);
+          const msg = JSON.parse(text);
+          if (msg.type === "awareness" && Array.isArray(msg.update)) {
+            applyAwarenessUpdate(this.awareness, new Uint8Array(msg.update), this);
+            return;
+          }
+        } catch {
+          // Not JSON, treat as Yjs update
+        }
+        Y.applyUpdate(this.doc, data, this);
       } else if (typeof event.data === "string") {
-        // Awareness messages — not implemented yet
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "awareness" && Array.isArray(msg.update)) {
+            applyAwarenessUpdate(this.awareness, new Uint8Array(msg.update), this);
+          }
+        } catch {
+          // Ignore
+        }
       }
     };
 
@@ -58,23 +93,34 @@ export class YjsWSProvider {
     return this.doc;
   }
 
+  getAwareness() {
+    return this.awareness;
+  }
+
   destroy() {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
     }
+    this.awareness.destroy();
     this.ws?.close();
     this.doc.destroy();
   }
 }
 
-export function useYjsCollab(projectId: string | undefined) {
+const USER_COLORS = [
+  "#ef4444", "#f97316", "#f59e0b", "#84cc16", "#10b981",
+  "#06b6d4", "#3b82f6", "#8b5cf6", "#d946ef", "#f43f5e",
+];
+
+export function useYjsCollab(projectId: string | undefined, userName: string) {
   const providerRef = useRef<YjsWSProvider | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (!projectId) return;
     const token = localStorage.getItem("cran_v2_auth_token") || "";
-    const provider = new YjsWSProvider(projectId, token);
+    const color = USER_COLORS[Math.floor(Math.random() * USER_COLORS.length)];
+    const provider = new YjsWSProvider(projectId, token, { name: userName, color });
     providerRef.current = provider;
 
     const checkReady = setInterval(() => {
@@ -90,7 +136,7 @@ export function useYjsCollab(projectId: string | undefined) {
       providerRef.current = null;
       setReady(false);
     };
-  }, [projectId]);
+  }, [projectId, userName]);
 
   return { provider: providerRef.current, ready };
 }

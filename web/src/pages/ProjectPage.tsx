@@ -35,7 +35,7 @@ export default function ProjectPage() {
   const [modifiedPaths, setModifiedPaths] = useState<Set<string>>(new Set());
   const [savingPath, setSavingPath] = useState<string | null>(null);
 
-  const { provider } = useYjsCollab(projectId);
+  const { provider } = useYjsCollab(projectId, user?.display_name || user?.username || "User");
   const yTextsRef = useRef<Record<string, Y.Text>>({});
 
   const fetchProject = async () => {

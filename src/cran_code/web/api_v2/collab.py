@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import select
@@ -12,7 +13,6 @@ from cran_code.web.db import AsyncSessionLocal, Project, TeamMember
 
 router = APIRouter(prefix="/api/v2/projects", tags=["collab"])
 
-# In-memory room management
 _rooms: dict[str, set[WebSocket]] = {}
 _locks: dict[str, asyncio.Lock] = {}
 
@@ -29,7 +29,6 @@ async def collab_websocket(
     project_id: str,
     token: str | None = None,
 ) -> None:
-    # Authenticate via query param token (same as v1 WS auth)
     from cran_code.web.auth_v2.jwt import decode_token
 
     current_user: JWTUser | None = None
@@ -57,7 +56,6 @@ async def collab_websocket(
         await websocket.close(code=4401, reason="Authentication required")
         return
 
-    # Verify project membership
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(Project).where(Project.id == project_id))
         project = result.scalar_one_or_none()
@@ -85,11 +83,26 @@ async def collab_websocket(
 
     try:
         while True:
-            # Yjs sends binary updates or JSON awareness messages
             message = await websocket.receive()
             if "bytes" in message:
                 data = message["bytes"]
-                # Broadcast to all other clients in the room
+                # Try to detect if it's an awareness JSON message
+                try:
+                    text = data.decode("utf-8")
+                    msg = json.loads(text)
+                    if isinstance(msg, dict) and msg.get("type") == "awareness":
+                        async with lock:
+                            room = _rooms.get(room_id, set())
+                            for client in room:
+                                if client is not websocket:
+                                    try:
+                                        await client.send_bytes(data)
+                                    except Exception:
+                                        pass
+                        continue
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    pass
+                # Yjs binary update
                 async with lock:
                     room = _rooms.get(room_id, set())
                     for client in room:
@@ -100,7 +113,7 @@ async def collab_websocket(
                                 pass
             elif "text" in message:
                 data = message["text"]
-                # Awareness messages are JSON text
+                # Awareness or other JSON messages
                 async with lock:
                     room = _rooms.get(room_id, set())
                     for client in room:
