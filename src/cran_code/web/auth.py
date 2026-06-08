@@ -159,6 +159,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not path.startswith("/api/"):
             return await call_next(request)
 
+        # v2 API has its own auth layer (JWT); skip v1 session-token checks
+        if path.startswith("/api/v2/"):
+            return await call_next(request)
+
         if self._enforce_origin:
             origin = request.headers.get("origin")
             if origin and not is_origin_allowed(origin, self._allowed_origins):
