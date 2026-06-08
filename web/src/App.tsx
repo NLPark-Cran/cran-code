@@ -258,6 +258,10 @@ function App() {
   // Show toast notifications for errors
   useEffect(() => {
     if (sessionsError) {
+      // v2 auth users won't have a v1 session token; suppress that noise
+      if (sessionsError === "Unauthorized") {
+        return;
+      }
       toast.error("Session Error", {
         description: sessionsError,
       });

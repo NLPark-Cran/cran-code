@@ -12,6 +12,11 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp
 
+try:
+    from cran_code.web.auth_v2.jwt import decode_token as _decode_v2_token
+except Exception:
+    _decode_v2_token = None
+
 DEFAULT_ALLOWED_ORIGIN_REGEX = re.compile(r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$")
 
 
@@ -173,11 +178,19 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         if self._session_token:
             provided = extract_token_from_request(request)
-            if not verify_token(provided, self._session_token):
-                return JSONResponse(
-                    status_code=401,
-                    content={"detail": "Unauthorized"},
-                )
+            if verify_token(provided, self._session_token):
+                return await call_next(request)
+            # Fallback: accept v2 JWT tokens so v2-authed users can use v1 chat
+            if provided and _decode_v2_token is not None:
+                try:
+                    _decode_v2_token(provided)
+                    return await call_next(request)
+                except Exception:
+                    pass
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Unauthorized"},
+            )
 
         return await call_next(request)
 

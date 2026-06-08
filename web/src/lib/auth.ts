@@ -5,9 +5,11 @@ const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export function getAuthToken(): string | null {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (!token) {
-    return null;
+  if (token) {
+    return token;
   }
+  // Fallback: v2 JWT token
+  return localStorage.getItem("cran_v2_auth_token") || null;
 
   // Check if token has expired
   const timestamp = localStorage.getItem(AUTH_TOKEN_TIMESTAMP_KEY);
