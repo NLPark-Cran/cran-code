@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from kimi_cli.web.api import open_in as open_in_api
+from cran_code.web.api import open_in as open_in_api
 
 
 @pytest.mark.anyio

@@ -1,6 +1,6 @@
 # Cran Code
 
-> Forked from [MoonshotAI/kimi-cli](https://github.com/MoonshotAI/kimi-cli). This project is being maintained independently by the NLPark-Cran team for the crys.tt2.li collaborative coding platform.
+> Forked from [MoonshotAI/cran-code](https://github.com/MoonshotAI/cran-code). This project is being maintained independently by the NLPark-Cran team for the crys.tt2.li collaborative coding platform.
 
 ## Project identity constraints (CRITICAL — do not drift)
 
@@ -17,8 +17,8 @@
 ### What NOT to change
 - `src/kimi_cli/constant.py:get_user_agent()` → must return `f"KimiCLI/{get_version()}"`.
 - LLM ProviderType enum value `kimi` in API schemas → this is a provider key, not branding.
-- Package name `kimi-cli` and CLI entry command `kimi` → keep as-is until an explicit migration decision is made.
-- User config path `~/.kimi/config.toml` and share dir `~/.kimi/` → keep for now to avoid breaking existing sessions.
+- Package name `cran-code` and CLI entry command `kimi` → keep as-is until an explicit migration decision is made.
+- User config path `~/.cran/config.toml` and share dir `~/.cran/` → keep for now to avoid breaking existing sessions.
 
 ## Quick commands
 
@@ -30,17 +30,17 @@
 
 ### Update (current workflow)
 ```bash
-uv tool upgrade kimi-cli --no-cache
+uv tool upgrade cran-code --no-cache
 ```
 
 ### Start web UI (current workflow)
 ```bash
-kimi web --no-open --public
+cran web --no-open --public
 ```
 
 For crys.tt2.li deployment, use:
 ```bash
-kimi web --host 0.0.0.0 --port 5494 --public --no-open \
+cran web --host 0.0.0.0 --port 5494 --public --no-open \
   --allowed-origins "https://crys.tt2.li"
 ```
 
@@ -128,7 +128,7 @@ We are evaluating modern frontend tech for the web UI rewrite. Candidates from n
 - Python >=3.12 (ty config uses 3.14); line length 100.
 - Ruff handles lint + format (rules: E, F, UP, B, SIM, I); pyright + ty for type checks.
 - Tests use pytest + pytest-asyncio; files are `tests/test_*.py`.
-- CLI entry points: `kimi` / `kimi-cli` -> `src/kimi_cli/__main__.py`.
+- CLI entry points: `kimi` / `cran-code` -> `src/kimi_cli/__main__.py`.
 
 ## Git
 

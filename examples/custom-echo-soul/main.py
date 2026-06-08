@@ -1,11 +1,11 @@
 import asyncio
 from typing import Any
 
-from kimi_cli.llm import ALL_MODEL_CAPABILITIES, ModelCapability
-from kimi_cli.soul import StatusSnapshot, wire_send
-from kimi_cli.ui.shell import Shell
-from kimi_cli.utils.slashcmd import SlashCommand
-from kimi_cli.wire.types import ContentPart, StepBegin, TextPart
+from cran_code.llm import ALL_MODEL_CAPABILITIES, ModelCapability
+from cran_code.soul import StatusSnapshot, wire_send
+from cran_code.ui.shell import Shell
+from cran_code.utils.slashcmd import SlashCommand
+from cran_code.wire.types import ContentPart, StepBegin, TextPart
 
 
 class EchoSoul:

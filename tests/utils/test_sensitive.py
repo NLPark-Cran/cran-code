@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from kimi_cli.utils.sensitive import is_sensitive_file, sensitive_file_warning
+from cran_code.utils.sensitive import is_sensitive_file, sensitive_file_warning
 
 
 @pytest.mark.parametrize(

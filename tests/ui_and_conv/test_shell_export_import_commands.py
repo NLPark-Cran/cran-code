@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, Mock
 
 from kosong.message import Message
 
-from kimi_cli.session import Session
-from kimi_cli.ui.shell import export_import as shell_export_import
-from kimi_cli.wire.types import TextPart, TurnBegin, TurnEnd
+from cran_code.session import Session
+from cran_code.ui.shell import export_import as shell_export_import
+from cran_code.wire.types import TextPart, TurnBegin, TurnEnd
 
 
 def _make_shell_app(work_dir: Path) -> Mock:
-    from kimi_cli.soul.kimisoul import KimiSoul
+    from cran_code.soul.kimisoul import KimiSoul
 
     soul = Mock(spec=KimiSoul)
     soul.runtime.session.work_dir = work_dir

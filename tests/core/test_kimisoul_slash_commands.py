@@ -7,13 +7,13 @@ import pytest
 from kaos.path import KaosPath
 from kosong.tooling.empty import EmptyToolset
 
-import kimi_cli.soul.kimisoul as kimisoul_module
-from kimi_cli.skill import Skill
-from kimi_cli.skill.flow import Flow, FlowEdge, FlowNode
-from kimi_cli.soul.agent import Agent, Runtime
-from kimi_cli.soul.context import Context
-from kimi_cli.soul.kimisoul import KimiSoul
-from kimi_cli.utils.slashcmd import SlashCommand
+import cran_code.soul.kimisoul as kimisoul_module
+from cran_code.skill import Skill
+from cran_code.skill.flow import Flow, FlowEdge, FlowNode
+from cran_code.soul.agent import Agent, Runtime
+from cran_code.soul.context import Context
+from cran_code.soul.kimisoul import KimiSoul
+from cran_code.utils.slashcmd import SlashCommand
 
 
 def _make_flow() -> Flow:

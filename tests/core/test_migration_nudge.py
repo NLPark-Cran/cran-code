@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from kimi_cli.ui.shell import migration_nudge as mn
+from cran_code.ui.shell import migration_nudge as mn
 
 
 def test_install_command_per_platform():

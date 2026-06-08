@@ -4,8 +4,8 @@ import json
 
 from PIL import Image
 
-from kimi_cli.ui.shell import prompt as shell_prompt
-from kimi_cli.ui.shell.placeholders import AttachmentCache, PromptPlaceholderManager
+from cran_code.ui.shell import prompt as shell_prompt
+from cran_code.ui.shell.placeholders import AttachmentCache, PromptPlaceholderManager
 
 
 def _make_prompt_session(

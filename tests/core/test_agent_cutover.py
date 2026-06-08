@@ -4,8 +4,8 @@ import platform
 
 import pytest
 
-from kimi_cli.agentspec import DEFAULT_AGENT_FILE
-from kimi_cli.soul.agent import load_agent
+from cran_code.agentspec import DEFAULT_AGENT_FILE
+from cran_code.soul.agent import load_agent
 
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="Skipping test on Windows")

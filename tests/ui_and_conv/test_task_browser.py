@@ -6,12 +6,12 @@ from pathlib import Path
 
 from kosong.tooling.empty import EmptyToolset
 
-from kimi_cli.background import TaskRuntime, TaskSpec, TaskStatus
-from kimi_cli.soul.agent import Agent, Runtime
-from kimi_cli.soul.context import Context
-from kimi_cli.soul.kimisoul import KimiSoul
-from kimi_cli.ui.shell import task_browser as task_browser_module
-from kimi_cli.ui.shell.task_browser import TaskBrowserApp, TaskBrowserModel
+from cran_code.background import TaskRuntime, TaskSpec, TaskStatus
+from cran_code.soul.agent import Agent, Runtime
+from cran_code.soul.context import Context
+from cran_code.soul.kimisoul import KimiSoul
+from cran_code.ui.shell import task_browser as task_browser_module
+from cran_code.ui.shell.task_browser import TaskBrowserApp, TaskBrowserModel
 
 
 def _make_soul(runtime: Runtime, tmp_path: Path) -> KimiSoul:

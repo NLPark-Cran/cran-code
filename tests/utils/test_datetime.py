@@ -1,6 +1,6 @@
 """Tests for datetime utility functions, including format_elapsed."""
 
-from kimi_cli.utils.datetime import format_elapsed
+from cran_code.utils.datetime import format_elapsed
 
 
 class TestFormatElapsed:

@@ -8,7 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "kimi-cli",
+    "cran-code",
     "kimi-code",
     "kimi-sdk",
     "kosong",
@@ -612,6 +612,110 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/6f/54/6d6ceeff4bed42e7a10d6064d35ee43a810e7b3e8beb4abeae8cff4713ae/courlan-1.3.2.tar.gz", hash = "sha256:0b66f4db3a9c39a6e22dd247c72cfaa57d68ea660e94bb2c84ec7db8712af190", size = 206382, upload-time = "2024-10-29T16:40:20.994Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8e/ca/6a667ccbe649856dcd3458bab80b016681b274399d6211187c6ab969fc50/courlan-1.3.2-py3-none-any.whl", hash = "sha256:d0dab52cf5b5b1000ee2839fbc2837e93b2514d3cb5bb61ae158a55b7a04c6be", size = 33848, upload-time = "2024-10-29T16:40:18.325Z" },
+]
+
+[[package]]
+name = "cran-code"
+version = "1.47.0"
+source = { editable = "." }
+dependencies = [
+    { name = "agent-client-protocol" },
+    { name = "aiofiles" },
+    { name = "aiohttp" },
+    { name = "aiosqlite" },
+    { name = "alembic" },
+    { name = "batrachian-toad", marker = "python_full_version >= '3.14'" },
+    { name = "fastapi" },
+    { name = "fastmcp" },
+    { name = "httpx", extra = ["socks"] },
+    { name = "jinja2" },
+    { name = "keyring" },
+    { name = "kosong", extra = ["contrib"] },
+    { name = "loguru", version = "0.6.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
+    { name = "loguru", version = "0.7.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "lxml" },
+    { name = "passlib", extra = ["bcrypt"] },
+    { name = "pillow" },
+    { name = "prompt-toolkit" },
+    { name = "pydantic" },
+    { name = "pykaos" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'" },
+    { name = "python-jose", extra = ["cryptography"] },
+    { name = "python-multipart" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "ripgrepy" },
+    { name = "scalar-fastapi" },
+    { name = "setproctitle" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "streamingjson" },
+    { name = "tenacity" },
+    { name = "tomlkit" },
+    { name = "trafilatura" },
+    { name = "typer" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "inline-snapshot", extra = ["black"] },
+    { name = "pyinstaller" },
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "agent-client-protocol", specifier = "==0.8.0" },
+    { name = "aiofiles", specifier = ">=24.0,<26.0" },
+    { name = "aiohttp", specifier = "==3.13.3" },
+    { name = "aiosqlite", specifier = ">=0.21.0" },
+    { name = "alembic", specifier = ">=1.15.0" },
+    { name = "batrachian-toad", marker = "python_full_version >= '3.14'", specifier = "==0.5.23" },
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "fastmcp", specifier = "==3.2.4" },
+    { name = "httpx", extras = ["socks"], specifier = "==0.28.1" },
+    { name = "jinja2", specifier = "==3.1.6" },
+    { name = "keyring", specifier = ">=25.7.0" },
+    { name = "kosong", extras = ["contrib"], editable = "packages/kosong" },
+    { name = "loguru", specifier = ">=0.6.0,<0.8" },
+    { name = "lxml", specifier = "==6.0.2" },
+    { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
+    { name = "pillow", specifier = "==12.2.0" },
+    { name = "prompt-toolkit", specifier = "==3.0.52" },
+    { name = "pydantic", specifier = "==2.12.5" },
+    { name = "pykaos", editable = "packages/kaos" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'", specifier = ">=12.1" },
+    { name = "python-jose", extras = ["cryptography"], specifier = ">=3.4.0" },
+    { name = "python-multipart", specifier = ">=0.0.20" },
+    { name = "pyyaml", specifier = "==6.0.3" },
+    { name = "rich", specifier = "==14.2.0" },
+    { name = "ripgrepy", specifier = "==2.2.0" },
+    { name = "scalar-fastapi", specifier = ">=1.5.0" },
+    { name = "setproctitle", specifier = ">=1.3.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.40" },
+    { name = "streamingjson", specifier = "==0.0.5" },
+    { name = "tenacity", specifier = "==9.1.2" },
+    { name = "tomlkit", specifier = "==0.14.0" },
+    { name = "trafilatura", specifier = "==2.0.0" },
+    { name = "typer", specifier = "==0.21.1" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
+    { name = "websockets", specifier = ">=14.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "inline-snapshot", extras = ["black"], specifier = ">=0.31.1" },
+    { name = "pyinstaller", specifier = "==6.18.0" },
+    { name = "pyright", specifier = ">=1.1.407" },
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "pytest-asyncio", specifier = ">=1.3.0" },
+    { name = "ruff", specifier = ">=0.14.10" },
+    { name = "ty", specifier = ">=0.0.9" },
 ]
 
 [[package]]
@@ -1451,13 +1555,11 @@ wheels = [
 [[package]]
 name = "kimi-cli"
 version = "1.47.0"
-source = { editable = "." }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agent-client-protocol" },
     { name = "aiofiles" },
     { name = "aiohttp" },
-    { name = "aiosqlite" },
-    { name = "alembic" },
     { name = "batrachian-toad", marker = "python_full_version >= '3.14'" },
     { name = "fastapi" },
     { name = "fastmcp" },
@@ -1468,20 +1570,16 @@ dependencies = [
     { name = "loguru", version = "0.6.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
     { name = "loguru", version = "0.7.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "lxml" },
-    { name = "passlib", extra = ["bcrypt"] },
     { name = "pillow" },
     { name = "prompt-toolkit" },
     { name = "pydantic" },
     { name = "pykaos" },
     { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'" },
-    { name = "python-jose", extra = ["cryptography"] },
-    { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "rich" },
     { name = "ripgrepy" },
     { name = "scalar-fastapi" },
     { name = "setproctitle" },
-    { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "streamingjson" },
     { name = "tenacity" },
     { name = "tomlkit" },
@@ -1490,66 +1588,9 @@ dependencies = [
     { name = "uvicorn", extra = ["standard"] },
     { name = "websockets" },
 ]
-
-[package.dev-dependencies]
-dev = [
-    { name = "inline-snapshot", extra = ["black"] },
-    { name = "pyinstaller" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-    { name = "ty" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "agent-client-protocol", specifier = "==0.8.0" },
-    { name = "aiofiles", specifier = ">=24.0,<26.0" },
-    { name = "aiohttp", specifier = "==3.13.3" },
-    { name = "aiosqlite", specifier = ">=0.21.0" },
-    { name = "alembic", specifier = ">=1.15.0" },
-    { name = "batrachian-toad", marker = "python_full_version >= '3.14'", specifier = "==0.5.23" },
-    { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "fastmcp", specifier = "==3.2.4" },
-    { name = "httpx", extras = ["socks"], specifier = "==0.28.1" },
-    { name = "jinja2", specifier = "==3.1.6" },
-    { name = "keyring", specifier = ">=25.7.0" },
-    { name = "kosong", extras = ["contrib"], editable = "packages/kosong" },
-    { name = "loguru", specifier = ">=0.6.0,<0.8" },
-    { name = "lxml", specifier = "==6.0.2" },
-    { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
-    { name = "pillow", specifier = "==12.2.0" },
-    { name = "prompt-toolkit", specifier = "==3.0.52" },
-    { name = "pydantic", specifier = "==2.12.5" },
-    { name = "pykaos", editable = "packages/kaos" },
-    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'", specifier = ">=12.1" },
-    { name = "python-jose", extras = ["cryptography"], specifier = ">=3.4.0" },
-    { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "pyyaml", specifier = "==6.0.3" },
-    { name = "rich", specifier = "==14.2.0" },
-    { name = "ripgrepy", specifier = "==2.2.0" },
-    { name = "scalar-fastapi", specifier = ">=1.5.0" },
-    { name = "setproctitle", specifier = ">=1.3.0" },
-    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.40" },
-    { name = "streamingjson", specifier = "==0.0.5" },
-    { name = "tenacity", specifier = "==9.1.2" },
-    { name = "tomlkit", specifier = "==0.14.0" },
-    { name = "trafilatura", specifier = "==2.0.0" },
-    { name = "typer", specifier = "==0.21.1" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
-    { name = "websockets", specifier = ">=14.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "inline-snapshot", extras = ["black"], specifier = ">=0.31.1" },
-    { name = "pyinstaller", specifier = "==6.18.0" },
-    { name = "pyright", specifier = ">=1.1.407" },
-    { name = "pytest", specifier = ">=9.0.2" },
-    { name = "pytest-asyncio", specifier = ">=1.3.0" },
-    { name = "ruff", specifier = ">=0.14.10" },
-    { name = "ty", specifier = ">=0.0.9" },
+sdist = { url = "https://files.pythonhosted.org/packages/ce/44/00b9a43a57c683a21ec61a8b533039bf0145e23c1228f316577485288fef/kimi_cli-1.47.0.tar.gz", hash = "sha256:10f4ca9a29c70d101a57929e9b793fc0927acebe2a08f7c26764b504abbbc8ee", size = 5283048, upload-time = "2026-06-05T10:36:32.827Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/a7/9e1de1cdcc464cf3934f6774ee66b39dfcd3c4a7d88d96686e2f59024b29/kimi_cli-1.47.0-py3-none-any.whl", hash = "sha256:736008265f2d6f3fb88ca8d69dde3ffacba4bd52e7f5c9ff986d320bec6a50f4", size = 5599650, upload-time = "2026-06-05T10:36:30.153Z" },
 ]
 
 [[package]]
@@ -1561,7 +1602,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "kimi-cli", editable = "." }]
+requires-dist = [{ name = "kimi-cli", specifier = "==1.47.0" }]
 
 [[package]]
 name = "kimi-sdk"

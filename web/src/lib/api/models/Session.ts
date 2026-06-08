@@ -34,7 +34,7 @@ export interface Session {
      */
     sessionId: string;
     /**
-     * Session title derived from kimi-cli history
+     * Session title derived from cran-code history
      * @type {string}
      * @memberof Session
      */

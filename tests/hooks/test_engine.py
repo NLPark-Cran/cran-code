@@ -2,8 +2,8 @@ from unittest.mock import patch
 
 import pytest
 
-from kimi_cli.hooks.config import HookDef
-from kimi_cli.hooks.engine import HookEngine
+from cran_code.hooks.config import HookDef
+from cran_code.hooks.engine import HookEngine
 
 
 @pytest.fixture
@@ -78,7 +78,7 @@ async def test_telemetry_failure_does_not_discard_block_result(engine):
     to fail open. For PreToolUse block, dropping results to [] silently
     bypasses the block — that's exactly what this guard prevents.
     """
-    with patch("kimi_cli.telemetry.track", side_effect=RuntimeError("telemetry broken")):
+    with patch("cran_code.telemetry.track", side_effect=RuntimeError("telemetry broken")):
         results = await engine.trigger("PreToolUse", matcher_value="ReadFile", input_data={})
     assert len(results) == 1
     assert results[0].action == "block"

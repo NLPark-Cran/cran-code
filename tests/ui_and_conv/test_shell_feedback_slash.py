@@ -14,14 +14,14 @@ import pytest
 from kosong.tooling.empty import EmptyToolset
 from pydantic import SecretStr
 
-from kimi_cli.config import LLMProvider, OAuthRef
-from kimi_cli.soul.agent import Agent, Runtime
-from kimi_cli.soul.context import Context
-from kimi_cli.soul.kimisoul import KimiSoul
-from kimi_cli.ui.shell import Shell
-from kimi_cli.ui.shell import slash as shell_slash
-from kimi_cli.ui.shell.slash import registry as shell_slash_registry
-from kimi_cli.ui.shell.slash import shell_mode_registry
+from cran_code.config import LLMProvider, OAuthRef
+from cran_code.soul.agent import Agent, Runtime
+from cran_code.soul.context import Context
+from cran_code.soul.kimisoul import KimiSoul
+from cran_code.ui.shell import Shell
+from cran_code.ui.shell import slash as shell_slash
+from cran_code.ui.shell.slash import registry as shell_slash_registry
+from cran_code.ui.shell.slash import shell_mode_registry
 
 
 def _make_shell_app(runtime: Runtime, tmp_path: Path) -> SimpleNamespace:
@@ -76,7 +76,7 @@ def _setup_submission_mocks(monkeypatch, *, feedback_text="Great tool!", session
         AsyncMock(return_value=feedback_text),
     )
     if session_factory is not None:
-        monkeypatch.setattr("kimi_cli.utils.aiohttp.new_client_session", session_factory)
+        monkeypatch.setattr("cran_code.utils.aiohttp.new_client_session", session_factory)
     return print_mock, open_mock
 
 

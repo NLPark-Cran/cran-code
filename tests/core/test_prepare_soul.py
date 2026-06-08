@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 from kosong.tooling.empty import EmptyToolset
 
-from kimi_cli.soul.agent import Agent as SoulAgent
-from kimi_cli.soul.context import Context
-from kimi_cli.subagents import AgentLaunchSpec, AgentTypeDefinition, ToolPolicy
-from kimi_cli.subagents.builder import SubagentBuilder
-from kimi_cli.subagents.core import SubagentRunSpec, prepare_soul
+from cran_code.soul.agent import Agent as SoulAgent
+from cran_code.soul.context import Context
+from cran_code.subagents import AgentLaunchSpec, AgentTypeDefinition, ToolPolicy
+from cran_code.subagents.builder import SubagentBuilder
+from cran_code.subagents.core import SubagentRunSpec, prepare_soul
 
 
 def _register_coder(runtime):
@@ -50,7 +50,7 @@ def _patch_load_agent(monkeypatch, *, system_prompt="sys"):
             runtime=runtime,
         )
 
-    monkeypatch.setattr("kimi_cli.subagents.builder.load_agent", fake_load_agent)
+    monkeypatch.setattr("cran_code.subagents.builder.load_agent", fake_load_agent)
 
 
 def _create_instance(runtime, agent_id):

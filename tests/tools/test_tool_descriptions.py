@@ -7,20 +7,20 @@ import platform
 import pytest
 from inline_snapshot import snapshot
 
-from kimi_cli.tools.agent import Agent as AgentTool
-from kimi_cli.tools.background import TaskList, TaskOutput, TaskStop
-from kimi_cli.tools.dmail import SendDMail
-from kimi_cli.tools.file.glob import Glob
-from kimi_cli.tools.file.grep_local import Grep
-from kimi_cli.tools.file.read import ReadFile
-from kimi_cli.tools.file.read_media import ReadMediaFile
-from kimi_cli.tools.file.replace import StrReplaceFile
-from kimi_cli.tools.file.write import WriteFile
-from kimi_cli.tools.shell import Shell
-from kimi_cli.tools.think import Think
-from kimi_cli.tools.todo import SetTodoList
-from kimi_cli.tools.web.fetch import FetchURL
-from kimi_cli.tools.web.search import SearchWeb
+from cran_code.tools.agent import Agent as AgentTool
+from cran_code.tools.background import TaskList, TaskOutput, TaskStop
+from cran_code.tools.dmail import SendDMail
+from cran_code.tools.file.glob import Glob
+from cran_code.tools.file.grep_local import Grep
+from cran_code.tools.file.read import ReadFile
+from cran_code.tools.file.read_media import ReadMediaFile
+from cran_code.tools.file.replace import StrReplaceFile
+from cran_code.tools.file.write import WriteFile
+from cran_code.tools.shell import Shell
+from cran_code.tools.think import Think
+from cran_code.tools.todo import SetTodoList
+from cran_code.tools.web.fetch import FetchURL
+from cran_code.tools.web.search import SearchWeb
 
 
 def test_agent_description(agent_tool: AgentTool):

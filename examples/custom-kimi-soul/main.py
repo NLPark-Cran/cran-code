@@ -8,15 +8,15 @@ from kosong.tooling import CallableTool2, ToolError, ToolOk, Toolset
 from kosong.tooling.simple import SimpleToolset
 from pydantic import BaseModel, Field, SecretStr
 
-from kimi_cli.auth.oauth import OAuthManager
-from kimi_cli.config import LLMModel, LLMProvider, get_default_config
-from kimi_cli.llm import LLM, create_llm
-from kimi_cli.session import Session
-from kimi_cli.soul.agent import Agent, Runtime
-from kimi_cli.soul.context import Context
-from kimi_cli.soul.kimisoul import KimiSoul
-from kimi_cli.ui.shell import Shell
-from kimi_cli.wire.types import ContentPart, ToolReturnValue
+from cran_code.auth.oauth import OAuthManager
+from cran_code.config import LLMModel, LLMProvider, get_default_config
+from cran_code.llm import LLM, create_llm
+from cran_code.session import Session
+from cran_code.soul.agent import Agent, Runtime
+from cran_code.soul.context import Context
+from cran_code.soul.kimisoul import KimiSoul
+from cran_code.ui.shell import Shell
+from cran_code.wire.types import ContentPart, ToolReturnValue
 
 
 class HakimiSoul(KimiSoul):

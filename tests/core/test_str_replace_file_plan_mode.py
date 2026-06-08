@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock
 from kaos.path import KaosPath
 from kosong.tooling import ToolError, ToolReturnValue
 
-from kimi_cli.soul.agent import Runtime
-from kimi_cli.soul.approval import Approval
-from kimi_cli.tools.file.replace import Edit, Params, StrReplaceFile
+from cran_code.soul.agent import Runtime
+from cran_code.soul.approval import Approval
+from cran_code.tools.file.replace import Edit, Params, StrReplaceFile
 from tests.conftest import tool_call_context
 
 

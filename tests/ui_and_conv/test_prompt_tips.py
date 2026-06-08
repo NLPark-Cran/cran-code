@@ -9,9 +9,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from kimi_cli.soul import StatusSnapshot
-from kimi_cli.ui.shell import prompt as shell_prompt
-from kimi_cli.ui.shell.prompt import (
+from cran_code.soul import StatusSnapshot
+from cran_code.ui.shell import prompt as shell_prompt
+from cran_code.ui.shell.prompt import (
     _GIT_STATUS_TTL,
     PROMPT_SYMBOL,
     BgTaskCounts,

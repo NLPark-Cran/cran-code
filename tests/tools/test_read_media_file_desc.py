@@ -7,10 +7,10 @@ from typing import cast
 import pytest
 from inline_snapshot import snapshot
 
-from kimi_cli.llm import ModelCapability
-from kimi_cli.soul.agent import Runtime
-from kimi_cli.tools import SkipThisTool
-from kimi_cli.tools.file.read_media import ReadMediaFile
+from cran_code.llm import ModelCapability
+from cran_code.soul.agent import Runtime
+from cran_code.tools import SkipThisTool
+from cran_code.tools.file.read_media import ReadMediaFile
 
 
 @pytest.mark.parametrize(

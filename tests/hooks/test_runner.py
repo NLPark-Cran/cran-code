@@ -1,6 +1,6 @@
 import pytest
 
-from kimi_cli.hooks.runner import run_hook
+from cran_code.hooks.runner import run_hook
 
 
 @pytest.mark.asyncio

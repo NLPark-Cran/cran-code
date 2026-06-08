@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 import typer
 
-from kimi_cli.cli.plugin import _parse_git_url, _resolve_source
-from kimi_cli.plugin import (
+from cran_code.cli.plugin import _parse_git_url, _resolve_source
+from cran_code.plugin import (
     PluginError,
     PluginRuntime,
     inject_config,

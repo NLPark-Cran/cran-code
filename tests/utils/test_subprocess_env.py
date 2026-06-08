@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from kimi_cli.utils.subprocess_env import get_clean_env, get_noninteractive_env
+from cran_code.utils.subprocess_env import get_clean_env, get_noninteractive_env
 
 # --- get_clean_env ---
 

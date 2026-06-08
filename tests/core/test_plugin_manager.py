@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import SecretStr
 
-from kimi_cli.plugin import PluginError
-from kimi_cli.plugin.manager import (
+from cran_code.plugin import PluginError
+from cran_code.plugin.manager import (
     collect_host_values,
     install_plugin,
     list_plugins,
@@ -194,7 +194,7 @@ async def test_skill_discovery_includes_plugins_dir(tmp_path: Path, monkeypatch)
     """Plugins dir should be included in skill discovery roots."""
     from kaos.path import KaosPath
 
-    from kimi_cli.skill import resolve_skills_roots
+    from cran_code.skill import resolve_skills_roots
 
     plugins_dir = tmp_path / "plugins"
     plugins_dir.mkdir()

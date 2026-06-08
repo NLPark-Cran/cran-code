@@ -16,39 +16,39 @@ from kaos.path import KaosPath
 from kosong.chat_provider.mock import MockChatProvider
 from pydantic import SecretStr
 
-from kimi_cli.auth.oauth import OAuthManager
-from kimi_cli.background import BackgroundTaskManager
-from kimi_cli.config import Config, MoonshotSearchConfig, get_default_config
-from kimi_cli.llm import ALL_MODEL_CAPABILITIES, LLM
-from kimi_cli.metadata import WorkDirMeta
-from kimi_cli.notifications import NotificationManager
-from kimi_cli.session import Session
-from kimi_cli.session_state import SessionState
-from kimi_cli.soul.agent import BuiltinSystemPromptArgs, LaborMarket, Runtime
-from kimi_cli.soul.approval import Approval
-from kimi_cli.soul.denwarenji import DenwaRenji
-from kimi_cli.soul.toolset import KimiToolset
-from kimi_cli.subagents import AgentTypeDefinition, ToolPolicy
-from kimi_cli.tools.agent import Agent as AgentTool
-from kimi_cli.tools.background import (
+from cran_code.auth.oauth import OAuthManager
+from cran_code.background import BackgroundTaskManager
+from cran_code.config import Config, MoonshotSearchConfig, get_default_config
+from cran_code.llm import ALL_MODEL_CAPABILITIES, LLM
+from cran_code.metadata import WorkDirMeta
+from cran_code.notifications import NotificationManager
+from cran_code.session import Session
+from cran_code.session_state import SessionState
+from cran_code.soul.agent import BuiltinSystemPromptArgs, LaborMarket, Runtime
+from cran_code.soul.approval import Approval
+from cran_code.soul.denwarenji import DenwaRenji
+from cran_code.soul.toolset import KimiToolset
+from cran_code.subagents import AgentTypeDefinition, ToolPolicy
+from cran_code.tools.agent import Agent as AgentTool
+from cran_code.tools.background import (
     TaskList,
     TaskOutput,
     TaskStop,
 )
-from kimi_cli.tools.dmail import SendDMail
-from kimi_cli.tools.file.glob import Glob
-from kimi_cli.tools.file.grep_local import Grep
-from kimi_cli.tools.file.read import ReadFile
-from kimi_cli.tools.file.read_media import ReadMediaFile
-from kimi_cli.tools.file.replace import StrReplaceFile
-from kimi_cli.tools.file.write import WriteFile
-from kimi_cli.tools.shell import Shell
-from kimi_cli.tools.think import Think
-from kimi_cli.tools.todo import SetTodoList
-from kimi_cli.tools.web.fetch import FetchURL
-from kimi_cli.tools.web.search import SearchWeb
-from kimi_cli.utils.environment import Environment
-from kimi_cli.wire.file import WireFile
+from cran_code.tools.dmail import SendDMail
+from cran_code.tools.file.glob import Glob
+from cran_code.tools.file.grep_local import Grep
+from cran_code.tools.file.read import ReadFile
+from cran_code.tools.file.read_media import ReadMediaFile
+from cran_code.tools.file.replace import StrReplaceFile
+from cran_code.tools.file.write import WriteFile
+from cran_code.tools.shell import Shell
+from cran_code.tools.think import Think
+from cran_code.tools.todo import SetTodoList
+from cran_code.tools.web.fetch import FetchURL
+from cran_code.tools.web.search import SearchWeb
+from cran_code.utils.environment import Environment
+from cran_code.wire.file import WireFile
 
 
 @pytest.fixture
@@ -218,8 +218,8 @@ def toolset() -> KimiToolset:
 @contextmanager
 def tool_call_context(tool_name: str) -> Generator[None]:
     """Create a tool call context."""
-    from kimi_cli.soul.toolset import current_tool_call
-    from kimi_cli.wire.types import ToolCall
+    from cran_code.soul.toolset import current_tool_call
+    from cran_code.wire.types import ToolCall
 
     token = current_tool_call.set(
         ToolCall(id="test", function=ToolCall.FunctionBody(name=tool_name, arguments=None))

@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from kimi_cli.ui.shell import Shell
-from kimi_cli.ui.shell import slash as shell_slash
-from kimi_cli.ui.shell.slash import registry as shell_slash_registry
+from cran_code.ui.shell import Shell
+from cran_code.ui.shell import slash as shell_slash
+from cran_code.ui.shell.slash import registry as shell_slash_registry
 
 UPGRADE = shell_slash_registry.find_command("upgrade")
 INSTALL_SH = "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"

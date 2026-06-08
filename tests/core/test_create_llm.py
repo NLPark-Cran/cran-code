@@ -6,8 +6,8 @@ from kosong.chat_provider.kimi import Kimi
 from kosong.contrib.chat_provider.openai_responses import OpenAIResponses
 from pydantic import SecretStr
 
-from kimi_cli.config import LLMModel, LLMProvider
-from kimi_cli.llm import augment_provider_with_env_vars, create_llm
+from cran_code.config import LLMModel, LLMProvider
+from cran_code.llm import augment_provider_with_env_vars, create_llm
 
 
 def test_augment_provider_with_env_vars_kimi(monkeypatch):

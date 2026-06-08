@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 
-from kimi_cli.subagents import AgentLaunchSpec, SubagentStore
+from cran_code.subagents import AgentLaunchSpec, SubagentStore
 
 
 def test_create_and_load_instance(session) -> None:

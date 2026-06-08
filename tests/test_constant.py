@@ -1,10 +1,10 @@
-"""Tests for src/kimi_cli.constant.py."""
+"""Tests for src/cran_code.constant.py."""
 
 from __future__ import annotations
 
 import pytest
 
-from kimi_cli.constant import _normalize_remote, get_build_sha
+from cran_code.constant import _normalize_remote, get_build_sha
 
 
 class TestNormalizeRemote:

@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from inline_snapshot import snapshot
 
-from kimi_cli.tools.file.grep_local import Grep, Params, _build_rg_args, _strip_path_prefix
-from kimi_cli.tools.utils import DEFAULT_MAX_CHARS
+from cran_code.tools.file.grep_local import Grep, Params, _build_rg_args, _strip_path_prefix
+from cran_code.tools.utils import DEFAULT_MAX_CHARS
 
 
 @pytest.fixture
@@ -766,7 +766,7 @@ def test_strip_path_prefix_posix():
 
 def test_strip_path_prefix_windows(monkeypatch):
     """Prefix stripping works with Windows paths (backslash)."""
-    monkeypatch.setattr("kimi_cli.tools.file.grep_local.os.sep", "\\")
+    monkeypatch.setattr("cran_code.tools.file.grep_local.os.sep", "\\")
 
     output = "C:\\repo\\src\\a.py:42:code\nC:\\repo\\src\\b.py-41-context\n--\n"
     result = _strip_path_prefix(output, "C:\\repo")

@@ -19,15 +19,15 @@ from kosong.tooling import Tool
 from kosong.tooling.simple import SimpleToolset
 from pydantic import SecretStr
 
-from kimi_cli.config import LLMModel, LLMProvider, OAuthRef
-from kimi_cli.llm import LLM
-from kimi_cli.soul import run_soul
-from kimi_cli.soul.agent import Agent, Runtime
-from kimi_cli.soul.context import Context
-from kimi_cli.soul.kimisoul import KimiSoul
-from kimi_cli.utils.aioqueue import QueueShutDown
-from kimi_cli.wire import Wire
-from kimi_cli.wire.types import StepBegin, StepRetry
+from cran_code.config import LLMModel, LLMProvider, OAuthRef
+from cran_code.llm import LLM
+from cran_code.soul import run_soul
+from cran_code.soul.agent import Agent, Runtime
+from cran_code.soul.context import Context
+from cran_code.soul.kimisoul import KimiSoul
+from cran_code.utils.aioqueue import QueueShutDown
+from cran_code.wire import Wire
+from cran_code.wire.types import StepBegin, StepRetry
 
 
 class StaticStreamedMessage:

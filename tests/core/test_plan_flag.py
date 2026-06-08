@@ -8,8 +8,8 @@ from uuid import uuid4
 
 import pytest
 
-import kimi_cli.app as app_module
-from kimi_cli.app import KimiCLI
+import cran_code.app as app_module
+from cran_code.app import KimiCLI
 
 # ---------------------------------------------------------------------------
 # Helpers — lightweight fakes for KimiCLI.create() dependencies
@@ -257,12 +257,12 @@ class TestSchedulePlanActivationReminder:
         """Reminder is scheduled when plan mode is active."""
         from kosong.tooling.empty import EmptyToolset
 
-        from kimi_cli.soul.agent import Agent
-        from kimi_cli.soul.context import Context
-        from kimi_cli.soul.kimisoul import KimiSoul
+        from cran_code.soul.agent import Agent
+        from cran_code.soul.context import Context
+        from cran_code.soul.kimisoul import KimiSoul
 
         # Redirect PLANS_DIR to tmp_path to avoid filesystem side effects
-        monkeypatch.setattr("kimi_cli.tools.plan.heroes.PLANS_DIR", tmp_path)
+        monkeypatch.setattr("cran_code.tools.plan.heroes.PLANS_DIR", tmp_path)
 
         agent = Agent(
             name="Test",
@@ -285,9 +285,9 @@ class TestSchedulePlanActivationReminder:
         """Reminder is NOT scheduled when plan mode is inactive."""
         from kosong.tooling.empty import EmptyToolset
 
-        from kimi_cli.soul.agent import Agent
-        from kimi_cli.soul.context import Context
-        from kimi_cli.soul.kimisoul import KimiSoul
+        from cran_code.soul.agent import Agent
+        from cran_code.soul.context import Context
+        from cran_code.soul.kimisoul import KimiSoul
 
         agent = Agent(
             name="Test",
@@ -308,7 +308,7 @@ class TestWebWorkerResumedDetection:
     @pytest.mark.asyncio
     async def test_new_session_without_state_file_is_not_resumed(self, tmp_path):
         """A brand-new web session (no state.json) should pass resumed=False."""
-        from kimi_cli.web.runner.worker import run_worker
+        from cran_code.web.runner.worker import run_worker
 
         session_dir = tmp_path / "session-dir"
         session_dir.mkdir()
@@ -324,12 +324,12 @@ class TestWebWorkerResumedDetection:
             raise _StopWorker  # abort after capturing args
 
         fake_session = SimpleNamespace(dir=session_dir)
-        fake_joint = SimpleNamespace(kimi_cli_session=fake_session)
+        fake_joint = SimpleNamespace(cran_code_session=fake_session)
 
         with (
-            patch("kimi_cli.web.runner.worker.load_session_by_id", return_value=fake_joint),
+            patch("cran_code.web.runner.worker.load_session_by_id", return_value=fake_joint),
             patch(
-                "kimi_cli.web.runner.worker.get_global_mcp_config_file",
+                "cran_code.web.runner.worker.get_global_mcp_config_file",
                 return_value=tmp_path / "no-mcp.json",
             ),
             patch.object(KimiCLI, "create", side_effect=spy_create),
@@ -342,7 +342,7 @@ class TestWebWorkerResumedDetection:
     @pytest.mark.asyncio
     async def test_existing_session_with_state_file_is_resumed(self, tmp_path):
         """A session with state.json on disk should pass resumed=True."""
-        from kimi_cli.web.runner.worker import run_worker
+        from cran_code.web.runner.worker import run_worker
 
         session_dir = tmp_path / "session-dir"
         session_dir.mkdir()
@@ -358,12 +358,12 @@ class TestWebWorkerResumedDetection:
             raise _StopWorker
 
         fake_session = SimpleNamespace(dir=session_dir)
-        fake_joint = SimpleNamespace(kimi_cli_session=fake_session)
+        fake_joint = SimpleNamespace(cran_code_session=fake_session)
 
         with (
-            patch("kimi_cli.web.runner.worker.load_session_by_id", return_value=fake_joint),
+            patch("cran_code.web.runner.worker.load_session_by_id", return_value=fake_joint),
             patch(
-                "kimi_cli.web.runner.worker.get_global_mcp_config_file",
+                "cran_code.web.runner.worker.get_global_mcp_config_file",
                 return_value=tmp_path / "no-mcp.json",
             ),
             patch.object(KimiCLI, "create", side_effect=spy_create),

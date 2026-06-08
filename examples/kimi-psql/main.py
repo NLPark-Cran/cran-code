@@ -32,16 +32,16 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from kimi_cli.auth.oauth import OAuthManager
-from kimi_cli.config import LLMModel, LLMProvider
-from kimi_cli.llm import LLM, create_llm
-from kimi_cli.session import Session
-from kimi_cli.soul import LLMNotSet, LLMNotSupported, MaxStepsReached, RunCancelled, run_soul
-from kimi_cli.soul.agent import Runtime
-from kimi_cli.soul.context import Context
-from kimi_cli.soul.kimisoul import KimiSoul
-from kimi_cli.ui.shell.visualize import visualize
-from kimi_cli.wire.types import StatusUpdate
+from cran_code.auth.oauth import OAuthManager
+from cran_code.config import LLMModel, LLMProvider
+from cran_code.llm import LLM, create_llm
+from cran_code.session import Session
+from cran_code.soul import LLMNotSet, LLMNotSupported, MaxStepsReached, RunCancelled, run_soul
+from cran_code.soul.agent import Runtime
+from cran_code.soul.context import Context
+from cran_code.soul.kimisoul import KimiSoul
+from cran_code.ui.shell.visualize import visualize
+from cran_code.wire.types import StatusUpdate
 
 
 class ExecuteSqlParams(BaseModel):
@@ -265,9 +265,9 @@ async def create_psql_soul(llm: LLM | None, conninfo: str) -> KimiSoul:
     and standard kimi-cli tools."""
     from typing import cast
 
-    from kimi_cli.config import load_config
-    from kimi_cli.soul.agent import load_agent
-    from kimi_cli.soul.toolset import KimiToolset
+    from cran_code.config import load_config
+    from cran_code.soul.agent import load_agent
+    from cran_code.soul.toolset import KimiToolset
 
     config = load_config()
     kaos_work_dir = KaosPath.cwd()
@@ -551,8 +551,8 @@ async def _run_async(
     config_file: Path | None = None,
 ) -> None:
     """Async entry point."""
-    from kimi_cli.config import load_config
-    from kimi_cli.llm import augment_provider_with_env_vars
+    from cran_code.config import load_config
+    from cran_code.llm import augment_provider_with_env_vars
 
     # If conninfo URL is provided, use it directly
     if conninfo:

@@ -7,8 +7,8 @@ import platform
 import pytest
 from inline_snapshot import snapshot
 
-from kimi_cli.agentspec import DEFAULT_AGENT_FILE
-from kimi_cli.soul.agent import Runtime, load_agent
+from cran_code.agentspec import DEFAULT_AGENT_FILE
+from cran_code.soul.agent import Runtime, load_agent
 
 
 @pytest.mark.skipif(platform.system() == "Windows", reason="Skipping test on Windows")
@@ -201,15 +201,15 @@ At any time, you should be HELPFUL, CONCISE, and ACCURATE. Be thorough in your a
                 None,
                 "allowlist",
                 (
-                    "kimi_cli.tools.shell:Shell",
-                    "kimi_cli.tools.file:ReadFile",
-                    "kimi_cli.tools.file:ReadMediaFile",
-                    "kimi_cli.tools.file:Glob",
-                    "kimi_cli.tools.file:Grep",
-                    "kimi_cli.tools.file:WriteFile",
-                    "kimi_cli.tools.file:StrReplaceFile",
-                    "kimi_cli.tools.web:SearchWeb",
-                    "kimi_cli.tools.web:FetchURL",
+                    "cran_code.tools.shell:Shell",
+                    "cran_code.tools.file:ReadFile",
+                    "cran_code.tools.file:ReadMediaFile",
+                    "cran_code.tools.file:Glob",
+                    "cran_code.tools.file:Grep",
+                    "cran_code.tools.file:WriteFile",
+                    "cran_code.tools.file:StrReplaceFile",
+                    "cran_code.tools.web:SearchWeb",
+                    "cran_code.tools.web:FetchURL",
                 ),
             ),
             (
@@ -219,13 +219,13 @@ At any time, you should be HELPFUL, CONCISE, and ACCURATE. Be thorough in your a
                 None,
                 "allowlist",
                 (
-                    "kimi_cli.tools.shell:Shell",
-                    "kimi_cli.tools.file:ReadFile",
-                    "kimi_cli.tools.file:ReadMediaFile",
-                    "kimi_cli.tools.file:Glob",
-                    "kimi_cli.tools.file:Grep",
-                    "kimi_cli.tools.web:SearchWeb",
-                    "kimi_cli.tools.web:FetchURL",
+                    "cran_code.tools.shell:Shell",
+                    "cran_code.tools.file:ReadFile",
+                    "cran_code.tools.file:ReadMediaFile",
+                    "cran_code.tools.file:Glob",
+                    "cran_code.tools.file:Grep",
+                    "cran_code.tools.web:SearchWeb",
+                    "cran_code.tools.web:FetchURL",
                 ),
             ),
             (
@@ -235,12 +235,12 @@ At any time, you should be HELPFUL, CONCISE, and ACCURATE. Be thorough in your a
                 None,
                 "allowlist",
                 (
-                    "kimi_cli.tools.file:ReadFile",
-                    "kimi_cli.tools.file:ReadMediaFile",
-                    "kimi_cli.tools.file:Glob",
-                    "kimi_cli.tools.file:Grep",
-                    "kimi_cli.tools.web:SearchWeb",
-                    "kimi_cli.tools.web:FetchURL",
+                    "cran_code.tools.file:ReadFile",
+                    "cran_code.tools.file:ReadMediaFile",
+                    "cran_code.tools.file:Glob",
+                    "cran_code.tools.file:Grep",
+                    "cran_code.tools.web:SearchWeb",
+                    "cran_code.tools.web:FetchURL",
                 ),
             ),
         ]

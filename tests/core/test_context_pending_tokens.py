@@ -13,9 +13,9 @@ from pathlib import Path
 import pytest
 from kosong.message import Message, Role
 
-from kimi_cli.soul.compaction import estimate_text_tokens, should_auto_compact
-from kimi_cli.soul.context import Context
-from kimi_cli.wire.types import TextPart
+from cran_code.soul.compaction import estimate_text_tokens, should_auto_compact
+from cran_code.soul.context import Context
+from cran_code.wire.types import TextPart
 
 
 def _msg(role: Role, text: str) -> Message:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from kimi_cli.soul.dynamic_injections.afk_mode import (
+from cran_code.soul.dynamic_injections.afk_mode import (
     _AFK_INJECTION_TYPE,
     _AFK_PROMPT_ROOT,
     AfkModeInjectionProvider,

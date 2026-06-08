@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-import kimi_cli.soul.agent as agent_module
-from kimi_cli.auth.oauth import OAuthManager
-from kimi_cli.soul.agent import Runtime
+import cran_code.soul.agent as agent_module
+from cran_code.auth.oauth import OAuthManager
+from cran_code.soul.agent import Runtime
 
 
 @pytest.fixture

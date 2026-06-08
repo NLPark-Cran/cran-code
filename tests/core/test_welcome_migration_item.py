@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from kimi_cli.ui.shell.migration_nudge import (
+from cran_code.ui.shell.migration_nudge import (
     already_installed_text,
     kimi_code_installed,
     welcome_card_text,

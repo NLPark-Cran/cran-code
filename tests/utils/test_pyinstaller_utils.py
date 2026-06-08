@@ -8,13 +8,13 @@ from inline_snapshot import snapshot
 
 
 def test_pyinstaller_datas():
-    from kimi_cli.utils.pyinstaller import datas
+    from cran_code.utils.pyinstaller import datas
 
     project_root = Path(__file__).parent.parent.parent
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
     site_packages = f".venv/lib/python{python_version}/site-packages"
     rg_binary = "rg.exe" if platform.system() == "Windows" else "rg"
-    has_rg_binary = (project_root / "src/kimi_cli/deps/bin" / rg_binary).exists()
+    has_rg_binary = (project_root / "src/cran_code/deps/bin" / rg_binary).exists()
     datas = [
         (
             Path(path)
@@ -62,130 +62,130 @@ def test_pyinstaller_datas():
             "fastmcp/../fastmcp-3.2.4.dist-info/licenses",
         ),
         (
-            "src/kimi_cli/CHANGELOG.md",
-            "kimi_cli",
+            "src/cran_code/CHANGELOG.md",
+            "cran_code",
         ),
-        ("src/kimi_cli/agents/default/agent.yaml", "kimi_cli/agents/default"),
-        ("src/kimi_cli/agents/default/coder.yaml", "kimi_cli/agents/default"),
-        ("src/kimi_cli/agents/default/explore.yaml", "kimi_cli/agents/default"),
-        ("src/kimi_cli/agents/default/plan.yaml", "kimi_cli/agents/default"),
-        ("src/kimi_cli/agents/default/system.md", "kimi_cli/agents/default"),
-        ("src/kimi_cli/agents/okabe/agent.yaml", "kimi_cli/agents/okabe"),
-        ("src/kimi_cli/prompts/compact.md", "kimi_cli/prompts"),
-        ("src/kimi_cli/prompts/init.md", "kimi_cli/prompts"),
+        ("src/cran_code/agents/default/agent.yaml", "cran_code/agents/default"),
+        ("src/cran_code/agents/default/coder.yaml", "cran_code/agents/default"),
+        ("src/cran_code/agents/default/explore.yaml", "cran_code/agents/default"),
+        ("src/cran_code/agents/default/plan.yaml", "cran_code/agents/default"),
+        ("src/cran_code/agents/default/system.md", "cran_code/agents/default"),
+        ("src/cran_code/agents/okabe/agent.yaml", "cran_code/agents/okabe"),
+        ("src/cran_code/prompts/compact.md", "cran_code/prompts"),
+        ("src/cran_code/prompts/init.md", "cran_code/prompts"),
         (
-            "src/kimi_cli/skills/kimi-cli-help/SKILL.md",
-            "kimi_cli/skills/kimi-cli-help",
-        ),
-        (
-            "src/kimi_cli/skills/skill-creator/SKILL.md",
-            "kimi_cli/skills/skill-creator",
-        ),
-        ("src/kimi_cli/tools/agent/description.md", "kimi_cli/tools/agent"),
-        ("src/kimi_cli/tools/ask_user/description.md", "kimi_cli/tools/ask_user"),
-        (
-            "src/kimi_cli/tools/dmail/dmail.md",
-            "kimi_cli/tools/dmail",
-        ),
-        ("src/kimi_cli/tools/background/list.md", "kimi_cli/tools/background"),
-        ("src/kimi_cli/tools/background/output.md", "kimi_cli/tools/background"),
-        ("src/kimi_cli/tools/background/stop.md", "kimi_cli/tools/background"),
-        (
-            "src/kimi_cli/tools/file/glob.md",
-            "kimi_cli/tools/file",
+            "src/cran_code/skills/kimi-cli-help/SKILL.md",
+            "cran_code/skills/kimi-cli-help",
         ),
         (
-            "src/kimi_cli/tools/file/grep.md",
-            "kimi_cli/tools/file",
+            "src/cran_code/skills/skill-creator/SKILL.md",
+            "cran_code/skills/skill-creator",
+        ),
+        ("src/cran_code/tools/agent/description.md", "cran_code/tools/agent"),
+        ("src/cran_code/tools/ask_user/description.md", "cran_code/tools/ask_user"),
+        (
+            "src/cran_code/tools/dmail/dmail.md",
+            "cran_code/tools/dmail",
+        ),
+        ("src/cran_code/tools/background/list.md", "cran_code/tools/background"),
+        ("src/cran_code/tools/background/output.md", "cran_code/tools/background"),
+        ("src/cran_code/tools/background/stop.md", "cran_code/tools/background"),
+        (
+            "src/cran_code/tools/file/glob.md",
+            "cran_code/tools/file",
         ),
         (
-            "src/kimi_cli/tools/file/read.md",
-            "kimi_cli/tools/file",
+            "src/cran_code/tools/file/grep.md",
+            "cran_code/tools/file",
         ),
         (
-            "src/kimi_cli/tools/file/read_media.md",
-            "kimi_cli/tools/file",
+            "src/cran_code/tools/file/read.md",
+            "cran_code/tools/file",
         ),
         (
-            "src/kimi_cli/tools/file/replace.md",
-            "kimi_cli/tools/file",
+            "src/cran_code/tools/file/read_media.md",
+            "cran_code/tools/file",
         ),
         (
-            "src/kimi_cli/tools/file/write.md",
-            "kimi_cli/tools/file",
-        ),
-        ("src/kimi_cli/tools/plan/description.md", "kimi_cli/tools/plan"),
-        ("src/kimi_cli/tools/plan/enter_description.md", "kimi_cli/tools/plan"),
-        ("src/kimi_cli/tools/shell/bash.md", "kimi_cli/tools/shell"),
-        (
-            "src/kimi_cli/tools/think/think.md",
-            "kimi_cli/tools/think",
+            "src/cran_code/tools/file/replace.md",
+            "cran_code/tools/file",
         ),
         (
-            "src/kimi_cli/tools/todo/set_todo_list.md",
-            "kimi_cli/tools/todo",
+            "src/cran_code/tools/file/write.md",
+            "cran_code/tools/file",
+        ),
+        ("src/cran_code/tools/plan/description.md", "cran_code/tools/plan"),
+        ("src/cran_code/tools/plan/enter_description.md", "cran_code/tools/plan"),
+        ("src/cran_code/tools/shell/bash.md", "cran_code/tools/shell"),
+        (
+            "src/cran_code/tools/think/think.md",
+            "cran_code/tools/think",
         ),
         (
-            "src/kimi_cli/tools/web/fetch.md",
-            "kimi_cli/tools/web",
+            "src/cran_code/tools/todo/set_todo_list.md",
+            "cran_code/tools/todo",
         ),
         (
-            "src/kimi_cli/tools/web/search.md",
-            "kimi_cli/tools/web",
+            "src/cran_code/tools/web/fetch.md",
+            "cran_code/tools/web",
+        ),
+        (
+            "src/cran_code/tools/web/search.md",
+            "cran_code/tools/web",
         ),
     ]
     if has_rg_binary:
-        expected_datas.append((f"src/kimi_cli/deps/bin/{rg_binary}", "kimi_cli/deps/bin"))
+        expected_datas.append((f"src/cran_code/deps/bin/{rg_binary}", "cran_code/deps/bin"))
 
     assert sorted(datas) == sorted(expected_datas)
 
 
 def test_pyinstaller_hiddenimports():
-    from kimi_cli.utils.pyinstaller import hiddenimports
+    from cran_code.utils.pyinstaller import hiddenimports
 
     assert sorted(hiddenimports) == snapshot(
         [
-            "kimi_cli._build_info",
-            "kimi_cli.cli.export",
-            "kimi_cli.cli.info",
-            "kimi_cli.cli.mcp",
-            "kimi_cli.cli.plugin",
-            "kimi_cli.cli.vis",
-            "kimi_cli.cli.web",
-            "kimi_cli.tools",
-            "kimi_cli.tools.agent",
-            "kimi_cli.tools.ask_user",
-            "kimi_cli.tools.background",
-            "kimi_cli.tools.display",
-            "kimi_cli.tools.dmail",
-            "kimi_cli.tools.file",
-            "kimi_cli.tools.file.glob",
-            "kimi_cli.tools.file.grep_local",
-            "kimi_cli.tools.file.plan_mode",
-            "kimi_cli.tools.file.read",
-            "kimi_cli.tools.file.read_media",
-            "kimi_cli.tools.file.replace",
-            "kimi_cli.tools.file.utils",
-            "kimi_cli.tools.file.write",
-            "kimi_cli.tools.plan",
-            "kimi_cli.tools.plan.enter",
-            "kimi_cli.tools.plan.heroes",
-            "kimi_cli.tools.shell",
-            "kimi_cli.tools.test",
-            "kimi_cli.tools.think",
-            "kimi_cli.tools.todo",
-            "kimi_cli.tools.utils",
-            "kimi_cli.tools.web",
-            "kimi_cli.tools.web.fetch",
-            "kimi_cli.tools.web.search",
+            "cran_code._build_info",
+            "cran_code.cli.export",
+            "cran_code.cli.info",
+            "cran_code.cli.mcp",
+            "cran_code.cli.plugin",
+            "cran_code.cli.vis",
+            "cran_code.cli.web",
+            "cran_code.tools",
+            "cran_code.tools.agent",
+            "cran_code.tools.ask_user",
+            "cran_code.tools.background",
+            "cran_code.tools.display",
+            "cran_code.tools.dmail",
+            "cran_code.tools.file",
+            "cran_code.tools.file.glob",
+            "cran_code.tools.file.grep_local",
+            "cran_code.tools.file.plan_mode",
+            "cran_code.tools.file.read",
+            "cran_code.tools.file.read_media",
+            "cran_code.tools.file.replace",
+            "cran_code.tools.file.utils",
+            "cran_code.tools.file.write",
+            "cran_code.tools.plan",
+            "cran_code.tools.plan.enter",
+            "cran_code.tools.plan.heroes",
+            "cran_code.tools.shell",
+            "cran_code.tools.test",
+            "cran_code.tools.think",
+            "cran_code.tools.todo",
+            "cran_code.tools.utils",
+            "cran_code.tools.web",
+            "cran_code.tools.web.fetch",
+            "cran_code.tools.web.search",
             "setproctitle",
         ]
     )
 
 
 def test_pyinstaller_hiddenimports_include_lazy_cli_subcommands():
-    from kimi_cli.cli._lazy_group import LazySubcommandGroup
-    from kimi_cli.utils.pyinstaller import hiddenimports
+    from cran_code.cli._lazy_group import LazySubcommandGroup
+    from cran_code.utils.pyinstaller import hiddenimports
 
     expected_hiddenimports = {
         module_name

@@ -7,7 +7,7 @@ import os
 import acp
 import pytest
 
-from kimi_cli.acp.version import CURRENT_VERSION
+from cran_code.acp.version import CURRENT_VERSION
 
 from .conftest import ACPTestClient, _kimi_bin, _repo_root
 

@@ -3,13 +3,13 @@ from __future__ import annotations
 import pytest
 from inline_snapshot import snapshot
 
-from kimi_cli.config import (
+from cran_code.config import (
     Config,
     get_default_config,
     load_config,
     load_config_from_string,
 )
-from kimi_cli.exception import ConfigError
+from cran_code.exception import ConfigError
 
 
 def test_default_config():

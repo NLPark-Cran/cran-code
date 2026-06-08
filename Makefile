@@ -25,21 +25,21 @@ prepare-build: download-deps ## Sync dependencies for releases without workspace
 # for kimi web development
 .PHONY: web-back web-front
 web-back: ## Start web backend with uvicorn (reload enabled).
-	@LOG_LEVEL=DEBUG uv run uvicorn kimi_cli.web.app:create_app --factory --reload --port 5494
+	@LOG_LEVEL=DEBUG uv run uvicorn cran_code.web.app:create_app --factory --reload --port 5494
 web-front: ## Start web frontend (vite dev server).
 	@npm --prefix web run dev
 
 # for kimi vis development
 .PHONY: vis-back vis-front
 vis-back: ## Start vis backend with uvicorn (reload enabled).
-	@LOG_LEVEL=DEBUG uv run uvicorn kimi_cli.vis.app:create_app --factory --reload --port 5495
+	@LOG_LEVEL=DEBUG uv run uvicorn cran_code.vis.app:create_app --factory --reload --port 5495
 vis-front: ## Start vis frontend (vite dev server).
 	@npm --prefix vis run dev
 
-.PHONY: format format-kimi-cli format-kosong format-pykaos format-kimi-sdk format-web
-format: format-kimi-cli format-kosong format-pykaos format-kimi-sdk format-web ## Auto-format all workspace packages.
-format-kimi-cli: ## Auto-format Kimi Code CLI sources with ruff.
-	@echo "==> Formatting Kimi Code CLI sources"
+.PHONY: format format-cran-code format-kosong format-pykaos format-kimi-sdk format-web
+format: format-cran-code format-kosong format-pykaos format-kimi-sdk format-web ## Auto-format all workspace packages.
+format-cran-code: ## Auto-format Cran Code CLI sources with ruff.
+	@echo "==> Formatting Cran Code CLI sources"
 	@uv run ruff check --fix
 	@uv run ruff format
 format-kosong: ## Auto-format kosong sources with ruff.
@@ -62,10 +62,10 @@ format-web: ## Auto-format web sources with npm run format.
 		echo "npm not found. Install Node.js (npm) to run web formatting."; \
 		exit 1; \
 	fi
-.PHONY: check check-kimi-cli check-kosong check-pykaos check-kimi-sdk check-web
-check: check-kimi-cli check-kosong check-pykaos check-kimi-sdk check-web ## Run linting and type checks for all packages.
-check-kimi-cli: ## Run linting and type checks for Kimi Code CLI.
-	@echo "==> Checking Kimi Code CLI (ruff + pyright + ty; ty is non-blocking)"
+.PHONY: check check-cran-code check-kosong check-pykaos check-kimi-sdk check-web
+check: check-cran-code check-kosong check-pykaos check-kimi-sdk check-web ## Run linting and type checks for all packages.
+check-cran-code: ## Run linting and type checks for Cran Code CLI.
+	@echo "==> Checking Cran Code CLI (ruff + pyright + ty; ty is non-blocking)"
 	@uv run ruff check
 	@uv run ruff format --check
 	@uv run pyright
@@ -98,8 +98,8 @@ check-web: ## Run linting and type checks for web.
 	fi
 .PHONY: test test-kimi-cli test-kosong test-pykaos test-kimi-sdk
 test: test-kimi-cli test-kosong test-pykaos test-kimi-sdk ## Run all test suites.
-test-kimi-cli: ## Run Kimi Code CLI tests.
-	@echo "==> Running Kimi Code CLI tests"
+test-kimi-cli: ## Run Cran Code CLI tests.
+	@echo "==> Running Cran Code CLI tests"
 	@uv run pytest tests -vv
 	@uv run pytest tests_e2e -vv
 test-kosong: ## Run kosong tests (including doctests).
@@ -151,15 +151,15 @@ build-bin-onedir: build-web build-vis ## Build the standalone executable with Py
 	@if [ -f dist/kimi/kimi-exe.exe ]; then mv dist/kimi/kimi-exe.exe dist/kimi/kimi.exe; elif [ -f dist/kimi/kimi-exe ]; then mv dist/kimi/kimi-exe dist/kimi/kimi; fi
 	@mkdir -p dist/onedir && mv dist/kimi dist/onedir/
 .PHONY: ai-test
-ai-test: ## Run the test suite with Kimi Code CLI.
+ai-test: ## Run the test suite with Cran Code CLI.
 	@echo "==> Running AI test suite"
 	@uv run tests_ai/scripts/run.py tests_ai
 
 .PHONY: gen-changelog gen-docs
-gen-changelog: ## Generate changelog with Kimi Code CLI.
+gen-changelog: ## Generate changelog with Cran Code CLI.
 	@echo "==> Generating changelog"
 	@uv run kimi --yolo --prompt /skill:gen-changelog
-gen-docs: ## Generate user docs with Kimi Code CLI.
+gen-docs: ## Generate user docs with Cran Code CLI.
 	@echo "==> Generating user docs"
 	@uv run kimi --yolo --prompt /skill:gen-docs
 

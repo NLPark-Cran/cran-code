@@ -7,14 +7,14 @@ import acp
 import pytest
 from kosong.tooling.empty import EmptyToolset
 
-from kimi_cli.acp.session import ACPSession
-from kimi_cli.app import KimiCLI
-from kimi_cli.approval_runtime import get_current_approval_source_or_none
-from kimi_cli.soul import wire_send
-from kimi_cli.soul.agent import Agent, Runtime
-from kimi_cli.soul.context import Context
-from kimi_cli.soul.kimisoul import KimiSoul
-from kimi_cli.wire.types import Notification, TextPart, ToolCall, TurnBegin, TurnEnd
+from cran_code.acp.session import ACPSession
+from cran_code.app import KimiCLI
+from cran_code.approval_runtime import get_current_approval_source_or_none
+from cran_code.soul import wire_send
+from cran_code.soul.agent import Agent, Runtime
+from cran_code.soul.context import Context
+from cran_code.soul.kimisoul import KimiSoul
+from cran_code.wire.types import Notification, TextPart, ToolCall, TurnBegin, TurnEnd
 
 
 class _FakeConn:

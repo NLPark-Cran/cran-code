@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 from inline_snapshot import snapshot
 
-from kimi_cli.skill.flow import Flow, FlowParseError, FlowValidationError, parse_choice
-from kimi_cli.skill.flow.d2 import parse_d2_flowchart
-from kimi_cli.skill.flow.mermaid import parse_mermaid_flowchart
+from cran_code.skill.flow import Flow, FlowParseError, FlowValidationError, parse_choice
+from cran_code.skill.flow.d2 import parse_d2_flowchart
+from cran_code.skill.flow.mermaid import parse_mermaid_flowchart
 
 
 def test_parse_flowchart_basic() -> None:
