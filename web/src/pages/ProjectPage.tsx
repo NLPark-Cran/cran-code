@@ -1,12 +1,14 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, Users, GitBranch, FolderOpen } from "lucide-react";
+import * as Y from "yjs";
 import { v2Api, type ProjectRes, type FsEntry } from "@/lib/api/v2";
 import { useAuthStore } from "@/stores/auth";
+import { useYjsCollab } from "@/hooks/useYjsCollab";
 import Layout from "@/components/Layout";
 import MemberManagement from "@/components/MemberManagement";
 import ActivityStream from "@/components/ActivityStream";
@@ -32,6 +34,9 @@ export default function ProjectPage() {
   const [fileContents, setFileContents] = useState<Record<string, string>>({});
   const [modifiedPaths, setModifiedPaths] = useState<Set<string>>(new Set());
   const [savingPath, setSavingPath] = useState<string | null>(null);
+
+  const { provider } = useYjsCollab(projectId);
+  const yTextsRef = useRef<Record<string, Y.Text>>({});
 
   const fetchProject = async () => {
     if (!projectId) return;
@@ -89,11 +94,21 @@ export default function ProjectPage() {
         setTabs((prev) => [...prev, { path, name, modified: false }]);
         setFileContents((prev) => ({ ...prev, [path]: data.content }));
         setActivePath(path);
+
+        // Create Y.Text for this file if Yjs is available
+        if (provider) {
+          const doc = provider.getDoc();
+          const ytext = doc.getText(`file:${path}`);
+          if (ytext.length === 0 && data.content) {
+            ytext.insert(0, data.content);
+          }
+          yTextsRef.current[path] = ytext;
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to open file");
       }
     },
-    [projectId, tabs]
+    [projectId, tabs, provider]
   );
 
   const handleTreeSelect = useCallback(
@@ -127,6 +142,7 @@ export default function ProjectPage() {
       next.delete(path);
       return next;
     });
+    delete yTextsRef.current[path];
   }, [activePath]);
 
   const handleEditorChange = useCallback((path: string, value: string) => {
