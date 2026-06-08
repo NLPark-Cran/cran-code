@@ -25,6 +25,11 @@ from cran_code.metadata import load_metadata, save_metadata
 from cran_code.session import Session as KimiCLISession
 from cran_code.utils.subprocess_env import get_clean_env
 from cran_code.web.auth import is_origin_allowed, is_private_ip, verify_token
+
+try:
+    from cran_code.web.auth_v2.jwt import decode_token as _decode_v2_token
+except Exception:
+    _decode_v2_token = None
 from cran_code.web.models import (
     GenerateTitleRequest,
     GenerateTitleResponse,
@@ -916,7 +921,15 @@ async def session_stream(
 
     if expected_token:
         token = websocket.query_params.get("token")
-        if not verify_token(token, expected_token):
+        if verify_token(token, expected_token):
+            pass  # v1 token valid
+        elif _decode_v2_token is not None:
+            try:
+                _decode_v2_token(token)
+            except Exception:
+                await websocket.close(code=4401, reason="Auth required")
+                return
+        else:
             await websocket.close(code=4401, reason="Auth required")
             return
 
