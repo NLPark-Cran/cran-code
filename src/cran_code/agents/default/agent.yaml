@@ -24,6 +24,7 @@ agent:
     - "cran_code.tools.web:FetchURL"
     - "cran_code.tools.plan:ExitPlanMode"
     - "cran_code.tools.plan.enter:EnterPlanMode"
+    - "cran_code.tools.minimax_consult:MiniMaxConsult"
   subagents:
     coder:
       path: ./coder.yaml

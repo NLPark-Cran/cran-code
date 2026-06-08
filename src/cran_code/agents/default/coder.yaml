@@ -16,6 +16,7 @@ agent:
     - "cran_code.tools.file:StrReplaceFile"
     - "cran_code.tools.web:SearchWeb"
     - "cran_code.tools.web:FetchURL"
+    - "cran_code.tools.minimax_consult:MiniMaxConsult"
   exclude_tools:
     - "cran_code.tools.agent:Agent"
     - "cran_code.tools.ask_user:AskUserQuestion"
