@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatStatus } from "ai";
 import { PromptInputProvider } from "@ai-elements";
 import { toast } from "sonner";
-import { PanelLeftOpen, PanelLeftClose } from "lucide-react";
+import { PanelLeftOpen, PanelLeftClose, LayoutDashboard } from "lucide-react";
 import { cn } from "./lib/utils";
 import { ResizablePanel, ResizablePanelGroup } from "./components/ui/resizable";
 import { ChatWorkspaceContainer } from "./features/chat/chat-workspace-container";
@@ -16,6 +16,7 @@ import { ThemeToggle } from "./components/ui/theme-toggle";
 import type { SessionStatus } from "./lib/api/models";
 import type { PanelSize, PanelImperativeHandle } from "react-resizable-panels";
 import { consumeAuthTokenFromUrl, setAuthToken } from "./lib/auth";
+import { useNavigate } from "react-router-dom";
 
 /**
  * Get session ID from URL search params
@@ -44,6 +45,7 @@ const SIDEBAR_DEFAULT_SIZE = 260;
 const SIDEBAR_ANIMATION_MS = 250;
 
 function App() {
+  const navigate = useNavigate();
   // Initialize theme on app startup
   useTheme();
 
@@ -478,6 +480,14 @@ function App() {
                   <div className="mt-auto flex items-center justify-between pl-2 pb-2 pr-2">
                     <div className="flex items-center gap-2">
                       <ThemeToggle />
+                      <button
+                        type="button"
+                        aria-label="Dashboard"
+                        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
+                        onClick={() => navigate("/dashboard")}
+                      >
+                        <LayoutDashboard className="size-4" />
+                      </button>
                     </div>
                     <button
                       type="button"

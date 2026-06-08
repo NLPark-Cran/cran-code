@@ -6,7 +6,7 @@ async function _fetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const token = localStorage.getItem("cran_auth_token");
+  const token = localStorage.getItem("cran_v2_auth_token");
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {

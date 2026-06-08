@@ -25,11 +25,11 @@ export const useAuthStore = create<AuthState>()(
       setToken: (token) => set({ token }),
       setUser: (user) => set({ user }),
       setAuth: (res) => {
-        localStorage.setItem("cran_auth_token", res.access_token);
+        localStorage.setItem("cran_v2_auth_token", res.access_token);
         set({ token: res.access_token, user: res.user, error: null });
       },
       clearAuth: () => {
-        localStorage.removeItem("cran_auth_token");
+        localStorage.removeItem("cran_v2_auth_token");
         set({ token: null, user: null, error: null });
       },
       setLoading: (isLoading) => set({ isLoading }),
