@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import { v2Api, type TeamRes, type ProjectRes } from "@/lib/api/v2";
 import { useAuthStore } from "@/stores/auth";
+import Layout from "@/components/Layout";
+import MemberManagement from "@/components/MemberManagement";
 
 export default function TeamPage() {
   const { teamId } = useParams<{ teamId: string }>();
@@ -111,47 +113,37 @@ export default function TeamPage() {
 
   const userMembership = team?.members.find((m) => m.user_id === user?.id);
   const canCreateProject = userMembership?.role === "owner" || userMembership?.role === "admin";
+  const canManageMembers = userMembership?.role === "owner" || userMembership?.role === "admin";
+
+  const breadcrumbs = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="h-8 px-2"
+      onClick={() => navigate("/dashboard")}
+    >
+      <ArrowLeft className="mr-1 h-4 w-4" />
+      Dashboard
+    </Button>
+  );
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Cran" className="size-6" />
-            <span className="font-semibold">Cran Code</span>
-            <span className="text-muted-foreground">/</span>
-            <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              Dashboard
-            </Button>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground hidden sm:inline">
-              {user?.display_name || user?.username || user?.email}
-            </span>
-            <Button variant="outline" size="sm" onClick={() => navigate("/")}>
-              Chat
-            </Button>
-          </div>
+    <Layout breadcrumbs={breadcrumbs}>
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {loading ? (
+        <div className="flex h-64 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {loading ? (
-          <div className="flex h-64 items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : team ? (
-          <>
+      ) : team ? (
+        <div className="grid gap-8 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-8">
             {/* Team header */}
-            <div className="mb-8 flex items-start justify-between gap-4">
+            <div className="flex items-start justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-bold">{team.name}</h1>
                 <p className="text-muted-foreground">
@@ -248,76 +240,86 @@ export default function TeamPage() {
             </div>
 
             {/* Projects */}
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold">Projects</h2>
-            </div>
-
-            {projects.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <FolderGit className="mb-4 h-12 w-12 text-muted-foreground" />
-                  <p className="text-lg font-medium">No projects yet</p>
-                  <p className="text-muted-foreground">
-                    Create your first project in this team
-                  </p>
-                  {canCreateProject && (
-                    <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      New Project
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {projects.map((project) => (
-                  <Card
-                    key={project.id}
-                    className="cursor-pointer transition-shadow hover:shadow-md"
-                    onClick={() => navigate(`/project/${project.id}`)}
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="text-lg">{project.name}</CardTitle>
-                        <Settings className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <CardDescription className="line-clamp-2">
-                        {project.description || "No description"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4" />
-                          <span>{project.members.length} members</span>
+            <div>
+              <h2 className="text-lg font-semibold mb-4">Projects</h2>
+              {projects.length === 0 ? (
+                <Card className="border-dashed">
+                  <CardContent className="flex flex-col items-center justify-center py-16">
+                    <FolderGit className="mb-4 h-12 w-12 text-muted-foreground" />
+                    <p className="text-lg font-medium">No projects yet</p>
+                    <p className="text-muted-foreground">
+                      Create your first project in this team
+                    </p>
+                    {canCreateProject && (
+                      <Button className="mt-4" onClick={() => setCreateOpen(true)}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        New Project
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {projects.map((project) => (
+                    <Card
+                      key={project.id}
+                      className="cursor-pointer transition-shadow hover:shadow-md"
+                      onClick={() => navigate(`/project/${project.id}`)}
+                    >
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <CardTitle className="text-lg">{project.name}</CardTitle>
+                          <Settings className="h-4 w-4 text-muted-foreground" />
                         </div>
-                        {project.git_repo_url && (
+                        <CardDescription className="line-clamp-2">
+                          {project.description || "No description"}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
                           <div className="flex items-center gap-2">
-                            <GitBranch className="h-4 w-4" />
-                            <span className="truncate">{project.git_repo_url}</span>
+                            <Users className="h-4 w-4" />
+                            <span>{project.members.length} members</span>
                           </div>
-                        )}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-1">
-                        {project.members.slice(0, 3).map((m) => (
-                          <Badge key={m.id} variant="secondary" className="text-xs">
-                            {m.display_name || m.username}
-                          </Badge>
-                        ))}
-                        {project.members.length > 3 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{project.members.length - 3}
-                          </Badge>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </>
-        ) : null}
-      </main>
-    </div>
+                          {project.git_repo_url && (
+                            <div className="flex items-center gap-2">
+                              <GitBranch className="h-4 w-4" />
+                              <span className="truncate">{project.git_repo_url}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-1">
+                          {project.members.slice(0, 3).map((m) => (
+                            <Badge key={m.id} variant="secondary" className="text-xs">
+                              {m.display_name || m.username}
+                            </Badge>
+                          ))}
+                          {project.members.length > 3 && (
+                            <Badge variant="secondary" className="text-xs">
+                              +{project.members.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sidebar: Member Management */}
+          <div>
+            <MemberManagement
+              members={team.members}
+              resourceId={team.id}
+              resourceType="team"
+              canManage={canManageMembers}
+              onChange={fetchData}
+            />
+          </div>
+        </div>
+      ) : null}
+    </Layout>
   );
 }

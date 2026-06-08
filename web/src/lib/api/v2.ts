@@ -108,6 +108,22 @@ export interface ProjectCreateReq {
   default_model?: string;
 }
 
+export interface ActivityRes {
+  id: string;
+  project_id: string;
+  user_id: string | null;
+  username: string | null;
+  display_name: string | null;
+  type: string;
+  payload: string | null;
+  created_at: string;
+}
+
+export interface ActivityCreateReq {
+  type: string;
+  payload?: string;
+}
+
 export const v2Api = {
   auth: {
     register: (data: RegisterReq) =>
@@ -128,6 +144,8 @@ export const v2Api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+    search: (q: string) =>
+      _fetch<UserProfile[]>(`/users/search?q=${encodeURIComponent(q)}`),
   },
   teams: {
     list: () => _fetch<TeamRes[]>("/teams"),
@@ -138,6 +156,19 @@ export const v2Api = {
       _fetch<TeamRes>(`/teams/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),
+      }),
+    addMember: (teamId: string, userId: string, role?: string) =>
+      _fetch<TeamRes>(`/teams/${teamId}/members?user_id=${userId}${role ? `&role=${role}` : ""}`, {
+        method: "POST",
+      }),
+    updateMember: (teamId: string, memberId: string, role: string) =>
+      _fetch<TeamRes>(`/teams/${teamId}/members/${memberId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      }),
+    removeMember: (teamId: string, memberId: string) =>
+      _fetch<{ detail: string }>(`/teams/${teamId}/members/${memberId}`, {
+        method: "DELETE",
       }),
   },
   projects: {
@@ -152,6 +183,26 @@ export const v2Api = {
     update: (id: string, data: Partial<ProjectCreateReq>) =>
       _fetch<ProjectRes>(`/projects/${id}`, {
         method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    addMember: (projectId: string, userId: string, role?: string) =>
+      _fetch<ProjectRes>(`/projects/${projectId}/members?user_id=${userId}${role ? `&role=${role}` : ""}`, {
+        method: "POST",
+      }),
+    updateMember: (projectId: string, memberId: string, role: string) =>
+      _fetch<ProjectRes>(`/projects/${projectId}/members/${memberId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      }),
+    removeMember: (projectId: string, memberId: string) =>
+      _fetch<{ detail: string }>(`/projects/${projectId}/members/${memberId}`, {
+        method: "DELETE",
+      }),
+    listActivities: (projectId: string, limit?: number) =>
+      _fetch<ActivityRes[]>(`/projects/${projectId}/activities${limit ? `?limit=${limit}` : ""}`),
+    createActivity: (projectId: string, data: ActivityCreateReq) =>
+      _fetch<ActivityRes>(`/projects/${projectId}/activities`, {
+        method: "POST",
         body: JSON.stringify(data),
       }),
   },

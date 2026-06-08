@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
-from cran_code.web.auth_v2.jwt import User, require_user
-from cran_code.web.db import AsyncSessionLocal
+from cran_code.web.auth_v2.jwt import User as JWTUser, require_user
+from cran_code.web.db import AsyncSessionLocal, User
 
 router = APIRouter(prefix="/api/v2/users", tags=["users"])
 
@@ -31,7 +31,7 @@ class UserResponse(BaseModel):
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(require_user)) -> UserResponse:
+async def get_me(current_user: JWTUser = Depends(require_user)) -> UserResponse:
     return UserResponse(
         id=current_user.id,
         email=current_user.email,
@@ -46,7 +46,7 @@ async def get_me(current_user: User = Depends(require_user)) -> UserResponse:
 @router.patch("/me", response_model=UserResponse)
 async def update_me(
     req: UserProfileUpdate,
-    current_user: User = Depends(require_user),
+    current_user: JWTUser = Depends(require_user),
 ) -> UserResponse:
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.id == current_user.id))
@@ -66,3 +66,33 @@ async def update_me(
             role=user.role.value,
             created_at=user.created_at.isoformat(),
         )
+
+
+@router.get("/search", response_model=list[UserResponse])
+async def search_users(
+    q: str,
+    current_user: JWTUser = Depends(require_user),
+) -> list[UserResponse]:
+    """Search users by username, email, or display_name."""
+    async with AsyncSessionLocal() as session:
+        query = q.lower()
+        result = await session.execute(
+            select(User).where(
+                (User.username.ilike(f"%{query}%"))
+                | (User.email.ilike(f"%{query}%"))
+                | (User.display_name.ilike(f"%{query}%"))
+            )
+        )
+        users = result.scalars().all()
+        return [
+            UserResponse(
+                id=u.id,
+                email=u.email,
+                username=u.username,
+                display_name=u.display_name,
+                avatar_url=u.avatar_url,
+                role=u.role.value,
+                created_at=u.created_at.isoformat(),
+            )
+            for u in users
+        ]

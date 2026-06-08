@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from cran_code.web.auth_v2.jwt import User, require_user
-from cran_code.web.db import AsyncSessionLocal, Team, TeamMember, TeamMemberRole
+from cran_code.web.auth_v2.jwt import User as JWTUser, require_user
+from cran_code.web.db import AsyncSessionLocal, Team, TeamMember, TeamMemberRole, User
 
 router = APIRouter(prefix="/api/v2/teams", tags=["teams"])
 
@@ -69,7 +69,7 @@ def _team_response(team: Team) -> TeamResponse:
 
 
 @router.get("", response_model=list[TeamResponse])
-async def list_teams(current_user: User = Depends(require_user)) -> list[TeamResponse]:
+async def list_teams(current_user: JWTUser = Depends(require_user)) -> list[TeamResponse]:
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(Team)
@@ -98,7 +98,7 @@ async def list_teams(current_user: User = Depends(require_user)) -> list[TeamRes
 @router.post("", response_model=TeamResponse, status_code=status.HTTP_201_CREATED)
 async def create_team(
     req: TeamCreate,
-    current_user: User = Depends(require_user),
+    current_user: JWTUser = Depends(require_user),
 ) -> TeamResponse:
     async with AsyncSessionLocal() as session:
         # Check slug uniqueness
@@ -141,7 +141,7 @@ async def create_team(
 @router.get("/{team_id}", response_model=TeamResponse)
 async def get_team(
     team_id: str,
-    current_user: User = Depends(require_user),
+    current_user: JWTUser = Depends(require_user),
 ) -> TeamResponse:
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -169,7 +169,7 @@ async def get_team(
 async def update_team(
     team_id: str,
     req: TeamUpdate,
-    current_user: User = Depends(require_user),
+    current_user: JWTUser = Depends(require_user),
 ) -> TeamResponse:
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -201,3 +201,157 @@ async def update_team(
         await session.commit()
         await session.refresh(team)
         return _team_response(team)
+
+
+class TeamMemberUpdateRole(BaseModel):
+    role: str = Field(..., pattern="^(owner|admin|member)$")
+
+
+@router.post("/{team_id}/members", response_model=TeamResponse)
+async def add_team_member(
+    team_id: str,
+    user_id: str,
+    role: str = "member",
+    current_user: JWTUser = Depends(require_user),
+) -> TeamResponse:
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(Team)
+            .where(Team.id == team_id)
+            .options(selectinload(Team.members).selectinload(TeamMember.user))
+        )
+        team = result.scalar_one_or_none()
+        if team is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+        # Only owner or admin can add members
+        member_result = await session.execute(
+            select(TeamMember).where(
+                (TeamMember.team_id == team_id) & (TeamMember.user_id == current_user.id)
+            )
+        )
+        membership = member_result.scalar_one_or_none()
+        if membership is None or membership.role not in (
+            TeamMemberRole.owner,
+            TeamMemberRole.admin,
+        ):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+        # Check target user exists
+        user_result = await session.execute(select(User).where(User.id == user_id))
+        if user_result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        # Check not already a member
+        existing = await session.execute(
+            select(TeamMember).where(
+                (TeamMember.team_id == team_id) & (TeamMember.user_id == user_id)
+            )
+        )
+        if existing.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="User is already a team member",
+            )
+
+        new_member = TeamMember(
+            team_id=team_id,
+            user_id=user_id,
+            role=TeamMemberRole(role),
+        )
+        session.add(new_member)
+        await session.commit()
+        await session.refresh(team)
+        return _team_response(team)
+
+
+@router.patch("/{team_id}/members/{member_id}", response_model=TeamResponse)
+async def update_team_member_role(
+    team_id: str,
+    member_id: str,
+    req: TeamMemberUpdateRole,
+    current_user: JWTUser = Depends(require_user),
+) -> TeamResponse:
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(Team)
+            .where(Team.id == team_id)
+            .options(selectinload(Team.members).selectinload(TeamMember.user))
+        )
+        team = result.scalar_one_or_none()
+        if team is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+        # Only owner or admin can change roles
+        actor_result = await session.execute(
+            select(TeamMember).where(
+                (TeamMember.team_id == team_id) & (TeamMember.user_id == current_user.id)
+            )
+        )
+        actor = actor_result.scalar_one_or_none()
+        if actor is None or actor.role not in (TeamMemberRole.owner, TeamMemberRole.admin):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+        target_result = await session.execute(
+            select(TeamMember).where(
+                (TeamMember.id == member_id) & (TeamMember.team_id == team_id)
+            )
+        )
+        target = target_result.scalar_one_or_none()
+        if target is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+        # Only owner can assign owner role; admin cannot modify owner
+        if req.role == "owner" and actor.role != TeamMemberRole.owner:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner can assign owner role")
+        if target.role == TeamMemberRole.owner and actor.role != TeamMemberRole.owner:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only owner can modify owner")
+
+        target.role = TeamMemberRole(req.role)
+        await session.commit()
+        await session.refresh(team)
+        return _team_response(team)
+
+
+@router.delete("/{team_id}/members/{member_id}")
+async def remove_team_member(
+    team_id: str,
+    member_id: str,
+    current_user: JWTUser = Depends(require_user),
+) -> dict[str, str]:
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(Team).where(Team.id == team_id))
+        team = result.scalar_one_or_none()
+        if team is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+
+        actor_result = await session.execute(
+            select(TeamMember).where(
+                (TeamMember.team_id == team_id) & (TeamMember.user_id == current_user.id)
+            )
+        )
+        actor = actor_result.scalar_one_or_none()
+
+        target_result = await session.execute(
+            select(TeamMember).where(
+                (TeamMember.id == member_id) & (TeamMember.team_id == team_id)
+            )
+        )
+        target = target_result.scalar_one_or_none()
+        if target is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")
+
+        # Users can remove themselves; owner/admin can remove others
+        # Owner cannot be removed except by themselves
+        can_remove = (
+            target.user_id == current_user.id
+            or (actor is not None and actor.role in (TeamMemberRole.owner, TeamMemberRole.admin))
+        )
+        if target.role == TeamMemberRole.owner and target.user_id != current_user.id:
+            can_remove = False
+        if not can_remove:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+        await session.delete(target)
+        await session.commit()
+        return {"detail": "Member removed"}
