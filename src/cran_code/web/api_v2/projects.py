@@ -323,7 +323,13 @@ async def add_project_member(
         )
         session.add(new_member)
         await session.commit()
-        await session.refresh(project)
+        # Re-fetch with eager-loaded relationships after commit
+        result = await session.execute(
+            select(Project)
+            .where(Project.id == project_id)
+            .options(selectinload(Project.members).selectinload(ProjectMember.user))
+        )
+        project = result.scalar_one()
         return _project_response(project)
 
 
@@ -369,7 +375,13 @@ async def update_project_member_role(
 
         target.role = ProjectMemberRole(req.role)
         await session.commit()
-        await session.refresh(project)
+        # Re-fetch with eager-loaded relationships after commit
+        result = await session.execute(
+            select(Project)
+            .where(Project.id == project_id)
+            .options(selectinload(Project.members).selectinload(ProjectMember.user))
+        )
+        project = result.scalar_one()
         return _project_response(project)
 
 

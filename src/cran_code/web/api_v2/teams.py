@@ -261,7 +261,13 @@ async def add_team_member(
         )
         session.add(new_member)
         await session.commit()
-        await session.refresh(team)
+        # Re-fetch with eager-loaded relationships after commit
+        result = await session.execute(
+            select(Team)
+            .where(Team.id == team_id)
+            .options(selectinload(Team.members).selectinload(TeamMember.user))
+        )
+        team = result.scalar_one()
         return _team_response(team)
 
 
@@ -309,7 +315,13 @@ async def update_team_member_role(
 
         target.role = TeamMemberRole(req.role)
         await session.commit()
-        await session.refresh(team)
+        # Re-fetch with eager-loaded relationships after commit
+        result = await session.execute(
+            select(Team)
+            .where(Team.id == team_id)
+            .options(selectinload(Team.members).selectinload(TeamMember.user))
+        )
+        team = result.scalar_one()
         return _team_response(team)
 
 
