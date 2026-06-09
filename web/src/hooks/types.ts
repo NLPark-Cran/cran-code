@@ -58,7 +58,20 @@ export type LiveMessage = {
     | "code"
     | "thinking"
     | "message-id"
-    | "status";
+    | "status"
+    | "compaction";
+  /** Compaction summary data (when variant is "compaction") */
+  compactionSummary?: {
+    humanTurns: Array<{
+      author?: string;
+      timestamp?: number;
+      excerpt?: string;
+    }>;
+    aiTurns: Array<{
+      timestamp?: number;
+      summary?: string;
+    }>;
+  };
   /** Thinking/reasoning content from the model */
   thinking?: string;
   /** Duration of thinking in seconds */

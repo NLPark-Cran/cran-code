@@ -166,6 +166,21 @@ export type CompactionEndEvent = {
   payload?: Record<string, never>;
 };
 
+export type CompactionSummaryEvent = {
+  type: "CompactionSummary";
+  payload: {
+    human_turns: Array<{
+      author?: string;
+      timestamp?: number;
+      excerpt?: string;
+    }>;
+    ai_turns: Array<{
+      timestamp?: number;
+      summary?: string;
+    }>;
+  };
+};
+
 export type MCPLoadingBeginEvent = {
   type: "MCPLoadingBegin";
   payload?: Record<string, never>;
@@ -277,6 +292,7 @@ export type WireEvent =
   | SessionNoticeEvent
   | CompactionBeginEvent
   | CompactionEndEvent
+  | CompactionSummaryEvent
   | MCPLoadingBeginEvent
   | MCPLoadingEndEvent
   | ApprovalRequestEvent

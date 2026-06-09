@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from "y-protocols/awareness";
 
+export interface LineComment {
+  id: string;
+  line: number;
+  text: string;
+  author: string;
+  timestamp: number;
+}
+
 export class YjsWSProvider {
   private ws: WebSocket | null = null;
   private doc: Y.Doc;
@@ -18,6 +26,9 @@ export class YjsWSProvider {
     this.awareness = new Awareness(this.doc);
     this.awareness.setLocalStateField("user", userInfo);
     this.connect();
+
+    // Ensure comments map exists
+    this.doc.getMap<Y.Array<LineComment>>("comments");
 
     this.doc.on("update", (update: Uint8Array, origin: any) => {
       if (origin !== this && this.ws?.readyState === WebSocket.OPEN) {
@@ -95,6 +106,32 @@ export class YjsWSProvider {
 
   getAwareness() {
     return this.awareness;
+  }
+
+  /** Get comments for a specific file path */
+  getComments(filePath: string): Y.Array<LineComment> {
+    const commentsMap = this.doc.getMap<Y.Array<LineComment>>("comments");
+    let arr = commentsMap.get(filePath);
+    if (!arr) {
+      arr = new Y.Array<LineComment>();
+      commentsMap.set(filePath, arr);
+    }
+    return arr;
+  }
+
+  /** Add a comment to a file */
+  addComment(filePath: string, comment: LineComment): void {
+    const arr = this.getComments(filePath);
+    arr.push([comment]);
+  }
+
+  /** Delete a comment by id */
+  deleteComment(filePath: string, id: string): void {
+    const arr = this.getComments(filePath);
+    const index = arr.toArray().findIndex((c) => c.id === id);
+    if (index >= 0) {
+      arr.delete(index, 1);
+    }
   }
 
   destroy() {

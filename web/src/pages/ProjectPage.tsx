@@ -8,7 +8,7 @@ import { ArrowLeft, Loader2, Users, GitBranch, FolderOpen } from "lucide-react";
 import * as Y from "yjs";
 import { v2Api, type ProjectRes, type FsEntry } from "@/lib/api/v2";
 import { useAuthStore } from "@/stores/auth";
-import { useYjsCollab } from "@/hooks/useYjsCollab";
+import { useYjsCollab, type LineComment } from "@/hooks/useYjsCollab";
 import Layout from "@/components/Layout";
 import MemberManagement from "@/components/MemberManagement";
 import ActivityStream from "@/components/ActivityStream";
@@ -36,9 +36,11 @@ export default function ProjectPage() {
   const [fileContents, setFileContents] = useState<Record<string, string>>({});
   const [modifiedPaths, setModifiedPaths] = useState<Set<string>>(new Set());
   const [savingPath, setSavingPath] = useState<string | null>(null);
+  const [fileComments, setFileComments] = useState<LineComment[]>([]);
 
   const { provider } = useYjsCollab(projectId, user?.display_name || user?.username || "User");
   const yTextsRef = useRef<Record<string, Y.Text>>({});
+  const commentsObserverRef = useRef<(() => void) | null>(null);
 
   const fetchProject = async () => {
     if (!projectId) return;
@@ -146,6 +148,47 @@ export default function ProjectPage() {
     });
     delete yTextsRef.current[path];
   }, [activePath]);
+
+  // Sync comments from Yjs when active file changes
+  useEffect(() => {
+    if (!provider || !activePath) {
+      setFileComments([]);
+      return;
+    }
+    const arr = provider.getComments(activePath);
+    const update = () => {
+      setFileComments(arr.toArray());
+    };
+    update();
+    arr.observe(update);
+    commentsObserverRef.current = () => arr.unobserve(update);
+    return () => {
+      commentsObserverRef.current?.();
+      commentsObserverRef.current = null;
+    };
+  }, [provider, activePath]);
+
+  const handleAddComment = useCallback(
+    (line: number, text: string) => {
+      if (!provider || !activePath || !user) return;
+      provider.addComment(activePath, {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        line,
+        text,
+        author: user.display_name || user.username || user.email || "User",
+        timestamp: Date.now() / 1000,
+      });
+    },
+    [provider, activePath, user]
+  );
+
+  const handleDeleteComment = useCallback(
+    (id: string) => {
+      if (!provider || !activePath) return;
+      provider.deleteComment(activePath, id);
+    },
+    [provider, activePath]
+  );
 
   const handleEditorChange = useCallback((path: string, value: string) => {
     setFileContents((prev) => ({ ...prev, [path]: value }));
@@ -286,6 +329,12 @@ export default function ProjectPage() {
                     onChange={(v) => handleEditorChange(activePath, v)}
                     onSave={() => handleSave(activePath)}
                     saving={savingPath === activePath}
+                    ytext={yTextsRef.current[activePath]}
+                    awareness={provider?.getAwareness()}
+                    comments={fileComments}
+                    onAddComment={handleAddComment}
+                    onDeleteComment={handleDeleteComment}
+                    currentUser={user?.display_name || user?.username || user?.email}
                   />
                 ) : (
                   <div className="flex h-full flex-col items-center justify-center text-muted-foreground">

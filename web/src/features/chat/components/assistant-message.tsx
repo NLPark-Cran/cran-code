@@ -32,6 +32,7 @@ import {
   ToolOutput,
 } from "@ai-elements";
 import { BrainIcon, ChevronRightIcon } from "lucide-react";
+import { CompactionTimeline } from "./compaction-timeline";
 
 export type ToolApproval = NonNullable<LiveMessage["toolCall"]>["approval"];
 
@@ -75,6 +76,8 @@ export function AssistantMessage({
         return renderCodeMessage(message);
       case "thinking":
         return renderThinkingMessage(message, blocksExpanded);
+      case "compaction":
+        return renderCompactionMessage(message);
       default:
         return renderAssistantText(message);
     }
@@ -88,6 +91,19 @@ export function AssistantMessage({
 
   return content;
 }
+
+const renderCompactionMessage = (message: LiveMessage) => {
+  const summary = message.compactionSummary;
+  if (!summary) return null;
+  return (
+    <MessageContent className={assistantContentClass}>
+      <CompactionTimeline
+        humanTurns={summary.humanTurns}
+        aiTurns={summary.aiTurns}
+      />
+    </MessageContent>
+  );
+};
 
 const renderAssistantText = (message: LiveMessage) => {
   return (

@@ -411,6 +411,11 @@ export function useSessionStream(
 
   // Track compaction indicator message so we can remove it on CompactionEnd
   const compactionMessageIdRef = useRef<string | null>(null);
+  // Store CompactionSummary payload for display on CompactionEnd
+  const compactionSummaryRef = useRef<{
+    humanTurns: Array<{ author?: string; timestamp?: number; excerpt?: string }>;
+    aiTurns: Array<{ timestamp?: number; summary?: string }>;
+  } | null>(null);
 
   // Track MCP loading indicator message so we can remove it on MCPLoadingEnd
   const mcpLoadingMessageIdRef = useRef<string | null>(null);
@@ -2046,6 +2051,7 @@ export function useSessionStream(
         case "CompactionBegin": {
           const compactionMsgId = getNextMessageId("assistant");
           compactionMessageIdRef.current = compactionMsgId;
+          compactionSummaryRef.current = null;
           setMessages((prev) => [
             ...prev,
             {
@@ -2059,11 +2065,24 @@ export function useSessionStream(
           break;
         }
 
+        case "CompactionSummary": {
+          const payload = event.payload;
+          if (payload) {
+            compactionSummaryRef.current = {
+              humanTurns: payload.human_turns || [],
+              aiTurns: payload.ai_turns || [],
+            };
+          }
+          break;
+        }
+
         case "CompactionEnd": {
           const compactMsgId = compactionMessageIdRef.current;
           compactionMessageIdRef.current = null;
-          // Clear old messages after compaction, only keep the current turn
-          // Also remove the compaction indicator message
+          const summary = compactionSummaryRef.current;
+          compactionSummaryRef.current = null;
+          // Clear old messages after compaction, only keep the current turn.
+          // Insert a compaction summary message before the kept messages if we have summary data.
           setMessages((prev) => {
             let lastUserMsgIndex = -1;
             for (let i = prev.length - 1; i >= 0; i--) {
@@ -2073,7 +2092,24 @@ export function useSessionStream(
               }
             }
             const kept = lastUserMsgIndex >= 0 ? prev.slice(lastUserMsgIndex) : [];
-            return compactMsgId ? kept.filter((m) => m.id !== compactMsgId) : kept;
+            const withoutIndicator = compactMsgId
+              ? prev.filter((m) => m.id !== compactMsgId)
+              : prev;
+            // Find insertion point: right before the kept messages
+            const insertIndex = withoutIndicator.findIndex((m) => kept.some((k) => k.id === m.id));
+            const before = insertIndex >= 0 ? withoutIndicator.slice(0, insertIndex) : withoutIndicator;
+            const after = insertIndex >= 0 ? withoutIndicator.slice(insertIndex) : [];
+            const result: LiveMessage[] = [...after];
+            if (summary && (summary.humanTurns.length > 0 || summary.aiTurns.length > 0)) {
+              result.unshift({
+                id: getNextMessageId("assistant"),
+                role: "assistant",
+                variant: "compaction",
+                compactionSummary: summary,
+                content: `Conversation summarized (${summary.humanTurns.length} turns)`,
+              });
+            }
+            return result;
           });
           break;
         }

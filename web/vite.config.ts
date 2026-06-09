@@ -36,7 +36,13 @@ export default defineConfig({
     nodePolyfills({
       include: ["path", "url"],
     }),
-    react(),
+    react({
+      babel: {
+        plugins: [
+          ["babel-plugin-react-compiler", {}],
+        ],
+      },
+    }),
     tailwindcss(),
     ...(shouldAnalyze
       ? [

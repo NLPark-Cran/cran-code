@@ -402,6 +402,12 @@ class SessionProcess:
                                         await annotated.append_message(summary, author="system")
                                     except Exception:
                                         pass
+                                    # Broadcast CompactionSummary to WebSockets so the UI can show a timeline
+                                    try:
+                                        summary_event = JSONRPCEventMessage(params=summary)
+                                        await self._broadcast(summary_event.model_dump_json())
+                                    except Exception:
+                                        pass
                                 self._compaction_buffer.clear()
                             elif self._in_compaction:
                                 self._compaction_buffer.append((wire_msg, time.time()))
