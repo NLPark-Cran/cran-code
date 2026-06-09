@@ -59,6 +59,18 @@ export default defineConfig({
       "@ai-elements": path.resolve(__dirname, "./src/components/ai-elements"),
     },
   },
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          monaco: ["@monaco-editor/react"],
+          vendor: ["react", "react-dom", "react-router-dom"],
+        },
+      },
+    },
+  },
   server: {
     allowedHosts: true,
     proxy: {

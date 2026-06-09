@@ -116,6 +116,15 @@ class CompactionEnd(BaseModel):
     pass
 
 
+class CompactionSummary(BaseModel):
+    """Summary of compacted turns, preserving human message chain and AI abstracts."""
+
+    human_turns: list[dict[str, JsonType]] = []
+    """List of {author, timestamp, excerpt} for each human TurnBegin in the compacted region."""
+    ai_turns: list[dict[str, JsonType]] = []
+    """List of {timestamp, summary} for each AI response in the compacted region."""
+
+
 class HookTriggered(BaseModel):
     """A batch of hooks has been triggered and is now executing."""
 
@@ -524,6 +533,7 @@ type Event = (
     | HookResolved
     | CompactionBegin
     | CompactionEnd
+    | CompactionSummary
     | MCPLoadingBegin
     | MCPLoadingEnd
     | StatusUpdate
@@ -671,6 +681,7 @@ __all__ = [
     "StepRetry",
     "CompactionBegin",
     "CompactionEnd",
+    "CompactionSummary",
     "MCPLoadingBegin",
     "MCPLoadingEnd",
     "StatusUpdate",

@@ -349,6 +349,8 @@ function App() {
         updatedAt: formatRelativeTime(session.lastUpdated),
         workDir: session.workDir,
         lastUpdated: session.lastUpdated,
+        ownerId: session.ownerId,
+        shared: session.shared,
       })),
     [sessions],
   );
@@ -362,6 +364,8 @@ function App() {
         updatedAt: formatRelativeTime(session.lastUpdated),
         workDir: session.workDir,
         lastUpdated: session.lastUpdated,
+        ownerId: session.ownerId,
+        shared: session.shared,
       })),
     [archivedSessions],
   );

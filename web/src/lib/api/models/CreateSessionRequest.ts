@@ -31,6 +31,12 @@ export interface CreateSessionRequest {
      * @memberof CreateSessionRequest
      */
     createDir?: boolean;
+    /**
+     * 
+     * @type {string}
+     * @memberof CreateSessionRequest
+     */
+    teamId?: string | null;
 }
 
 /**
@@ -52,6 +58,7 @@ export function CreateSessionRequestFromJSONTyped(json: any, ignoreDiscriminator
         
         'workDir': json['work_dir'] == null ? undefined : json['work_dir'],
         'createDir': json['create_dir'] == null ? undefined : json['create_dir'],
+        'teamId': json['team_id'] == null ? undefined : json['team_id'],
     };
 }
 
@@ -68,6 +75,7 @@ export function CreateSessionRequestToJSONTyped(value?: CreateSessionRequest | n
         
         'work_dir': value['workDir'],
         'create_dir': value['createDir'],
+        'team_id': value['teamId'],
     };
 }
 

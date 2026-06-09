@@ -177,6 +177,9 @@ def _build_joint_session(entry: SessionIndexEntry) -> JointSession:
         session_dir=str(entry.session_dir),
         cran_code_session=kimi_session,
         archived=entry.state.archived,
+        owner_id=entry.state.owner_id,
+        team_id=entry.state.team_id,
+        shared=entry.state.shared,
     )
 
 

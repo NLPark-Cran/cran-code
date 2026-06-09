@@ -31,10 +31,17 @@ class WireMessageRecord(BaseModel):
 
     timestamp: float
     message: WireMessageEnvelope
+    author: str | None = None
 
     @classmethod
-    def from_wire_message(cls, msg: WireMessage, *, timestamp: float) -> WireMessageRecord:
-        return cls(timestamp=timestamp, message=WireMessageEnvelope.from_wire_message(msg))
+    def from_wire_message(
+        cls, msg: WireMessage, *, timestamp: float, author: str | None = None
+    ) -> WireMessageRecord:
+        return cls(
+            timestamp=timestamp,
+            message=WireMessageEnvelope.from_wire_message(msg),
+            author=author,
+        )
 
     def to_wire_message(self) -> WireMessage:
         return self.message.to_wire_message()
@@ -114,10 +121,13 @@ class WireFile:
         except Exception:
             logger.exception("Failed to read wire file {file}:", file=self.path)
 
-    async def append_message(self, msg: WireMessage, *, timestamp: float | None = None) -> None:
+    async def append_message(
+        self, msg: WireMessage, *, timestamp: float | None = None, author: str | None = None
+    ) -> None:
         record = WireMessageRecord.from_wire_message(
             msg,
             timestamp=time.time() if timestamp is None else timestamp,
+            author=author,
         )
         await self.append_record(record)
 

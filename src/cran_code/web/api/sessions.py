@@ -24,12 +24,8 @@ from cran_code import logger
 from cran_code.metadata import load_metadata, save_metadata
 from cran_code.session import Session as KimiCLISession
 from cran_code.utils.subprocess_env import get_clean_env
-from cran_code.web.auth import is_origin_allowed, is_private_ip, verify_token
-
-try:
-    from cran_code.web.auth_v2.jwt import decode_token as _decode_v2_token
-except Exception:
-    _decode_v2_token = None
+from cran_code.web.auth import is_origin_allowed, is_private_ip
+from cran_code.web.auth_v1 import CurrentUser, get_current_user_v1, get_current_user_v1_ws
 from cran_code.web.models import (
     GenerateTitleRequest,
     GenerateTitleResponse,
@@ -111,17 +107,66 @@ def get_runner_ws(ws: WebSocket) -> KimiCLIRunner:
     return ws.app.state.runner
 
 
-def get_editable_session(
-    session_id: UUID,
-    runner: KimiCLIRunner,
-) -> JointSession:
-    """Get a session and verify it's not busy."""
+def can_access_session(
+    state: Any,
+    user: CurrentUser | None,
+    user_team_ids: set[str] | None = None,
+) -> bool:
+    """Check if a user can access a session given its state.
+
+    Rules:
+    - Legacy sessions (owner_id is None): allow any authenticated user
+    - Owner always has access
+    - If shared=True and user is in the same team: allow
+    - If user is in shared_with list: allow
+
+    Args:
+        state: SessionState object (or any object with owner_id, shared, shared_with, team_id)
+        user: Current user (None = anonymous)
+        user_team_ids: Pre-fetched set of team IDs the user belongs to. If None,
+            team sharing check is skipped (useful when team check is done externally).
+    """
+    # Legacy sessions: allow any authenticated user for backward compatibility
+    if state.owner_id is None:
+        return user is not None and user.id != "v1_anonymous"
+
+    # Owner always has access
+    if user is not None and state.owner_id == user.id:
+        return True
+
+    # Explicit shared_with list
+    if user is not None and user.id in state.shared_with:
+        return True
+
+    # Team sharing (using pre-fetched team IDs to avoid N+1 queries)
+    if state.shared and state.team_id and user is not None:
+        if user_team_ids is not None and state.team_id in user_team_ids:
+            return True
+
+    return False
+
+
+def get_session_or_404(session_id: UUID) -> JointSession:
+    """Load a session by ID or raise 404."""
     session = load_session_by_id(session_id)
     if session is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Session not found",
         )
+    return session
+
+
+def get_editable_session(
+    session_id: UUID,
+    runner: KimiCLIRunner,
+) -> JointSession:
+    """Get a session and verify it's not busy.
+
+    NOTE: Callers MUST run can_access_session() BEFORE this function
+to avoid leaking session existence / busy state to unauthorized users.
+    """
+    session = get_session_or_404(session_id)
     # Check if session is busy
     session_process = runner.get_session(session_id)
     if session_process and session_process.is_busy:
@@ -237,13 +282,15 @@ def _read_wire_lines(wire_file: Path) -> list[str]:
 
 
 async def replay_history(ws: WebSocket, session_dir: Path) -> None:
-    """Replay historical wire messages from wire.jsonl to a WebSocket."""
+    """Replay historical wire messages from wire.jsonl (or wire.annotated.jsonl) to a WebSocket."""
+    annotated_file = session_dir / "wire.annotated.jsonl"
     wire_file = session_dir / "wire.jsonl"
-    if not await asyncio.to_thread(wire_file.exists):
+    source = annotated_file if await asyncio.to_thread(annotated_file.exists) else wire_file
+    if not await asyncio.to_thread(source.exists):
         return
 
     try:
-        lines = await asyncio.to_thread(_read_wire_lines, wire_file)
+        lines = await asyncio.to_thread(_read_wire_lines, source)
         for event_text in lines:
             await ws.send_text(event_text)
     except Exception:
@@ -253,6 +300,7 @@ async def replay_history(ws: WebSocket, session_dir: Path) -> None:
 @router.get("/", summary="List all sessions")
 async def list_sessions(
     runner: KimiCLIRunner = Depends(get_runner),
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
     limit: int = 100,
     offset: int = 0,
     q: str | None = None,
@@ -279,29 +327,54 @@ async def list_sessions(
     await asyncio.to_thread(run_auto_archive)
 
     sessions = load_sessions_page(limit=limit, offset=offset, query=q, archived=archived)
+
+    # Batch-fetch user's team memberships to avoid N+1 queries
+    user_team_ids: set[str] = set()
+    if current_user is not None and current_user.id != "v1_anonymous":
+        from cran_code.web.db import AsyncSessionLocal, TeamMember
+        from sqlalchemy import select
+
+        async with AsyncSessionLocal() as db_session:
+            result = await db_session.execute(
+                select(TeamMember.team_id).where(TeamMember.user_id == current_user.id)
+            )
+            user_team_ids = {row[0] for row in result.all()}
+
+    filtered: list[JointSession] = []
     for session in sessions:
+        if can_access_session(session.cran_code_session.state, current_user, user_team_ids):
+            filtered.append(session)
+    for session in filtered:
         session_process = runner.get_session(session.session_id)
         session.is_running = session_process is not None and session_process.is_running
         session.status = session_process.status if session_process else None
-    return cast(list[Session], sessions)
+    return cast(list[Session], filtered)
 
 
 @router.get("/{session_id}", summary="Get session")
 async def get_session(
     session_id: UUID,
     runner: KimiCLIRunner = Depends(get_runner),
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
 ) -> Session | None:
     """Get a session by ID."""
-    session = load_session_by_id(session_id)
-    if session is not None:
-        session_process = runner.get_session(session_id)
-        session.is_running = session_process is not None and session_process.is_running
-        session.status = session_process.status if session_process else None
+    session = get_session_or_404(session_id)
+    if not can_access_session(session.cran_code_session.state, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: you do not have permission to view this session",
+        )
+    session_process = runner.get_session(session_id)
+    session.is_running = session_process is not None and session_process.is_running
+    session.status = session_process.status if session_process else None
     return session
 
 
 @router.post("/", summary="Create a new session")
-async def create_session(request: CreateSessionRequest | None = None) -> Session:
+async def create_session(
+    request: CreateSessionRequest | None = None,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> Session:
     """Create a new session."""
     # Use provided work_dir or default to user's home directory
     if request and request.work_dir:
@@ -338,6 +411,32 @@ async def create_session(request: CreateSessionRequest | None = None) -> Session
         work_dir = KaosPath.unsafe_from_local_path(Path.home())
     cran_code_session = await KimiCLISession.create(work_dir=work_dir)
     context_file = cran_code_session.dir / "context.jsonl"
+
+    # Set ownership
+    from cran_code.session_state import load_session_state, save_session_state
+    from cran_code.web.db import AsyncSessionLocal, TeamMember
+    from sqlalchemy import select
+
+    state = load_session_state(cran_code_session.dir)
+    if current_user is not None and current_user.id != "v1_anonymous":
+        state.owner_id = current_user.id
+    if request and request.team_id:
+        # Validate user is a member of the specified team
+        async with AsyncSessionLocal() as db_session:
+            result = await db_session.execute(
+                select(TeamMember).where(
+                    (TeamMember.team_id == request.team_id)
+                    & (TeamMember.user_id == current_user.id)
+                )
+            )
+            if result.scalar_one_or_none() is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You are not a member of the specified team",
+                )
+        state.team_id = request.team_id
+    save_session_state(state, cran_code_session.dir)
+
     invalidate_sessions_cache()
     invalidate_work_dirs_cache()
     return Session(
@@ -356,6 +455,9 @@ async def create_session(request: CreateSessionRequest | None = None) -> Session
         ),
         work_dir=str(work_dir),
         session_dir=str(cran_code_session.dir),
+        owner_id=state.owner_id,
+        team_id=state.team_id,
+        shared=state.shared,
     )
 
 
@@ -364,6 +466,7 @@ class CreateSessionRequest(BaseModel):
 
     work_dir: str | None = None
     create_dir: bool = False  # Whether to auto-create directory if it doesn't exist
+    team_id: str | None = None  # Optional team to associate the session with
 
 
 class ForkSessionRequest(BaseModel):
@@ -385,8 +488,15 @@ async def upload_session_file(
     session_id: UUID,
     file: UploadFile,
     runner: KimiCLIRunner = Depends(get_runner),
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
 ) -> UploadSessionFileResponse:
     """Upload a file to a session."""
+    session = get_session_or_404(session_id)
+    if not can_access_session(session.cran_code_session.state, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
     session = get_editable_session(session_id, runner)
     session_dir = session.cran_code_session.dir
     upload_dir = session_dir / "uploads"
@@ -424,13 +534,14 @@ async def upload_session_file(
 async def get_session_upload_file(
     session_id: UUID,
     path: str,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
 ) -> Response:
     """Get a file from a session's uploads directory."""
-    session = load_session_by_id(session_id)
-    if session is None:
+    session = get_session_or_404(session_id)
+    if not can_access_session(session.cran_code_session.state, current_user):
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
         )
 
     uploads_dir = (session.cran_code_session.dir / "uploads").resolve()
@@ -472,13 +583,14 @@ async def get_session_file(
     session_id: UUID,
     path: str,
     request: Request,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
 ) -> Response:
     """Get a file or list directory from session work directory."""
-    session = load_session_by_id(session_id)
-    if session is None:
+    session = get_session_or_404(session_id)
+    if not can_access_session(session.cran_code_session.state, current_user):
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
         )
 
     # Security check: prevent path traversal attacks using resolve()
@@ -567,8 +679,24 @@ def _update_last_session_id(session: JointSession) -> None:
 
 
 @router.delete("/{session_id}", summary="Delete a session")
-async def delete_session(session_id: UUID, runner: KimiCLIRunner = Depends(get_runner)) -> None:
+async def delete_session(
+    session_id: UUID,
+    runner: KimiCLIRunner = Depends(get_runner),
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> None:
     """Delete a session."""
+    session = get_session_or_404(session_id)
+    if not can_access_session(session.cran_code_session.state, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    # Only owner can delete
+    if current_user is None or session.cran_code_session.state.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can delete a session",
+        )
     session = get_editable_session(session_id, runner)
     session_process = runner.get_session(session_id)
     if session_process is not None:
@@ -592,13 +720,23 @@ async def update_session(
     session_id: UUID,
     request: UpdateSessionRequest,
     runner: KimiCLIRunner = Depends(get_runner),
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
 ) -> Session:
     """Update a session (e.g., rename title or archive/unarchive)."""
     from cran_code.session_state import load_session_state, save_session_state
 
+    session = get_session_or_404(session_id)
+    if not can_access_session(session.cran_code_session.state, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
     session = get_editable_session(session_id, runner)
     session_dir = session.cran_code_session.dir
     state = load_session_state(session_dir)
+
+    # Only owner can update sharing settings
+    is_owner = current_user is not None and state.owner_id == current_user.id
 
     # Update title if provided
     if request.title is not None:
@@ -614,6 +752,23 @@ async def update_session(
         else:
             state.archived_at = None
             state.auto_archive_exempt = True
+
+    # Update sharing settings if provided (owner only)
+    if request.shared is not None:
+        if not is_owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the owner can change sharing settings",
+            )
+        state.shared = request.shared
+
+    if request.shared_with is not None:
+        if not is_owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only the owner can change sharing settings",
+            )
+        state.shared_with = request.shared_with
 
     save_session_state(state, session_dir)
 
@@ -690,6 +845,7 @@ async def fork_session_endpoint(
     session_id: UUID,
     request: ForkSessionRequest,
     runner: KimiCLIRunner = Depends(get_runner),
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
 ) -> Session:
     """Fork a session, creating a new session with history up to the specified turn.
 
@@ -697,6 +853,12 @@ async def fork_session_endpoint(
     """
     from cran_code.session_fork import fork_session as do_fork
 
+    source_session = get_session_or_404(session_id)
+    if not can_access_session(source_session.cran_code_session.state, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
     source_session = get_editable_session(session_id, runner)
     source_dir = source_session.cran_code_session.dir
     work_dir = source_session.cran_code_session.work_dir
@@ -721,13 +883,24 @@ async def fork_session_endpoint(
     invalidate_work_dirs_cache()
 
     from cran_code.metadata import load_metadata
-    from cran_code.session_state import load_session_state
+    from cran_code.session_state import load_session_state, save_session_state
 
     metadata = load_metadata()
     work_dir_meta = metadata.get_work_dir_meta(work_dir)
     assert work_dir_meta is not None
     new_session_dir = work_dir_meta.sessions_dir / new_session_id
     new_state = load_session_state(new_session_dir)
+    # Inherit ownership from source session
+    source_state = load_session_state(source_dir)
+    if current_user is not None and current_user.id != "v1_anonymous":
+        new_state.owner_id = current_user.id
+    else:
+        new_state.owner_id = source_state.owner_id
+    new_state.team_id = source_state.team_id
+    new_state.shared = source_state.shared
+    new_state.shared_with = list(source_state.shared_with)
+    save_session_state(new_state, new_session_dir)
+
     fork_title = new_state.custom_title or f"Fork: {source_title}"
 
     context_file = new_session_dir / "context.jsonl"
@@ -935,10 +1108,17 @@ async def session_stream(
 
     await websocket.accept()
 
-    # Check if session exists
+    # Resolve current user for this WebSocket connection
+    token = _extract_token(websocket)
+    current_user = await _resolve_user(token, websocket.app)
+
+    # Load session and check access
     session = await asyncio.to_thread(load_session_by_id, session_id)
     if session is None:
         await websocket.close(code=4004, reason="Session not found")
+        return
+    if not can_access_session(session.cran_code_session.state, current_user):
+        await websocket.close(code=4403, reason="Access denied: you do not have permission to access this session")
         return
 
     # Check if session has history
@@ -1052,6 +1232,24 @@ async def session_stream(
                         await asyncio.to_thread(_update_last_session_id, session)
                         last_session_id_updated = True
 
+                # Annotate user prompt with author in wire.annotated.jsonl
+                try:
+                    in_message = JSONRPCInMessageAdapter.validate_json(message)
+                    if isinstance(in_message, JSONRPCPromptMessage):
+                        from cran_code.wire.file import WireFile
+                        from cran_code.wire.types import TurnBegin
+
+                        user_input = in_message.params.user_input
+                        if isinstance(user_input, str):
+                            turn = TurnBegin(user_input=user_input)
+                        else:
+                            turn = TurnBegin(user_input=user_input)
+                        annotated = WireFile(session_dir / "wire.annotated.jsonl")
+                        author = current_user.display_name or current_user.username or "User" if current_user else "User"
+                        await annotated.append_message(turn, author=author)
+                except Exception:
+                    pass
+
                 logger.debug(f"sending message to session {session_id}")
                 await session_process.send_message(message)
             except WebSocketDisconnect:
@@ -1120,11 +1318,17 @@ async def get_startup_dir(request: Request) -> str:
 
 
 @router.get("/{session_id}/git-diff", summary="Get git diff stats")
-async def get_session_git_diff(session_id: UUID) -> GitDiffStats:
+async def get_session_git_diff(
+    session_id: UUID,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> GitDiffStats:
     """get git diff stats for the session's work directory"""
-    session = load_session_by_id(session_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail="Session not found")
+    session = get_session_or_404(session_id)
+    if not can_access_session(session.cran_code_session.state, current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
 
     work_dir = Path(str(session.cran_code_session.work_dir))
 

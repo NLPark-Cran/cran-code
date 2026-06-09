@@ -16,6 +16,7 @@ import FileTree from "@/components/FileTree";
 import MonacoEditor from "@/components/MonacoEditor";
 import TabBar, { type EditorTab } from "@/components/TabBar";
 import Terminal from "@/components/Terminal";
+import GitPanel from "@/components/GitPanel";
 
 export default function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -308,6 +309,12 @@ export default function ProjectPage() {
                     canManage={canManageMembers}
                     onChange={fetchProject}
                   />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="pt-6">
+                  <GitPanel projectId={project.id} />
                 </CardContent>
               </Card>
 

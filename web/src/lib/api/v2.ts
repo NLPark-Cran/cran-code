@@ -213,6 +213,27 @@ export const v2Api = {
         body: JSON.stringify(data),
       }),
   },
+  git: {
+    status: (projectId: string) =>
+      _fetch<{ branch: string; ahead: number; behind: number; modified: string[]; staged: string[]; untracked: string[]; clean: boolean }>(
+        `/projects/${projectId}/git/status`
+      ),
+    branches: (projectId: string) =>
+      _fetch<Array<{ name: string; current: boolean }>>(`/projects/${projectId}/git/branches`),
+    log: (projectId: string, limit?: number) =>
+      _fetch<Array<{ hash: string; short_hash: string; message: string; author: string; date: string }>>(
+        `/projects/${projectId}/git/log${limit ? `?limit=${limit}` : ""}`
+      ),
+    diff: (projectId: string, staged?: boolean, path?: string) =>
+      _fetch<Array<{ path: string; diff: string }>>(
+        `/projects/${projectId}/git/diff?staged=${staged || false}${path ? `&path=${encodeURIComponent(path)}` : ""}`
+      ),
+    commit: (projectId: string, message: string) =>
+      _fetch<{ detail: string; output: string }>(`/projects/${projectId}/git/commit`, {
+        method: "POST",
+        body: JSON.stringify({ message }),
+      }),
+  },
   fs: {
     list: (projectId: string, path?: string) =>
       _fetch<{ entries: FsEntry[] }>(

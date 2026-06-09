@@ -75,6 +75,24 @@ export interface Session {
      * @memberof Session
      */
     archived?: boolean;
+    /**
+     * UUID of the user who created the session
+     * @type {string}
+     * @memberof Session
+     */
+    ownerId?: string | null;
+    /**
+     * UUID of the team this session belongs to
+     * @type {string}
+     * @memberof Session
+     */
+    teamId?: string | null;
+    /**
+     * Whether the session is shared with team members
+     * @type {boolean}
+     * @memberof Session
+     */
+    shared?: boolean;
 }
 
 /**
@@ -105,6 +123,9 @@ export function SessionFromJSONTyped(json: any, ignoreDiscriminator: boolean): S
         'workDir': json['work_dir'] == null ? undefined : json['work_dir'],
         'sessionDir': json['session_dir'] == null ? undefined : json['session_dir'],
         'archived': json['archived'] == null ? undefined : json['archived'],
+        'ownerId': json['owner_id'] == null ? undefined : json['owner_id'],
+        'teamId': json['team_id'] == null ? undefined : json['team_id'],
+        'shared': json['shared'] == null ? undefined : json['shared'],
     };
 }
 
@@ -127,6 +148,9 @@ export function SessionToJSONTyped(value?: Session | null, ignoreDiscriminator: 
         'work_dir': value['workDir'],
         'session_dir': value['sessionDir'],
         'archived': value['archived'],
+        'owner_id': value['ownerId'],
+        'team_id': value['teamId'],
+        'shared': value['shared'],
     };
 }
 

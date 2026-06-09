@@ -34,6 +34,14 @@ from cran_code.web.models import (
 )
 from cran_code.web.runner.messages import new_session_status_message
 from cran_code.web.store.sessions import load_session_by_id
+from cran_code.wire.file import WireFile
+from cran_code.wire.types import (
+    CompactionBegin,
+    CompactionEnd,
+    CompactionSummary,
+    ContentPart as WireContentPart,
+    TurnBegin,
+)
 from cran_code.wire.jsonrpc import (
     JSONRPCCancelMessage,
     JSONRPCErrorObject,
@@ -99,6 +107,20 @@ class SessionProcess:
         self._lock = asyncio.Lock()
         self._ws_lock = asyncio.Lock()
         self._sent_files: set[str] = set()
+        self._annotated_wire_file: WireFile | None = None
+        self._in_compaction: bool = False
+        self._compaction_buffer: list[tuple[WireMessage, float]] = []
+
+    def _get_annotated_wire_file(self) -> WireFile | None:
+        """Lazy-load the annotated wire file for this session."""
+        if self._annotated_wire_file is not None:
+            return self._annotated_wire_file
+        session = load_session_by_id(self.session_id)
+        if session is None or not session.session_dir:
+            return None
+        annotated_path = Path(session.session_dir) / "wire.annotated.jsonl"
+        self._annotated_wire_file = WireFile(annotated_path)
+        return self._annotated_wire_file
 
     @property
     def is_alive(self) -> bool:
@@ -339,10 +361,62 @@ class SessionProcess:
                     msg = json.loads(line)
                     match msg.get("method"):
                         case "event":
-                            msg["params"] = deserialize_wire_message(msg["params"])
+                            wire_msg = deserialize_wire_message(msg["params"])
+                            msg["params"] = wire_msg
                             await self._handle_out_message(JSONRPCEventMessage.model_validate(msg))
+                            # Compaction tracking
+                            if isinstance(wire_msg, CompactionBegin):
+                                self._in_compaction = True
+                                self._compaction_buffer.clear()
+                            elif isinstance(wire_msg, CompactionEnd):
+                                self._in_compaction = False
+                                annotated = self._get_annotated_wire_file()
+                                if annotated is not None and self._compaction_buffer:
+                                    human_turns: list[dict[str, Any]] = []
+                                    ai_turns: list[dict[str, Any]] = []
+                                    for buf_msg, buf_ts in self._compaction_buffer:
+                                        if isinstance(buf_msg, TurnBegin):
+                                            excerpt = ""
+                                            if isinstance(buf_msg.user_input, str):
+                                                excerpt = buf_msg.user_input[:80]
+                                            elif isinstance(buf_msg.user_input, list) and buf_msg.user_input:
+                                                first = buf_msg.user_input[0]
+                                                if hasattr(first, "text"):
+                                                    excerpt = first.text[:80]
+                                            human_turns.append({
+                                                "author": "User",
+                                                "timestamp": buf_ts,
+                                                "excerpt": excerpt,
+                                            })
+                                        elif isinstance(buf_msg, WireContentPart) and buf_msg.type == "text":
+                                            text = getattr(buf_msg, "text", "")[:80]
+                                            ai_turns.append({
+                                                "timestamp": buf_ts,
+                                                "summary": text,
+                                            })
+                                    summary = CompactionSummary(
+                                        human_turns=human_turns,
+                                        ai_turns=ai_turns,
+                                    )
+                                    try:
+                                        await annotated.append_message(summary, author="system")
+                                    except Exception:
+                                        pass
+                                self._compaction_buffer.clear()
+                            elif self._in_compaction:
+                                self._compaction_buffer.append((wire_msg, time.time()))
+                            # Write to annotated wire file with AI/tool author
+                            elif not isinstance(wire_msg, TurnBegin):
+                                annotated = self._get_annotated_wire_file()
+                                if annotated is not None:
+                                    author = "tool" if type(wire_msg).__name__ == "ToolResult" else "AI"
+                                    try:
+                                        await annotated.append_message(wire_msg, author=author)
+                                    except Exception:
+                                        pass
                         case "request":
-                            msg["params"] = deserialize_wire_message(msg["params"])
+                            wire_msg = deserialize_wire_message(msg["params"])
+                            msg["params"] = wire_msg
                             await self._handle_out_message(
                                 JSONRPCRequestMessage.model_validate(msg)
                             )

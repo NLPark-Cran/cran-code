@@ -72,6 +72,9 @@ class Session(BaseModel):
     work_dir: str | None = Field(default=None, description="Working directory for the session")
     session_dir: str | None = Field(default=None, description="Session directory path")
     archived: bool = Field(default=False, description="Whether the session is archived")
+    owner_id: str | None = Field(default=None, description="UUID of the user who created the session")
+    team_id: str | None = Field(default=None, description="UUID of the team this session belongs to")
+    shared: bool = Field(default=False, description="Whether the session is shared with team members")
 
 
 class UpdateSessionRequest(BaseModel):
@@ -79,6 +82,8 @@ class UpdateSessionRequest(BaseModel):
 
     title: str | None = Field(default=None, min_length=1, max_length=200)
     archived: bool | None = Field(default=None, description="Archive or unarchive the session")
+    shared: bool | None = Field(default=None, description="Share with team members")
+    shared_with: list[str] | None = Field(default=None, description="List of user IDs explicitly allowed")
 
 
 class GenerateTitleRequest(BaseModel):

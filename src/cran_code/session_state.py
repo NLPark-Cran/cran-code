@@ -42,6 +42,11 @@ class SessionState(BaseModel):
     auto_archive_exempt: bool = False
     # Todo list state
     todos: list[TodoItemState] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    # Ownership & sharing (v2 collaboration)
+    owner_id: str | None = None
+    team_id: str | None = None
+    shared: bool = False
+    shared_with: list[str] = Field(default_factory=list)
 
 
 _LEGACY_METADATA_FILENAME = "metadata.json"

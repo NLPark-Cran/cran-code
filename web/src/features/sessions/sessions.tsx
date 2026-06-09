@@ -66,6 +66,8 @@ type SessionSummary = {
   updatedAt: string;
   workDir?: string | null;
   lastUpdated: Date;
+  ownerId?: string | null;
+  shared?: boolean;
 };
 
 type ViewMode = "list" | "grouped";
@@ -938,8 +940,11 @@ export const SessionsSidebar = memo(function SessionsSidebarComponent({
                                         ) : (
                                           <Tooltip delayDuration={500}>
                                             <TooltipTrigger asChild>
-                                              <p className="text-sm font-medium text-foreground truncate">
+                                              <p className="text-sm font-medium text-foreground truncate flex items-center gap-1">
                                                 {normalizeTitle(session.title)}
+                                                {session.shared && (
+                                                  <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">Shared</span>
+                                                )}
                                               </p>
                                             </TooltipTrigger>
                                             <TooltipContent side="right" className="max-w-md">

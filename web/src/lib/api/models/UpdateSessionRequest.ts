@@ -31,6 +31,18 @@ export interface UpdateSessionRequest {
      * @memberof UpdateSessionRequest
      */
     archived?: boolean | null;
+    /**
+     * 
+     * @type {boolean}
+     * @memberof UpdateSessionRequest
+     */
+    shared?: boolean | null;
+    /**
+     * 
+     * @type {Array<string>}
+     * @memberof UpdateSessionRequest
+     */
+    sharedWith?: Array<string> | null;
 }
 
 /**
@@ -52,6 +64,8 @@ export function UpdateSessionRequestFromJSONTyped(json: any, ignoreDiscriminator
         
         'title': json['title'] == null ? undefined : json['title'],
         'archived': json['archived'] == null ? undefined : json['archived'],
+        'shared': json['shared'] == null ? undefined : json['shared'],
+        'sharedWith': json['shared_with'] == null ? undefined : json['shared_with'],
     };
 }
 
@@ -68,6 +82,8 @@ export function UpdateSessionRequestToJSONTyped(value?: UpdateSessionRequest | n
         
         'title': value['title'],
         'archived': value['archived'],
+        'shared': value['shared'],
+        'shared_with': value['sharedWith'],
     };
 }
 

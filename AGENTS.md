@@ -79,30 +79,35 @@
 ### Phase 1b: Team/Project UI
 - [x] `TeamPage.tsx` — team list, create team, team detail
 - [x] `ProjectPage.tsx` — project list, create project, project detail
-- [ ] Team selector in top navigation
-- [ ] Member management panel (add/remove members, role assignment)
-- [ ] Activity stream sidebar
+- [x] `Layout.tsx` — top nav with team selector + user menu
+- [x] `MemberManagement.tsx` — add/remove members, role assignment
+- [x] `ActivityStream.tsx` — project activity feed
 
 ### Phase 2: IDE core (Cursor parity)
-- [ ] Monaco Editor integration
-- [ ] File tree component (recursive directory tree)
-- [ ] Multi-tab interface
-- [ ] Inline diff (Accept/Reject AI changes)
+- [x] Monaco Editor integration (`@monaco-editor/react`)
+- [x] Recursive `FileTree` component
+- [x] Multi-tab `TabBar` with dirty-state tracking
+- [x] `DiffViewer` for Accept/Reject AI changes
 - [ ] @-mentions / file reference in prompt composer
 
 ### Phase 3: Real-time collaboration
-- [ ] Yjs + WebSocket integration
-- [ ] Multi-user cursor sync in editor
+- [x] Yjs + `y-monaco` integration
+- [x] Multi-user cursor sync in editor
+- [x] `useYjsCollab.ts` hook with WebSocket provider
+- [x] `wire.annotated.jsonl` with `author` field for message attribution
+- [x] `CompactionSummary` wire event (human/AI turn excerpts)
 - [ ] Comment system on code lines
-- [ ] Activity feed (human + AI actions)
+- [ ] Frontend compaction timeline UI (collapsible)
 
 ### Phase 4: Professional extensions
-- [ ] xterm.js integrated terminal
-- [ ] Git UI (branch, commit, diff, staging)
+- [x] xterm.js integrated terminal (`xterm-addon-fit`)
+- [x] Git UI panel (`GitPanel.tsx`) — status, branches, log, diff, commit
+- [x] Backend git router (`git.py`) — `/api/v2/git/*`
 - [ ] LSP client integration
 - [ ] Settings/keybindings panel
 
 ### Phase 5: Performance
+- [ ] Monaco CDN load (reduces build from 6min → ~1min)
 - [ ] Upgrade Vite 7 → 8
 - [ ] Route-level code splitting
 - [ ] React Compiler (React 19 built-in)
@@ -143,8 +148,8 @@ cran web --host 0.0.0.0 --port 5496 --public --no-open \
 ```bash
 cd web
 npx tsc -b --noEmit                                      # type check
-NODE_OPTIONS="--max-old-space-size=1536" npx vite build  # build (2GB RAM limit)
-cp -r dist ../src/cran_code/web/static                   # bundle
+NODE_OPTIONS="--max-old-space-size=1800" npx vite build  # build (Monaco+Yjs chunks need ~1.8GB)
+cp -r dist/* ../src/cran_code/web/static/                # bundle
 # Note: static assets are gitignored; use `git add -f` when committing rebuilds
 ```
 
@@ -283,6 +288,22 @@ activities
 - **Allowed origins**: MUST explicitly set `--allowed-origins "https://crys.tt2.li"` in public mode
 - **Auth**: v2 uses JWT (localStorage `cran_v2_auth_token`). v1 legacy token still active for sessions API.
 - **Auth bridging**: v1 `AuthMiddleware` and WebSocket `session_stream` accept v2 JWT tokens so v2-authed users can use v1 chat features without a separate v1 session.
+
+### Session ownership & security model
+```
+Access hierarchy (most to least privileged):
+1. Owner — full CRUD
+2. Explicit shared_with list — read + write
+3. Team member (if shared=True) — read + write
+4. Authenticated user — legacy sessions only (owner_id=None)
+5. Anonymous — denied
+```
+- `owner_id`, `team_id`, `shared`, `shared_with` stored in `SessionState` (per-session `state.json`).
+- `can_access_session(state, user, user_team_ids)` — pure function, no DB writes, no disk reads.
+- `get_session_or_404(session_id)` — load session, raise 404 if missing.
+- `get_editable_session(session_id, runner)` — load + busy check. **Callers MUST run `can_access_session()` first** to avoid leaking existence/busy state.
+- Legacy sessions (`owner_id=None`) are accessible to any authenticated user but are **not auto-claimed** on list (explicit claim endpoint TBD).
+- `create_session` validates `team_id` against `TeamMember` table.
 - **Python 3.14 compat**: `passlib` bcrypt backend detection crashes on Python 3.14. `src/cran_code/web/auth_v2/password.py` uses `bcrypt` directly instead of `passlib`.
 
 ---
