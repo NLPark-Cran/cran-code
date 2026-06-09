@@ -30,8 +30,7 @@ const shouldAnalyze = process.env.ANALYZE === "true";
 
 // https://vite.dev/config/
 export default defineConfig({
-  // Use relative paths so assets work under any base path.
-  base: "./",
+  base: "/",
   plugins: [
     nodePolyfills({
       include: ["path", "url"],

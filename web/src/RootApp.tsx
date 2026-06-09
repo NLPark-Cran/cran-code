@@ -2,6 +2,7 @@ import { Suspense, lazy } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import App from "./App";
 import { useAuthStore } from "./stores/auth";
+import { useTheme } from "./hooks/use-theme";
 
 // Lazy-load heavy pages to reduce initial bundle
 const LoginPage = lazy(() => import("./pages/LoginPage"));
@@ -22,9 +23,16 @@ function PageSpinner() {
   );
 }
 
+/** Initialize theme for every route (not just /chat which uses App.tsx) */
+function GlobalTheme() {
+  useTheme();
+  return null;
+}
+
 export default function RootApp() {
   return (
     <BrowserRouter>
+      <GlobalTheme />
       <Suspense fallback={<PageSpinner />}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
