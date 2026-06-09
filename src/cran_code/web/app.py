@@ -15,8 +15,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from starlette.datastructures import MutableHeaders
-from starlette.responses import HTMLResponse
+from starlette.responses import HTMLResponse, FileResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from cran_code import logger
@@ -226,7 +227,17 @@ def create_app(
 
     # Mount static files as fallback (must be last)
     if STATIC_DIR.exists():
-        application.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+        class SPAStaticFiles(StaticFiles):
+            async def get_response(self, path: str, scope):
+                try:
+                    return await super().get_response(path, scope)
+                except FastAPIHTTPException as exc:
+                    if exc.status_code == 404 and not path.startswith("api/"):
+                        # SPA fallback: serve index.html for client-side routes
+                        return FileResponse(STATIC_DIR / "index.html")
+                    raise
+
+        application.mount("/", SPAStaticFiles(directory=STATIC_DIR, html=True), name="static")
 
     return application
 
