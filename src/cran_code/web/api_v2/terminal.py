@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import signal
 from pathlib import Path
@@ -12,8 +13,13 @@ from sqlalchemy import select
 
 from cran_code.web.auth_v2.jwt import User as JWTUser, require_user
 from cran_code.web.db import AsyncSessionLocal, Project, TeamMember
+from cran_code.utils.subprocess_env import get_clean_env
 
 router = APIRouter(prefix="/api/v2/projects", tags=["terminal"])
+
+_PROJECT_ROOT = Path(
+    os.environ.get("CRAN_PROJECT_ROOT", str(Path.home()))
+).expanduser().resolve()
 
 
 @router.websocket("/{project_id}/terminal")
@@ -71,21 +77,28 @@ async def terminal_websocket(
             return
 
     cwd = Path(work_dir).expanduser().resolve()
+    try:
+        cwd.relative_to(_PROJECT_ROOT)
+    except ValueError:
+        await websocket.close(code=4403, reason="Project directory outside allowed root")
+        return
     if not cwd.exists():
         await websocket.close(code=4400, reason="Working directory does not exist")
         return
 
     await websocket.accept()
 
-    # Spawn a shell subprocess
+    # Spawn a shell subprocess with sanitized environment
     shell = os.environ.get("SHELL", "/bin/bash")
+    allowed_env_keys = {"PATH", "HOME", "USER", "SHELL", "TERM", "LANG", "LC_ALL", "EDITOR", "FORCE_COLOR"}
+    base_env = {k: v for k, v in os.environ.items() if k in allowed_env_keys}
     proc = await asyncio.create_subprocess_exec(
         shell,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
         cwd=cwd,
-        env={**os.environ, "TERM": "xterm-256color", "FORCE_COLOR": "1"},
+        env=get_clean_env(base_env={**base_env, "TERM": "xterm-256color", "FORCE_COLOR": "1"}),
     )
 
     async def read_stdout() -> None:
@@ -113,7 +126,7 @@ async def terminal_websocket(
         pass
     finally:
         read_task.cancel()
-        with asyncio.suppress(asyncio.CancelledError):
+        with contextlib.suppress(asyncio.CancelledError):
             await read_task
         if proc.returncode is None:
             proc.send_signal(signal.SIGHUP)

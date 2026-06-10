@@ -15,6 +15,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -152,7 +153,7 @@ class TeamMember(Base):
     user: Mapped["User"] = relationship("User", back_populates="team_memberships")
 
     __table_args__ = (
-        # One membership per user per team
+        UniqueConstraint("team_id", "user_id", name="uq_team_member"),
         {"sqlite_autoincrement": False},
     )
 
@@ -193,6 +194,11 @@ class Project(Base):
     )
     activities: Mapped[list["Activity"]] = relationship("Activity", back_populates="project")
 
+    __table_args__ = (
+        UniqueConstraint("team_id", "slug", name="uq_project_team_slug"),
+        {"sqlite_autoincrement": False},
+    )
+
 
 class ProjectMember(Base):
     __tablename__ = "project_members"
@@ -219,6 +225,11 @@ class ProjectMember(Base):
 
     project: Mapped["Project"] = relationship("Project", back_populates="members")
     user: Mapped["User"] = relationship("User", back_populates="project_memberships")
+
+    __table_args__ = (
+        UniqueConstraint("project_id", "user_id", name="uq_project_member"),
+        {"sqlite_autoincrement": False},
+    )
 
 
 class Activity(Base):

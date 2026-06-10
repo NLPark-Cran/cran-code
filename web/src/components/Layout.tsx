@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import TeamSelector from "./TeamSelector";
 import { useAuthStore } from "@/stores/auth";
-import { Settings } from "lucide-react";
+import { Settings, LogOut, User } from "lucide-react";
 import SettingsDialog from "./SettingsDialog";
 
 interface LayoutProps {
@@ -13,8 +20,13 @@ interface LayoutProps {
 
 export default function Layout({ children, breadcrumbs }: LayoutProps) {
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, clearAuth } = useAuthStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const handleLogout = () => {
+    clearAuth();
+    navigate("/login");
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -38,18 +50,27 @@ export default function Layout({ children, breadcrumbs }: LayoutProps) {
             )}
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground hidden sm:inline">
-              {user?.display_name || user?.username || user?.email}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setSettingsOpen(true)}
-              title="Settings"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 gap-1.5 px-2 hidden sm:flex">
+                  <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground max-w-[120px] truncate">
+                    {user?.display_name || user?.username || user?.email}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" size="sm" onClick={() => navigate("/")}>
               Chat
             </Button>

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from cran_code.web.auth_v2.jwt import User as JWTUser, require_user
@@ -254,6 +254,12 @@ async def add_team_member(
                 detail="User is already a team member",
             )
 
+        if TeamMemberRole(role) == TeamMemberRole.owner and membership.role != TeamMemberRole.owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only owner can assign owner role",
+            )
+
         new_member = TeamMember(
             team_id=team_id,
             user_id=user_id,
@@ -363,6 +369,20 @@ async def remove_team_member(
             can_remove = False
         if not can_remove:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+        # Prevent removing the last owner
+        if target.role == TeamMemberRole.owner:
+            owner_count_result = await session.execute(
+                select(func.count(TeamMember.id)).where(
+                    (TeamMember.team_id == team_id)
+                    & (TeamMember.role == TeamMemberRole.owner)
+                )
+            )
+            if owner_count_result.scalar() <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot remove the last owner",
+                )
 
         await session.delete(target)
         await session.commit()

@@ -18,10 +18,18 @@ from cran_code.web.db import AsyncSessionLocal, User
 if TYPE_CHECKING:
     from fastapi import Request
 
-_SECRET_KEY = os.environ.get(
-    "CRAN_JWT_SECRET",
-    "cran-code-dev-secret-change-in-production",
-)
+_SECRET_KEY = os.environ.get("CRAN_JWT_SECRET")
+if not _SECRET_KEY:
+    import secrets
+
+    _SECRET_KEY = secrets.token_urlsafe(32)
+    # Dev-only ephemeral key; production MUST set CRAN_JWT_SECRET
+    import logging
+
+    logging.getLogger("cran_code.auth").warning(
+        "CRAN_JWT_SECRET not set; using ephemeral dev key. "
+        "All tokens will invalidate on restart. Set CRAN_JWT_SECRET for persistent auth."
+    )
 _ALGORITHM = "HS256"
 _ACCESS_TOKEN_EXPIRE_DAYS = 7
 

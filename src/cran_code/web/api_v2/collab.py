@@ -131,3 +131,5 @@ async def collab_websocket(
                 room.discard(websocket)
                 if not room:
                     del _rooms[room_id]
+                    if room_id in _locks:
+                        del _locks[room_id]

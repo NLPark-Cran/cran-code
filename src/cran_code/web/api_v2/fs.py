@@ -14,6 +14,13 @@ from cran_code.web.db import AsyncSessionLocal, Project, TeamMember
 
 router = APIRouter(prefix="/api/v2/projects", tags=["fs"])
 
+_PROJECT_ROOT = Path(
+    os.environ.get("CRAN_PROJECT_ROOT", str(Path.home()))
+).expanduser().resolve()
+
+
+_MAX_FILE_SIZE = int(os.environ.get("CRAN_MAX_FILE_SIZE", "10485760"))  # 10 MB
+
 
 class FsEntry(BaseModel):
     name: str
@@ -58,6 +65,13 @@ async def _resolve_project_dir(project_id: str, user_id: str) -> Path:
             )
 
         work_dir = Path(project.work_dir).expanduser().resolve()
+        try:
+            work_dir.relative_to(_PROJECT_ROOT)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Project directory outside allowed root",
+            )
         if not work_dir.exists():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -134,6 +148,12 @@ async def write_fs(
 ) -> dict[str, str]:
     work_dir = await _resolve_project_dir(project_id, current_user.id)
     target = _resolve_path(work_dir, req.path)
+
+    if len(req.content.encode("utf-8")) > _MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large (max {_MAX_FILE_SIZE} bytes)",
+        )
 
     # Ensure parent directory exists
     target.parent.mkdir(parents=True, exist_ok=True)

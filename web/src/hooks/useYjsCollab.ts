@@ -18,6 +18,8 @@ export class YjsWSProvider {
   private token: string;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private connected = false;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 10;
 
   constructor(projectId: string, token: string, userInfo: { name: string; color: string }) {
     this.projectId = projectId;
@@ -59,6 +61,7 @@ export class YjsWSProvider {
 
     this.ws.onopen = () => {
       this.connected = true;
+      this.reconnectAttempts = 0;
       const stateVector = Y.encodeStateAsUpdate(this.doc);
       this.ws?.send(stateVector);
     };
@@ -92,7 +95,13 @@ export class YjsWSProvider {
 
     this.ws.onclose = () => {
       this.connected = false;
-      this.reconnectTimer = setTimeout(() => this.connect(), 3000);
+      if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+        console.error("Yjs WS max reconnect attempts reached");
+        return;
+      }
+      this.reconnectAttempts++;
+      const delay = Math.min(3000 * this.reconnectAttempts, 30000);
+      this.reconnectTimer = setTimeout(() => this.connect(), delay);
     };
 
     this.ws.onerror = () => {

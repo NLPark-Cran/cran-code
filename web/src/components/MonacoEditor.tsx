@@ -59,9 +59,9 @@ export default function MonacoEditor({
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const [newCommentText, setNewCommentText] = useState("");
 
-  const handleEditorDidMount = useCallback((editor: any) => {
+  const handleEditorDidMount = useCallback((editor: any, monaco: any) => {
     editorRef.current = editor;
-    editor.addCommand(0x800 | 3, () => onSave());
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => onSave());
 
     // Click on line numbers to toggle comment panel for that line
     editor.onMouseDown((e: any) => {

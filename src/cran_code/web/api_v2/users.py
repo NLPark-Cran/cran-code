@@ -19,7 +19,7 @@ class UserProfileUpdate(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
-    email: str
+    email: str | None
     username: str
     display_name: str | None
     avatar_url: str | None
@@ -87,7 +87,7 @@ async def search_users(
         return [
             UserResponse(
                 id=u.id,
-                email=u.email,
+                email=u.email if u.id == current_user.id else None,
                 username=u.username,
                 display_name=u.display_name,
                 avatar_url=u.avatar_url,

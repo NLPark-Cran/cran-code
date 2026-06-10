@@ -2,15 +2,35 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from cran_code.web.auth_v2.jwt import User as JWTUser, require_user
 from cran_code.web.db import AsyncSessionLocal, Activity, Project, ProjectMember, ProjectMemberRole, TeamMember, User
 
 router = APIRouter(prefix="/api/v2/projects", tags=["projects"])
+
+_PROJECT_ROOT = Path(
+    os.environ.get("CRAN_PROJECT_ROOT", str(Path.home()))
+).expanduser().resolve()
+
+
+def _validate_work_dir(work_dir: str | None) -> None:
+    if not work_dir:
+        return
+    resolved = Path(work_dir).expanduser().resolve()
+    try:
+        resolved.relative_to(_PROJECT_ROOT)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Project directory outside allowed root",
+        )
 
 
 class ProjectCreate(BaseModel):
@@ -146,6 +166,8 @@ async def create_project(
                 detail="Project slug already exists in this team",
             )
 
+        _validate_work_dir(req.work_dir)
+
         project = Project(
             team_id=req.team_id,
             name=req.name,
@@ -235,6 +257,7 @@ async def update_project(
         if req.description is not None:
             project.description = req.description
         if req.work_dir is not None:
+            _validate_work_dir(req.work_dir)
             project.work_dir = req.work_dir
         if req.git_repo_url is not None:
             project.git_repo_url = req.git_repo_url
@@ -314,6 +337,12 @@ async def add_project_member(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="User is already a project member",
+            )
+
+        if ProjectMemberRole(role) == ProjectMemberRole.owner and membership.role != ProjectMemberRole.owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only owner can assign owner role",
             )
 
         new_member = ProjectMember(
@@ -421,6 +450,20 @@ async def remove_project_member(
             can_remove = False
         if not can_remove:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+
+        # Prevent removing the last owner
+        if target.role == ProjectMemberRole.owner:
+            owner_count_result = await session.execute(
+                select(func.count(ProjectMember.id)).where(
+                    (ProjectMember.project_id == project_id)
+                    & (ProjectMember.role == ProjectMemberRole.owner)
+                )
+            )
+            if owner_count_result.scalar() <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot remove the last owner",
+                )
 
         await session.delete(target)
         await session.commit()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,6 +15,10 @@ from cran_code.web.auth_v2.jwt import User as JWTUser, require_user
 from cran_code.web.db import AsyncSessionLocal, Project, TeamMember
 
 router = APIRouter(prefix="/api/v2/projects", tags=["git"])
+
+_PROJECT_ROOT = Path(
+    os.environ.get("CRAN_PROJECT_ROOT", str(Path.home()))
+).expanduser().resolve()
 
 
 class GitStatusResponse(BaseModel):
@@ -67,6 +72,13 @@ async def _require_project_dir(project_id: str, user_id: str) -> Path:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Project has no working directory")
 
         cwd = Path(project.work_dir).expanduser().resolve()
+        try:
+            cwd.relative_to(_PROJECT_ROOT)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Project directory outside allowed root",
+            )
         if not cwd.exists():
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Working directory does not exist")
         return cwd

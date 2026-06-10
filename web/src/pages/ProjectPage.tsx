@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2, Users, GitBranch, FolderOpen } from "lucide-react";
 import * as Y from "yjs";
 import { v2Api, type ProjectRes, type FsEntry } from "@/lib/api/v2";
 import { useAuthStore } from "@/stores/auth";
+import { useTeamStore } from "@/stores/team";
 import { useYjsCollab, type LineComment } from "@/hooks/useYjsCollab";
 import Layout from "@/components/Layout";
 import MemberManagement from "@/components/MemberManagement";
@@ -22,6 +23,7 @@ export default function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { user } = useAuthStore();
+  const { setSelectedTeamId } = useTeamStore();
 
   const [project, setProject] = useState<ProjectRes | null>(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +51,9 @@ export default function ProjectPage() {
     try {
       const data = await v2Api.projects.get(projectId);
       setProject(data);
+      if (data.team_id) {
+        setSelectedTeamId(data.team_id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load project");
     } finally {

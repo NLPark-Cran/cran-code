@@ -24,8 +24,15 @@ from cran_code import logger
 from cran_code.metadata import load_metadata, save_metadata
 from cran_code.session import Session as KimiCLISession
 from cran_code.utils.subprocess_env import get_clean_env
-from cran_code.web.auth import is_origin_allowed, is_private_ip
-from cran_code.web.auth_v1 import CurrentUser, get_current_user_v1, get_current_user_v1_ws
+from cran_code.web.auth import is_origin_allowed, is_private_ip, verify_token
+from cran_code.web.auth_v1 import (
+    CurrentUser,
+    extract_token,
+    get_current_user_v1,
+    get_current_user_v1_ws,
+    resolve_user,
+    _decode_v2_token,
+)
 from cran_code.web.models import (
     GenerateTitleRequest,
     GenerateTitleResponse,
@@ -928,6 +935,7 @@ async def generate_session_title(
     session_id: UUID,
     request: GenerateTitleRequest | None = None,
     runner: KimiCLIRunner = Depends(get_runner),
+    current_user: CurrentUser = Depends(get_current_user_v1),
 ) -> GenerateTitleResponse:
     """Generate a concise session title using AI based on the first conversation turn.
 
@@ -935,6 +943,8 @@ async def generate_session_title(
     automatically read the first turn from wire.jsonl.
     """
     session = get_editable_session(session_id, runner)
+    if not can_access_session(session.cran_code_session.state, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     session_dir = session.cran_code_session.dir
 
     from cran_code.session_state import load_session_state, save_session_state
@@ -1106,13 +1116,11 @@ async def session_stream(
             await websocket.close(code=4401, reason="Auth required")
             return
 
-    await websocket.accept()
-
     # Resolve current user for this WebSocket connection
-    token = _extract_token(websocket)
-    current_user = await _resolve_user(token, websocket.app)
+    token = extract_token(websocket)
+    current_user = await resolve_user(token, websocket.app)
 
-    # Load session and check access
+    # Load session and check access before accepting
     session = await asyncio.to_thread(load_session_by_id, session_id)
     if session is None:
         await websocket.close(code=4004, reason="Session not found")
@@ -1120,6 +1128,8 @@ async def session_stream(
     if not can_access_session(session.cran_code_session.state, current_user):
         await websocket.close(code=4403, reason="Access denied: you do not have permission to access this session")
         return
+
+    await websocket.accept()
 
     # Check if session has history
     session_dir = session.cran_code_session.dir
