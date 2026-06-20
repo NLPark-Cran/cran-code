@@ -47,6 +47,9 @@ class ProjectMemberRole(str, enum.Enum):
 class ActivityType(str, enum.Enum):
     message_sent = "message_sent"
     file_edited = "file_edited"
+    file_deleted = "file_deleted"
+    file_uploaded = "file_uploaded"
+    file_downloaded = "file_downloaded"
     command_run = "command_run"
     session_created = "session_created"
     session_forked = "session_forked"

@@ -39,6 +39,8 @@ export default function ProjectPage() {
   const [modifiedPaths, setModifiedPaths] = useState<Set<string>>(new Set());
   const [savingPath, setSavingPath] = useState<string | null>(null);
   const [fileComments, setFileComments] = useState<LineComment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [activityRefreshKey, setActivityRefreshKey] = useState(0);
 
   const { provider } = useYjsCollab(projectId, user?.display_name || user?.username || "User");
   const yTextsRef = useRef<Record<string, Y.Text>>({});
@@ -222,6 +224,7 @@ export default function ProjectPage() {
         setTabs((prev) =>
           prev.map((t) => (t.path === path ? { ...t, modified: false } : t))
         );
+        setActivityRefreshKey((k) => k + 1);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to save file");
       } finally {
@@ -229,6 +232,119 @@ export default function ProjectPage() {
       }
     },
     [projectId, fileContents]
+  );
+
+  const handleUpload = useCallback(
+    async (targetDir: string, files: FileList) => {
+      if (!projectId || files.length === 0) return;
+      setUploading(true);
+      setError(null);
+      try {
+        const uploaded: string[] = [];
+        for (const file of Array.from(files)) {
+          const res = await v2Api.fs.upload(projectId, file, targetDir);
+          uploaded.push(res.path);
+        }
+        await loadRootEntries();
+        setActivityRefreshKey((k) => k + 1);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to upload file");
+      } finally {
+        setUploading(false);
+      }
+    },
+    [projectId, loadRootEntries]
+  );
+
+  const handleDownload = useCallback(
+    async (path: string, name: string) => {
+      if (!projectId) return;
+      try {
+        await v2Api.fs.download(projectId, path, name);
+        setActivityRefreshKey((k) => k + 1);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to download file");
+      }
+    },
+    [projectId]
+  );
+
+  const refreshAfterFsChange = useCallback(async () => {
+    await loadRootEntries();
+    setActivityRefreshKey((k) => k + 1);
+  }, [loadRootEntries]);
+
+  const handleCopy = useCallback(
+    async (src: string, dst: string) => {
+      if (!projectId) return;
+      try {
+        await v2Api.fs.copy(projectId, src, dst);
+        await refreshAfterFsChange();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to copy");
+      }
+    },
+    [projectId, refreshAfterFsChange]
+  );
+
+  const handleMove = useCallback(
+    async (src: string, dst: string) => {
+      if (!projectId) return;
+      try {
+        await v2Api.fs.move(projectId, src, dst);
+        await refreshAfterFsChange();
+        if (activePath === src) {
+          setActivePath(null);
+          setTabs((prev) => prev.filter((t) => t.path !== src));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to move");
+      }
+    },
+    [projectId, refreshAfterFsChange, activePath]
+  );
+
+  const handleDelete = useCallback(
+    async (path: string) => {
+      if (!projectId) return;
+      try {
+        await v2Api.fs.delete(projectId, path);
+        await refreshAfterFsChange();
+        if (activePath === path) {
+          setActivePath(null);
+          setTabs((prev) => prev.filter((t) => t.path !== path));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to delete");
+      }
+    },
+    [projectId, refreshAfterFsChange, activePath]
+  );
+
+  const handleCompress = useCallback(
+    async (path: string, archive: string) => {
+      if (!projectId) return;
+      try {
+        await v2Api.fs.compress(projectId, path, archive);
+        await refreshAfterFsChange();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to compress");
+      }
+    },
+    [projectId, refreshAfterFsChange]
+  );
+
+  const handleExtract = useCallback(
+    async (archive: string, dest?: string) => {
+      if (!projectId) return;
+      try {
+        await v2Api.fs.extract(projectId, archive, dest);
+        await refreshAfterFsChange();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to extract");
+      }
+    },
+    [projectId, refreshAfterFsChange]
   );
 
   const userMembership = project?.members.find((m) => m.user_id === user?.id);
@@ -310,6 +426,14 @@ export default function ProjectPage() {
                     selectedPath={activePath}
                     onSelect={handleTreeSelect}
                     loadChildren={loadChildren}
+                    onUpload={handleUpload}
+                    onDownload={handleDownload}
+                    onCopy={handleCopy}
+                    onMove={handleMove}
+                    onDelete={handleDelete}
+                    onCompress={handleCompress}
+                    onExtract={handleExtract}
+                    uploading={uploading}
                   />
                 )}
               </div>
@@ -374,7 +498,7 @@ export default function ProjectPage() {
 
               <Card>
                 <CardContent className="pt-6">
-                  <ActivityStream projectId={project.id} />
+                  <ActivityStream projectId={project.id} refreshKey={activityRefreshKey} />
                 </CardContent>
               </Card>
             </div>

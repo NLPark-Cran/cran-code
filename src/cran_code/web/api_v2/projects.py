@@ -273,7 +273,10 @@ class ProjectMemberUpdateRole(BaseModel):
 
 
 class ActivityCreate(BaseModel):
-    type: str = Field(..., pattern="^(message_sent|file_edited|command_run|session_created|session_forked|commit_pushed|review_submitted)$")
+    type: str = Field(
+        ...,
+        pattern="^(message_sent|file_edited|file_deleted|file_uploaded|file_downloaded|command_run|session_created|session_forked|commit_pushed|review_submitted)$",
+    )
     payload: str | None = Field(None, max_length=4000)
 
 
@@ -497,6 +500,7 @@ async def list_project_activities(
             .where(Activity.project_id == project_id)
             .order_by(desc(Activity.created_at))
             .limit(min(limit, 200))
+            .options(selectinload(Activity.user))
         )
         activities = result.scalars().all()
         return [

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import TeamSelector from "./TeamSelector";
 import { useAuthStore } from "@/stores/auth";
+import { clearAuthToken } from "@/lib/auth";
 import { Settings, LogOut, User } from "lucide-react";
 import SettingsDialog from "./SettingsDialog";
 
@@ -25,6 +26,7 @@ export default function Layout({ children, breadcrumbs }: LayoutProps) {
 
   const handleLogout = () => {
     clearAuth();
+    clearAuthToken();
     navigate("/login");
   };
 

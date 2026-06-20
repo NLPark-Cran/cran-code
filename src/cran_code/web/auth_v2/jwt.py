@@ -31,7 +31,7 @@ if not _SECRET_KEY:
         "All tokens will invalidate on restart. Set CRAN_JWT_SECRET for persistent auth."
     )
 _ALGORITHM = "HS256"
-_ACCESS_TOKEN_EXPIRE_DAYS = 7
+_ACCESS_TOKEN_EXPIRE_DAYS = 30
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v2/auth/login", auto_error=False)
 

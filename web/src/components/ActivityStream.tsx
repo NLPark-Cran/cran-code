@@ -1,15 +1,19 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { v2Api, type ActivityRes } from "@/lib/api/v2";
 
 interface ActivityStreamProps {
   projectId: string;
+  refreshKey?: number;
 }
 
 const typeLabels: Record<string, string> = {
   message_sent: "Message",
   file_edited: "File edit",
+  file_deleted: "Delete",
+  file_uploaded: "Upload",
+  file_downloaded: "Download",
   command_run: "Command",
   session_created: "Session",
   session_forked: "Fork",
@@ -20,6 +24,9 @@ const typeLabels: Record<string, string> = {
 const typeColors: Record<string, string> = {
   message_sent: "bg-blue-100 text-blue-800",
   file_edited: "bg-amber-100 text-amber-800",
+  file_deleted: "bg-red-100 text-red-800",
+  file_uploaded: "bg-emerald-100 text-emerald-800",
+  file_downloaded: "bg-cyan-100 text-cyan-800",
   command_run: "bg-purple-100 text-purple-800",
   session_created: "bg-green-100 text-green-800",
   session_forked: "bg-teal-100 text-teal-800",
@@ -37,12 +44,12 @@ function formatTime(iso: string): string {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-export default function ActivityStream({ projectId }: ActivityStreamProps) {
+export default function ActivityStream({ projectId, refreshKey }: ActivityStreamProps) {
   const [activities, setActivities] = useState<ActivityRes[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchActivities = async () => {
+  const fetchActivities = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -53,11 +60,11 @@ export default function ActivityStream({ projectId }: ActivityStreamProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId]);
 
   useEffect(() => {
     fetchActivities();
-  }, [projectId]);
+  }, [fetchActivities, refreshKey]);
 
   return (
     <div className="space-y-4">

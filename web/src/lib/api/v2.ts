@@ -2,6 +2,18 @@
 
 const API_BASE = "/api/v2";
 
+function handleAuthError(): never {
+  // Mirror clearAuthToken to evict all known auth keys, then force login.
+  localStorage.removeItem("cran_auth_token");
+  localStorage.removeItem("cran_auth_token_ts");
+  localStorage.removeItem("cran_v2_auth_token");
+  localStorage.removeItem("cran-auth-store");
+  if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+    window.location.href = "/login";
+  }
+  throw new Error("Invalid authentication credentials");
+}
+
 async function _fetch<T>(
   path: string,
   options: RequestInit = {},
@@ -16,6 +28,9 @@ async function _fetch<T>(
     },
   });
   if (!res.ok) {
+    if (res.status === 401) {
+      handleAuthError();
+    }
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || `HTTP ${res.status}`);
   }
@@ -248,5 +263,76 @@ export const v2Api = {
         method: "POST",
         body: JSON.stringify({ path, content }),
       }),
+    upload: async (projectId: string, file: File, targetDir: string = "") => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const token = localStorage.getItem("cran_v2_auth_token");
+      const res = await fetch(
+        `${API_BASE}/projects/${projectId}/fs/upload?path=${encodeURIComponent(targetDir)}`,
+        {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData,
+        }
+      );
+      if (!res.ok) {
+        if (res.status === 401) {
+          handleAuthError();
+        }
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<{ detail: string; path: string }>;
+    },
+    download: async (projectId: string, path: string, filename?: string) => {
+      const token = localStorage.getItem("cran_v2_auth_token");
+      const res = await fetch(
+        `${API_BASE}/projects/${projectId}/fs/download?path=${encodeURIComponent(path)}`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+      if (!res.ok) {
+        if (res.status === 401) {
+          handleAuthError();
+        }
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename || path.split("/").pop() || "download";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    },
+    delete: (projectId: string, path: string) =>
+      _fetch<{ detail: string; path: string }>(
+        `/projects/${projectId}/fs?path=${encodeURIComponent(path)}`,
+        { method: "DELETE" }
+      ),
+    copy: (projectId: string, src: string, dst: string) =>
+      _fetch<{ detail: string; src: string; dst: string }>(
+        `/projects/${projectId}/fs/copy?src=${encodeURIComponent(src)}&dst=${encodeURIComponent(dst)}`,
+        { method: "POST" }
+      ),
+    move: (projectId: string, src: string, dst: string) =>
+      _fetch<{ detail: string; src: string; dst: string }>(
+        `/projects/${projectId}/fs/move?src=${encodeURIComponent(src)}&dst=${encodeURIComponent(dst)}`,
+        { method: "POST" }
+      ),
+    compress: (projectId: string, path: string, archive: string) =>
+      _fetch<{ detail: string; path: string }>(
+        `/projects/${projectId}/fs/compress?path=${encodeURIComponent(path)}&archive=${encodeURIComponent(archive)}`,
+        { method: "POST" }
+      ),
+    extract: (projectId: string, archive: string, dest?: string) =>
+      _fetch<{ detail: string; path: string }>(
+        `/projects/${projectId}/fs/extract?archive=${encodeURIComponent(archive)}${dest ? `&dest=${encodeURIComponent(dest)}` : ""}`,
+        { method: "POST" }
+      ),
   },
 };

@@ -7,11 +7,36 @@ function _looksLikeJwt(token: string): boolean {
   return token.split(".").length === 3;
 }
 
+function _isJwtExpired(token: string): boolean {
+  try {
+    const payloadBase64 = token.split(".")[1];
+    if (!payloadBase64) return true;
+    const payload = JSON.parse(atob(payloadBase64));
+    if (!payload.exp) return false;
+    // Add a small buffer (30s) to avoid edge cases
+    return Date.now() >= (payload.exp * 1000) - 30000;
+  } catch {
+    return true;
+  }
+}
+
+function _redirectToLogin(): void {
+  if (typeof window === "undefined") return;
+  // Avoid redirect loops
+  if (window.location.pathname === "/login") return;
+  window.location.href = "/login";
+}
+
 export function getAuthToken(): string | null {
   const v1Token = localStorage.getItem(AUTH_TOKEN_KEY);
   const v2Token = localStorage.getItem("cran_v2_auth_token");
   // Prefer v2 JWT if both exist; v1 token is usually a short random string
   if (v2Token && _looksLikeJwt(v2Token)) {
+    if (_isJwtExpired(v2Token)) {
+      clearAuthToken();
+      _redirectToLogin();
+      return null;
+    }
     return v2Token;
   }
   if (v1Token) {
@@ -43,6 +68,7 @@ export function clearAuthToken(): void {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   localStorage.removeItem(AUTH_TOKEN_TIMESTAMP_KEY);
   localStorage.removeItem("cran_v2_auth_token");
+  localStorage.removeItem("cran-auth-store");
 }
 
 export function consumeAuthTokenFromUrl(): string | null {
