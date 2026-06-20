@@ -2661,8 +2661,10 @@ export function useSessionStream(
           ).some((e) => !e.submitted);
           const hasPendingInteraction =
             hasUnsubmittedApproval || hasUnsubmittedQuestion;
+          // Allow long-running tool executions (e.g. npm run build) to stay
+          // silent for up to 5 minutes before forcing a reconnect.
           if (
-            elapsed > 45_000 &&
+            elapsed > 300_000 &&
             statusRef.current === "streaming" &&
             !hasPendingInteraction
           ) {

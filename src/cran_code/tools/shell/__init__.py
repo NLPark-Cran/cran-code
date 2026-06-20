@@ -30,7 +30,7 @@ class Params(BaseModel):
             "The timeout in seconds for the command to execute. "
             "If the command takes longer than this, it will be killed."
         ),
-        default=60,
+        default=300,
         ge=1,
         le=MAX_BACKGROUND_TIMEOUT,
     )
@@ -79,7 +79,9 @@ class Shell(CallableTool2[Params]):
 
     @override
     async def __call__(self, params: Params) -> ToolReturnValue:
-        builder = ToolResultBuilder()
+        # Use a larger output buffer for shell commands so long build logs are
+        # less likely to be truncated before the model (or user) can inspect them.
+        builder = ToolResultBuilder(max_chars=200_000, max_line_length=10_000)
 
         if not params.command:
             return builder.error("Command cannot be empty.", brief="Empty command")

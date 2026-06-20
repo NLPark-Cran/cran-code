@@ -259,7 +259,7 @@ All fixes were applied during a systematic security audit. Do not revert any of 
 - Shiki reduced from 670 languages to 30 explicit imports.
 - `vite.config.ts` uses `manualChunks` for `monaco` and `vendor`.
 - SPA routing fix with `base: "/"` and `SPAStaticFiles` catching `StarletteHTTPException(404)`.
-- **Build fragility note**: Vite production build is near the VM's memory ceiling (~1.9 GB). Successful build requires pre-cached deps, `--max-old-space-size=1800`, and stopping other services. Future builds may require adding swap/RAM or moving to CI.
+- **Build note**: Production build now succeeds on the server with `NODE_OPTIONS="--max-old-space-size=1800"` after adding swap. Total swap is 8 GB (`/swapfile` 1G + `/swapfile2` 4G + `/swapfile3` 3G), all persisted in `/etc/fstab`. `vm.swappiness` raised from 10 to 80 to make better use of swap and avoid OOM during builds.
 
 ### Persistent deployment files on `crys.tt2.li`
 
@@ -268,6 +268,7 @@ These files are server-local and NOT in Git:
 - `~/.cran/server.env` — persistent env (chmod 600), holds `CRAN_JWT_SECRET`, optional `CRAN_PROJECT_ROOT`, `CRAN_MAX_FILE_SIZE`, `CRAN_DATABASE_URL`.
 - `/usr/local/bin/cran-code-web` — bash wrapper that sources `~/.cran/server.env` before exec.
 - `/etc/systemd/system/cran-code.service` — auto-start on boot, logs to `/var/log/cran-code.log`.
+- `/etc/nginx/sites-enabled/crys.tt2.li` — Nginx reverse proxy with `client_max_body_size 500M` and long WebSocket timeouts (`proxy_read_timeout 86400s`, `proxy_send_timeout 86400s`, `proxy_connect_timeout 300s`).
 
 ---
 
@@ -512,3 +513,54 @@ Access hierarchy (most to least privileged):
 6. Commit, open PR, merge.
 7. `git tag X.Y && git push --tags`
 8. GitHub Actions releases automatically.
+
+---
+
+## Current Work (as of 2026-06-20)
+
+### Active Task
+Fix long-running Shell tool execution being interrupted in Cran Code sessions (symptoms: `Session Error: Unexpected token '<'`, `Tool execution cancelled`, `No stderr`, truncated logs).
+
+### Files Modified
+- Backend:
+  - `src/cran_code/web/runner/process.py` — bounded waits when reading stderr on worker exit; replaces cryptic `"No stderr"` with actionable messages (e.g. signal/OOM hint).
+  - `src/cran_code/tools/shell/__init__.py` — default timeout raised from 60s to 300s; output buffer enlarged to 200k chars / 10k per line.
+  - `src/cran_code/web/db/models.py` — added `file_uploaded`, `file_downloaded`, `file_deleted` to `ActivityType`.
+  - `src/cran_code/web/api_v2/projects.py` — updated `ActivityCreate` validation pattern; fixed async lazy loading with `selectinload(Activity.user)`.
+  - `src/cran_code/web/api_v2/fs.py` — added `delete_fs`, `copy_fs`, `move_fs`, `compress_fs`, `extract_fs`, upload/download, and `_record_activity`.
+  - `src/cran_code/web/auth_v2/jwt.py` — access token expiry extended from 7 to 30 days.
+- Frontend:
+  - `web/src/hooks/useSessionStream.ts` — stale-connection watchdog threshold raised from 45s to 300s while streaming, preventing reconnects during long silent tool executions.
+  - `web/src/lib/api/v2.ts` — added `fs.upload/download/copy/move/delete/compress/extract`; 401 handler clears all tokens and redirects to `/login`.
+  - `web/src/components/FileTree.tsx` — added context menu (copy/move/delete/compress/extract), drag-and-drop upload, per-file download.
+  - `web/src/components/ActivityStream.tsx` — added upload/download/delete labels/colors and `refreshKey` prop; fixed loading loop with `useCallback`.
+  - `web/src/pages/ProjectPage.tsx` — wired all file-operation handlers and activity refresh.
+  - `web/src/components/Layout.tsx`, `web/src/lib/auth.ts` — logout clears all auth stores/tokens.
+- Server configuration (not in Git):
+  - Added `/swapfile2` (4G) and `/swapfile3` (3G), persisted in `/etc/fstab`; `vm.swappiness=80`.
+  - Nginx `crys.tt2.li` config: `client_max_body_size 500M`; WebSocket timeouts `proxy_read_timeout 86400s`, `proxy_send_timeout 86400s`, `proxy_connect_timeout 300s`.
+
+### Validation Status
+- `cd web && npx tsc -b --noEmit` passes.
+- Production build succeeds with `NODE_OPTIONS="--max-old-space-size=1800" npm run build` after swap increase.
+- Long terminal command (`sleep 60`) over project WebSocket completes successfully.
+- Long Shell tool command (`sleep 65`) runs to completion in local tool test.
+- Session WebSocket remains connected for >240s during a silent tool execution.
+
+### Next Steps
+1. Monitor real-world `npm run build` usage in Cran Code sessions for any remaining OOM-related worker deaths.
+2. Consider adding server-side WebSocket ping frames or frontend keep-alive pings for even longer idle periods.
+3. Evaluate restoring Vite React Compiler/minify once RAM is upgraded further.
+
+### Authentication Note
+A prior issue where sessions/teams appeared empty was caused by the 7-day JWT expiry. The fix includes:
+- Frontend now detects expired JWTs and redirects to `/login`.
+- v2 API client clears auth and redirects on 401.
+- Logout action clears both the auth store and legacy localStorage tokens.
+- Token expiry is now 30 days on the backend.
+
+### Long-running tool execution note
+If a session still fails during long commands:
+- Check `/var/log/cran-code.log` for "Worker process was terminated unexpectedly (signal 9, possibly OOM killed)".
+- Verify swap with `swapon --show` and `free -h`.
+- Ensure Nginx WebSocket timeouts are set (see deployment section above).

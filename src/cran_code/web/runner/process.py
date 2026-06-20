@@ -325,9 +325,47 @@ class SessionProcess:
                     if self._process.stdout.at_eof():
                         if self._expecting_exit:
                             break
-                        stderr = await self._process.stderr.read()
-                        if not stderr:
-                            stderr = b"No stderr"
+
+                        # Wait briefly for the process to actually exit and for
+                        # stderr to drain.  Use bounded waits so a stuck pipe
+                        # cannot block the whole session manager forever.
+                        try:
+                            await asyncio.wait_for(
+                                self._process.wait(), timeout=10.0
+                            )
+                        except TimeoutError:
+                            with contextlib.suppress(Exception):
+                                self._process.kill()
+                            with contextlib.suppress(Exception):
+                                await asyncio.wait_for(
+                                    self._process.wait(), timeout=5.0
+                                )
+
+                        try:
+                            stderr = await asyncio.wait_for(
+                                self._process.stderr.read(), timeout=5.0
+                            )
+                        except TimeoutError:
+                            stderr = b""
+
+                        # Build a human-friendly message instead of the cryptic
+                        # "No stderr" when the worker dies without logging.
+                        stderr_text = stderr.decode("utf-8", errors="replace")
+                        if not stderr_text.strip():
+                            rc = self._process.returncode
+                            if rc is None or rc < 0:
+                                sig = -rc if isinstance(rc, int) and rc < 0 else 9
+                                stderr_text = (
+                                    f"Worker process was terminated unexpectedly "
+                                    f"(signal {sig}, possibly OOM killed). "
+                                    f"No stderr captured."
+                                )
+                            else:
+                                stderr_text = (
+                                    f"Worker process exited with code {rc}. "
+                                    f"No stderr captured."
+                                )
+
                         # Clear in-flight IDs before broadcasting so that
                         # is_busy is already False when the frontend reacts
                         # to the error and sends a new prompt.
@@ -337,24 +375,24 @@ class SessionProcess:
                                 id=str(uuid4()),
                                 error=JSONRPCErrorObject(
                                     code=self._process.returncode or -1,
-                                    message=stderr.decode("utf-8"),
+                                    message=stderr_text,
                                 ),
                             ).model_dump_json()
                         )
                         logger.warning(
                             f"Process exited with {self._process.returncode}: "
-                            f"{stderr.decode('utf-8')}"
+                            f"{stderr_text}"
                         )
                         await self._emit_status(
                             "error",
                             reason="process_exit",
-                            detail=stderr.decode("utf-8"),
+                            detail=stderr_text,
                         )
                         break
                     else:
                         continue
 
-                await self._broadcast(line.decode("utf-8").rstrip("\n"))
+                await self._broadcast(line.decode("utf-8", errors="replace").rstrip("\n"))
 
                 # Handle out message
                 try:
