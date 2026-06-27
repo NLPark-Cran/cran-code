@@ -516,41 +516,42 @@ Access hierarchy (most to least privileged):
 
 ---
 
-## Current Work (as of 2026-06-20)
+## Current Work (as of 2026-06-27)
 
 ### Active Task
-Fix long-running Shell tool execution being interrupted in Cran Code sessions (symptoms: `Session Error: Unexpected token '<'`, `Tool execution cancelled`, `No stderr`, truncated logs).
+Merge upstream `MoonshotAI/kimi-cli` v1.48.0 into cran-code and update development constraints.
 
 ### Files Modified
-- Backend:
-  - `src/cran_code/web/runner/process.py` — bounded waits when reading stderr on worker exit; replaces cryptic `"No stderr"` with actionable messages (e.g. signal/OOM hint).
-  - `src/cran_code/tools/shell/__init__.py` — default timeout raised from 60s to 300s; output buffer enlarged to 200k chars / 10k per line.
-  - `src/cran_code/web/db/models.py` — added `file_uploaded`, `file_downloaded`, `file_deleted` to `ActivityType`.
-  - `src/cran_code/web/api_v2/projects.py` — updated `ActivityCreate` validation pattern; fixed async lazy loading with `selectinload(Activity.user)`.
-  - `src/cran_code/web/api_v2/fs.py` — added `delete_fs`, `copy_fs`, `move_fs`, `compress_fs`, `extract_fs`, upload/download, and `_record_activity`.
-  - `src/cran_code/web/auth_v2/jwt.py` — access token expiry extended from 7 to 30 days.
-- Frontend:
-  - `web/src/hooks/useSessionStream.ts` — stale-connection watchdog threshold raised from 45s to 300s while streaming, preventing reconnects during long silent tool executions.
-  - `web/src/lib/api/v2.ts` — added `fs.upload/download/copy/move/delete/compress/extract`; 401 handler clears all tokens and redirects to `/login`.
-  - `web/src/components/FileTree.tsx` — added context menu (copy/move/delete/compress/extract), drag-and-drop upload, per-file download.
-  - `web/src/components/ActivityStream.tsx` — added upload/download/delete labels/colors and `refreshKey` prop; fixed loading loop with `useCallback`.
-  - `web/src/pages/ProjectPage.tsx` — wired all file-operation handlers and activity refresh.
-  - `web/src/components/Layout.tsx`, `web/src/lib/auth.ts` — logout clears all auth stores/tokens.
-- Server configuration (not in Git):
-  - Added `/swapfile2` (4G) and `/swapfile3` (3G), persisted in `/etc/fstab`; `vm.swappiness=80`.
-  - Nginx `crys.tt2.li` config: `client_max_body_size 500M`; WebSocket timeouts `proxy_read_timeout 86400s`, `proxy_send_timeout 86400s`, `proxy_connect_timeout 300s`.
+- Merged upstream commits:
+  - `b0e08c5f` — `feat(soul): escalate repeated-tool-call reminders and force-stop on dead-end streak`
+  - `2c34efbb` — `chore(release): bump kimi-cli to 1.48.0 and kosong to 0.54.0`
+- Adaptations for cran-code fork:
+  - `pyproject.toml` — version bumped to `1.48.0`, package name stays `cran-code`.
+  - `src/cran_code/soul/kimisoul.py` — telemetry import adjusted to `cran_code.telemetry`.
+  - `src/cran_code/soul/toolset.py` — added `hashlib` import; same-step dedup telemetry kept but dropped obsolete `turn_id`/`step_no` fields that no longer exist in upstream class.
+  - `packages/kimi-code/pyproject.toml` — wrapper now depends on `cran-code==1.48.0` and entry point points to `cran_code.__main__:main`.
+  - `tests/core/test_kimisoul_repeat.py` and `tests/core/test_toolset.py` — imports and monkeypatch targets switched from `kimi_cli.*` to `cran_code.*`.
+  - `uv.lock` — regenerated to reflect v1.48.0 and cran-code dependency graph.
+- Rebuilt frontend and synced `web/dist` → `src/cran_code/web/static/`.
 
 ### Validation Status
+- `uv lock` succeeds.
+- `uv run pytest tests/core/test_toolset.py tests/core/test_kimisoul_repeat.py` passes (40 passed).
 - `cd web && npx tsc -b --noEmit` passes.
-- Production build succeeds with `NODE_OPTIONS="--max-old-space-size=1800" npm run build` after swap increase.
-- Long terminal command (`sleep 60`) over project WebSocket completes successfully.
-- Long Shell tool command (`sleep 65`) runs to completion in local tool test.
-- Session WebSocket remains connected for >240s during a silent tool execution.
+- Production build succeeds with `NODE_OPTIONS="--max-old-space-size=1800" npm run build`.
+- `crys.tt2.li` returns HTTP 200 after `systemctl restart cran-code.service`.
 
-### Next Steps
-1. Monitor real-world `npm run build` usage in Cran Code sessions for any remaining OOM-related worker deaths.
-2. Consider adding server-side WebSocket ping frames or frontend keep-alive pings for even longer idle periods.
-3. Evaluate restoring Vite React Compiler/minify once RAM is upgraded further.
+### Known pre-existing test failures
+A broader `pytest tests/core` run shows ~31 failures in branding/path-sensitive tests (`test_agent_spec.py`, `test_skill.py`, `test_default_agent.py`, etc.) caused by the project rename from `kimi_cli` to `cran_code`. These are not introduced by this merge and should be addressed in a dedicated test-maintenance pass.
+
+### Development constraints updated
+- Package version now `1.48.0`; `kosong` dependency is `0.54.0`.
+- When merging upstream, always watch for:
+  - Imports of `kimi_cli.*` in source and tests — replace with `cran_code.*`.
+  - References to `kimi-cli` package name in `pyproject.toml` / `uv.lock` / wrapper package.
+  - Telemetry imports (`kimi_cli.telemetry` → `cran_code.telemetry`).
+  - Tests that monkeypatch `kimi_cli` modules.
+- Do **not** change the main package name from `cran-code`; keep upstream version numbers in sync.
 
 ### Authentication Note
 A prior issue where sessions/teams appeared empty was caused by the 7-day JWT expiry. The fix includes:
