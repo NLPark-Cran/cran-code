@@ -81,9 +81,18 @@ async def compact(soul: KimiSoul, args: str):
 async def clear(soul: KimiSoul, args: str):
     """Clear the context"""
     logger.info("Running `/clear`")
-    await soul.context.clear()
-    await soul.context.write_system_prompt(soul.agent.system_prompt)
-    wire_send(TextPart(text="The context has been cleared."))
+    try:
+        await soul.context.clear()
+        await soul.context.write_system_prompt(soul.agent.system_prompt)
+        wire_send(TextPart(text="The context has been cleared."))
+    except Exception as exc:
+        logger.error("Failed to rotate context file during /clear: {error}", error=exc)
+        # Fallback: truncate in place and reset memory state so the session is
+        # still usable even when the filesystem rotation fails.
+        await soul.context.clear_in_place()
+        await soul.context.write_system_prompt(soul.agent.system_prompt)
+        wire_send(TextPart(text="The context has been cleared (fallback mode)."))
+
     snap = soul.status
     wire_send(
         StatusUpdate(

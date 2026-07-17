@@ -101,8 +101,11 @@ if TYPE_CHECKING:
 
 
 class SimpleCompaction:
-    def __init__(self, max_preserved_messages: int = 2) -> None:
+    def __init__(
+        self, max_preserved_messages: int = 2, max_preserved_tokens: int | None = None
+    ) -> None:
         self.max_preserved_messages = max_preserved_messages
+        self.max_preserved_tokens = max_preserved_tokens
 
     async def compact(
         self, messages: Sequence[Message], llm: LLM, *, custom_instruction: str = ""
@@ -151,21 +154,42 @@ class SimpleCompaction:
         history = list(messages)
         preserve_start_index = len(history)
         n_preserved = 0
+        preserved_tokens = 0
+        budget_limited = False
         for index in range(len(history) - 1, -1, -1):
-            if history[index].role in {"user", "assistant"}:
-                n_preserved += 1
-                if n_preserved == self.max_preserved_messages:
-                    preserve_start_index = index
-                    break
+            msg = history[index]
+            if msg.role not in {"user", "assistant"}:
+                continue
 
-        if n_preserved < self.max_preserved_messages:
+            msg_tokens = estimate_text_tokens([msg])
+            if (
+                self.max_preserved_tokens is not None
+                and preserved_tokens + msg_tokens > self.max_preserved_tokens
+            ):
+                budget_limited = True
+                break
+
+            preserved_tokens += msg_tokens
+            n_preserved += 1
+            preserve_start_index = index
+            if n_preserved == self.max_preserved_messages:
+                break
+
+        if n_preserved == 0:
+            # The most recent user/assistant messages are too large to preserve.
+            # Compact the entire history and keep nothing from before compaction.
+            preserve_start_index = len(history)
+            to_compact = history
+            to_preserve: Sequence[Message] = []
+        elif n_preserved < self.max_preserved_messages and not budget_limited:
+            # Not enough user/assistant messages to fill the count cap.
             return self.PrepareResult(compact_message=None, to_preserve=messages)
-
-        to_compact = history[:preserve_start_index]
-        to_preserve = history[preserve_start_index:]
+        else:
+            to_compact = history[:preserve_start_index]
+            to_preserve = history[preserve_start_index:]
 
         if not to_compact:
-            # Let's hope this won't exceed the context size limit
+            # Nothing older to summarize; preserving the tail is the best we can do.
             return self.PrepareResult(compact_message=None, to_preserve=to_preserve)
 
         # Create input message for compaction

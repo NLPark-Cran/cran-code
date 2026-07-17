@@ -37,6 +37,8 @@ from cran_code.notifications import (
 )
 from cran_code.skill import Skill, read_skill_text
 from cran_code.skill.flow import Flow, FlowEdge, FlowNode, parse_choice
+from kosong.chat_provider import ChatProviderError
+
 from cran_code.soul import (
     LLMNotSet,
     LLMNotSupported,
@@ -1264,13 +1266,40 @@ class KimiSoul:
             ChatProviderError: When the chat provider returns an error.
         """
 
-        chat_provider = self._runtime.llm.chat_provider if self._runtime.llm is not None else None
+        if self._runtime.llm is None:
+            raise LLMNotSet()
+        llm = self._runtime.llm
+        chat_provider = llm.chat_provider
 
-        async def _run_compaction_once() -> CompactionResult:
-            if self._runtime.llm is None:
-                raise LLMNotSet()
-            return await self._compaction.compact(
-                self._context.history, self._runtime.llm, custom_instruction=custom_instruction
+        max_context = llm.max_context_size
+        reserved = self._loop_control.reserved_context_size
+        trigger_ratio = self._loop_control.compaction_trigger_ratio
+        if (
+            isinstance(max_context, int)
+            and isinstance(reserved, int)
+            and isinstance(trigger_ratio, (int, float))
+            and max_context > 0
+        ):
+            safe_target = max(min(int(max_context * trigger_ratio), max_context - reserved), 0)
+        else:
+            safe_target = 0
+
+        # Leave most of the safe target for the compaction summary; cap the
+        # preserved tail so a few huge recent messages cannot keep usage >100%.
+        preserved_budget = max(safe_target // 4, 0)
+
+        main_compaction = SimpleCompaction(
+            max_preserved_messages=2, max_preserved_tokens=preserved_budget
+        )
+        # A token budget of zero forces SimpleCompaction to summarize the entire
+        # history and preserve none of the original messages.
+        fallback_compaction = SimpleCompaction(
+            max_preserved_messages=2, max_preserved_tokens=0
+        )
+
+        async def _run_compaction_once(compaction: SimpleCompaction) -> CompactionResult:
+            return await compaction.compact(
+                self._context.history, llm, custom_instruction=custom_instruction
             )
 
         start_time = time.monotonic()
@@ -1281,19 +1310,24 @@ class KimiSoul:
             retry_count = retry_state.attempt_number
             self._retry_log("compaction", retry_state)
 
-        @tenacity.retry(
-            retry=retry_if_exception(self._is_retryable_error),
-            before_sleep=_retry_log_compaction,
-            wait=wait_exponential_jitter(initial=0.3, max=5, jitter=0.5),
-            stop=stop_after_attempt(self._loop_control.max_retries_per_step),
-            reraise=True,
-        )
-        async def _compact_with_retry() -> CompactionResult:
-            return await self._run_with_connection_recovery(
-                "compaction",
-                _run_compaction_once,
-                chat_provider=chat_provider,
+        def _make_compact_with_retry(
+            compaction: SimpleCompaction,
+        ) -> Callable[[], Awaitable[CompactionResult]]:
+            @tenacity.retry(
+                retry=retry_if_exception(self._is_retryable_error),
+                before_sleep=_retry_log_compaction,
+                wait=wait_exponential_jitter(initial=0.3, max=5, jitter=0.5),
+                stop=stop_after_attempt(self._loop_control.max_retries_per_step),
+                reraise=True,
             )
+            async def _compact_with_retry() -> CompactionResult:
+                return await self._run_with_connection_recovery(
+                    "compaction",
+                    lambda: _run_compaction_once(compaction),
+                    chat_provider=chat_provider,
+                )
+
+            return _compact_with_retry
 
         if not manual:
             trigger_reason = "auto"
@@ -1317,7 +1351,7 @@ class KimiSoul:
 
         wire_send(CompactionBegin())
         try:
-            compaction_result = await _compact_with_retry()
+            compaction_result = await _make_compact_with_retry(main_compaction)()
         except Exception as _compact_exc:
             from cran_code.telemetry import track
 
@@ -1330,11 +1364,85 @@ class KimiSoul:
                 error_type=type(_compact_exc).__name__,
             )
             raise
+
+        # Safety check: compaction must actually reduce the context size. If the
+        # compacted estimate is not significantly smaller than the original, the
+        # compaction output is likely unusable (e.g. model echoed input or the
+        # preserved tail is already huge). Refuse to replace the live context.
+        estimated_token_count = compaction_result.estimated_token_count
+        if before_tokens > 0 and estimated_token_count >= before_tokens * 0.85:
+            from cran_code.telemetry import track
+
+            track(
+                "compaction_failed",
+                trigger_type=trigger_reason,
+                before_tokens=before_tokens,
+                after_tokens=estimated_token_count,
+                duration_ms=int((time.monotonic() - start_time) * 1000),
+                retry_count=retry_count,
+                error_type="CompactionNotReducing",
+            )
+            raise ChatProviderError(
+                f"Compaction did not reduce context size "
+                f"(before: {before_tokens}, after: {estimated_token_count}). "
+                f"The original context has been preserved."
+            )
+
+        # Extra safety: the compacted context must fit comfortably within the
+        # model's context window. If the preserved tail is still too large,
+        # fall back to summarizing everything (including the recent messages).
+        if safe_target > 0 and estimated_token_count > safe_target:
+            logger.warning(
+                "Compacted context ({after}) still exceeds safe target ({target}); "
+                "recompacting without preserved tail",
+                after=estimated_token_count,
+                target=safe_target,
+            )
+            try:
+                fallback_result = await _make_compact_with_retry(fallback_compaction)()
+            except Exception as _compact_exc:
+                from cran_code.telemetry import track
+
+                track(
+                    "compaction_failed",
+                    trigger_type=trigger_reason,
+                    before_tokens=before_tokens,
+                    after_tokens=estimated_token_count,
+                    duration_ms=int((time.monotonic() - start_time) * 1000),
+                    retry_count=retry_count,
+                    error_type=type(_compact_exc).__name__,
+                    fallback="preserve_zero",
+                )
+                raise
+
+            fallback_estimate = fallback_result.estimated_token_count
+            if fallback_estimate < estimated_token_count:
+                compaction_result = fallback_result
+                estimated_token_count = fallback_estimate
+
+        if safe_target > 0 and estimated_token_count > safe_target:
+            from cran_code.telemetry import track
+
+            track(
+                "compaction_failed",
+                trigger_type=trigger_reason,
+                before_tokens=before_tokens,
+                after_tokens=estimated_token_count,
+                duration_ms=int((time.monotonic() - start_time) * 1000),
+                retry_count=retry_count,
+                error_type="CompactionStillExceedsTarget",
+            )
+            raise ChatProviderError(
+                f"Compaction could not reduce context below the safe threshold "
+                f"(target: {safe_target}, after: {estimated_token_count}). "
+                f"The original context has been preserved. "
+                f"Run `/clear` to discard the conversation history."
+            )
+
         await self._context.clear()
         await self._context.write_system_prompt(self._agent.system_prompt)
         await self._checkpoint()
         await self._context.append_message(compaction_result.messages)
-        estimated_token_count = compaction_result.estimated_token_count
 
         if self.is_root:
             active_task_snapshot = build_active_task_snapshot(self._runtime.background_tasks)

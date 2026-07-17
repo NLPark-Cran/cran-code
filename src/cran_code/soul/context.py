@@ -229,6 +229,28 @@ class Context:
         self._next_checkpoint_id = 0
         self._system_prompt = None
 
+    async def clear_in_place(self):
+        """
+        Clear the context history by truncating the file backend in place.
+
+        Used as a fallback when :meth:`clear` cannot rotate the file (e.g. the
+        rotation directory is unwritable or exhausted). Unlike :meth:`clear`,
+        this does NOT preserve the previous context file.
+        """
+
+        logger.warning("Clearing context in place (no rotation)")
+
+        def _truncate() -> None:
+            self._file_backend.write_text("", encoding="utf-8")
+
+        await asyncio.to_thread(_truncate)
+
+        self._history.clear()
+        self._token_count = 0
+        self._pending_token_estimate = 0
+        self._next_checkpoint_id = 0
+        self._system_prompt = None
+
     async def append_message(self, message: Message | Sequence[Message]):
         logger.debug("Appending message(s) to context: {message}", message=message)
         messages = [message] if isinstance(message, Message) else message

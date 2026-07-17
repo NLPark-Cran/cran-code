@@ -274,3 +274,69 @@ def test_prepare_preserves_media_parts_in_recent_messages():
     # Preserved messages should keep their media parts intact
     preserved_user_msg = result.to_preserve[0]
     assert any(isinstance(p, VideoURLPart) for p in preserved_user_msg.content)
+
+
+def test_prepare_drops_large_recent_messages_when_token_budget_exceeded():
+    """When recent messages exceed the token budget, drop them from the preserved tail."""
+    messages = [
+        Message(role="user", content=[TextPart(text="Small old question")]),
+        Message(role="assistant", content=[TextPart(text="Small old answer")]),
+        Message(role="user", content=[TextPart(text="x" * 10_000)]),
+        Message(role="assistant", content=[TextPart(text="y" * 10_000)]),
+    ]
+
+    result = SimpleCompaction(max_preserved_messages=2, max_preserved_tokens=1000).prepare(
+        messages
+    )
+
+    # The most recent large messages should not be preserved as-is.
+    assert len(result.to_preserve) == 0
+    assert result.compact_message is not None
+    compact_text = " ".join(
+        p.text for p in result.compact_message.content if isinstance(p, TextPart)
+    )
+    assert "Small old question" in compact_text
+    assert "x" * 10 in compact_text
+    assert "y" * 10 in compact_text
+
+
+def test_prepare_partial_preserve_respects_token_budget():
+    """Preserve the newest message only if the older one exceeds the token budget."""
+    messages = [
+        Message(role="user", content=[TextPart(text="Old question")]),
+        Message(role="assistant", content=[TextPart(text="Old answer")]),
+        Message(role="user", content=[TextPart(text="x" * 4_000)]),
+        Message(role="assistant", content=[TextPart(text="Latest reply")]),
+    ]
+
+    result = SimpleCompaction(max_preserved_messages=2, max_preserved_tokens=1000).prepare(
+        messages
+    )
+
+    # Only the latest assistant message fits the budget.
+    assert result.to_preserve == [
+        Message(role="assistant", content=[TextPart(text="Latest reply")])
+    ]
+    assert result.compact_message is not None
+    compact_text = " ".join(
+        p.text for p in result.compact_message.content if isinstance(p, TextPart)
+    )
+    assert "Old question" in compact_text
+    assert "x" * 10 in compact_text
+
+
+def test_prepare_token_budget_does_not_affect_default_behavior():
+    """Without a token budget, the existing count-based behavior is unchanged."""
+    messages = [
+        Message(role="user", content=[TextPart(text="Old question")]),
+        Message(role="assistant", content=[TextPart(text="Old answer")]),
+        Message(role="user", content=[TextPart(text="x" * 4_000)]),
+        Message(role="assistant", content=[TextPart(text="Latest reply")]),
+    ]
+
+    result = SimpleCompaction(max_preserved_messages=2).prepare(messages)
+
+    assert result.to_preserve == [
+        Message(role="user", content=[TextPart(text="x" * 4_000)]),
+        Message(role="assistant", content=[TextPart(text="Latest reply")]),
+    ]

@@ -1896,7 +1896,9 @@ export function useSessionStream(
           clearStepRetryStatus();
           const nextContextUsage = event.payload.context_usage;
           if (typeof nextContextUsage === "number") {
-            setContextUsage(nextContextUsage);
+            // Clamp to the valid [0, 1] range so a backend bug cannot render
+            // impossible percentages such as 727.5%.
+            setContextUsage(Math.max(0, Math.min(1, nextContextUsage)));
           }
 
           const nextTokenUsage = event.payload.token_usage;
@@ -1924,6 +1926,7 @@ export function useSessionStream(
           // Clear UI for /clear command (triggered by StatusUpdate after clear)
           if (pendingClearRef.current) {
             pendingClearRef.current = false;
+            setContextUsage(0);
             setMessages((prev) => {
               let lastUserMsgIndex = -1;
               for (let i = prev.length - 1; i >= 0; i--) {

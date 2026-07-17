@@ -221,6 +221,30 @@ async def test_clear_resets_system_prompt(tmp_path: Path) -> None:
     assert len(ctx.history) == 0
 
 
+@pytest.mark.asyncio
+async def test_clear_in_place_truncates_file(tmp_path: Path) -> None:
+    path = tmp_path / "context.jsonl"
+    _write_lines(
+        path,
+        [
+            {"role": "_system_prompt", "content": "Will be cleared"},
+            _message_dict("user", "Hello"),
+            _message_dict("assistant", "World"),
+        ],
+    )
+
+    ctx = Context(file_backend=path)
+    await ctx.restore()
+    assert len(ctx.history) == 2
+
+    await ctx.clear_in_place()
+
+    assert ctx.system_prompt is None
+    assert len(ctx.history) == 0
+    assert ctx.token_count == 0
+    assert path.read_text(encoding="utf-8") == ""
+
+
 # --- revert_to tests ---
 
 
