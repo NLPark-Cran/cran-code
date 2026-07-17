@@ -38,6 +38,10 @@ class ModelInfo(BaseModel):
             caps.add("video_in")
         if self.id.lower().startswith("kimi-k2"):
             caps.update(("thinking", "image_in", "video_in"))
+        if self.id.lower() in {"k3", "kimi-for-coding-highspeed"}:
+            # K3 (thinking effort: server default max) and the K2.7 Code
+            # high-speed variant both run with thinking enabled.
+            caps.add("thinking")
         return caps
 
 

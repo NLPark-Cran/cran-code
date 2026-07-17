@@ -537,6 +537,12 @@ def derive_model_capabilities(model: LLMModel) -> set[ModelCapability]:
     # These models support thinking but can be toggled on/off
     elif model.model in {"kimi-for-coding", "kimi-code"}:
         capabilities.update(("thinking", "image_in", "video_in"))
+    elif model.model in {"kimi-for-coding-highspeed", "k3"}:
+        # kimi-for-coding-highspeed: K2.7 Code high-speed variant, same coding
+        # ability as the standard version (Thinking: ON).
+        # k3: Kimi K3 flagship; thinking effort currently only supports the
+        # server-side default (max), so kosong must not send an explicit effort.
+        capabilities.add("thinking")
     return capabilities
 
 

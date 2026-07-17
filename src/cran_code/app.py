@@ -757,7 +757,9 @@ class KimiCLI:
             model_name = self._soul.model_name
             if model_name not in (
                 "kimi-for-coding",
+                "kimi-for-coding-highspeed",
                 "kimi-code",
+                "k3",
             ) and not model_name.startswith("kimi-k2"):
                 welcome_info.append(
                     WelcomeInfoItem(

@@ -516,36 +516,42 @@ Access hierarchy (most to least privileged):
 
 ---
 
-## Current Work (as of 2026-06-27)
+## Current Work (as of 2026-06-08)
 
 ### Active Task
-Merge upstream `MoonshotAI/kimi-cli` v1.48.0 into cran-code and update development constraints.
+Merge upstream `MoonshotAI/kimi-cli` v1.49.0 (kosong 0.55.0) into cran-code; add Kimi K3 / `kimi-for-coding-highspeed` support.
 
 ### Files Modified
-- Merged upstream commits:
-  - `b0e08c5f` — `feat(soul): escalate repeated-tool-call reminders and force-stop on dead-end streak`
-  - `2c34efbb` — `chore(release): bump kimi-cli to 1.48.0 and kosong to 0.54.0`
+- Merged upstream commits `2c34efbb..4a550eff`:
+  - `ce0656d3` — completion budget adapts to remaining context window (`compute_max_completion_tokens`, `estimate_request_tokens`, per-request `generation_overrides` for Kimi providers)
+  - `0b93ad34` / `ded99b4a` — kosong: preserve empty `reasoning_content`; stop sending legacy `reasoning_effort` implicitly (thinking now uses `thinking.type` only — this is what makes **K3** work, since K3 currently accepts only the server-side default effort `max`)
+  - `7c52e766` — telemetry aligned with TS schema (`trace_id` on requests, `api_error`/`compaction_*`/`tool_call*` event renames, approval telemetry)
+  - `4a550eff` — release bump 1.49.0 / kosong 0.55.0
 - Adaptations for cran-code fork:
-  - `pyproject.toml` — version bumped to `1.48.0`, package name stays `cran-code`.
-  - `src/cran_code/soul/kimisoul.py` — telemetry import adjusted to `cran_code.telemetry`.
-  - `src/cran_code/soul/toolset.py` — added `hashlib` import; same-step dedup telemetry kept but dropped obsolete `turn_id`/`step_no` fields that no longer exist in upstream class.
-  - `packages/kimi-code/pyproject.toml` — wrapper now depends on `cran-code==1.48.0` and entry point points to `cran_code.__main__:main`.
-  - `tests/core/test_kimisoul_repeat.py` and `tests/core/test_toolset.py` — imports and monkeypatch targets switched from `kimi_cli.*` to `cran_code.*`.
-  - `uv.lock` — regenerated to reflect v1.48.0 and cran-code dependency graph.
-- Rebuilt frontend and synced `web/dist` → `src/cran_code/web/static/`.
+  - `pyproject.toml` / `packages/kimi-code/pyproject.toml` / `uv.lock` — cran-code 1.49.0, kosong 0.55.0.
+  - All new upstream `kimi_cli.*` imports/monkeypatch targets rewritten to `cran_code.*` (source + tests).
+  - `src/cran_code/soul/kimisoul.py::compact_context` — merged upstream completion-override/trace-callback machinery with the fork's preserved-tail token budget fix: main pass reuses `self._compaction` (keeps it mockable), zero-preservation fallback pass retained; when `safe_target == 0` (degenerate loop-control config) the budget is disabled and behavior matches upstream. `compaction_failed` events use the new TS-aligned schema (`source`/`tokens_before`/`retry_count`/`thinking_effort`).
+  - `tests/core/test_create_llm.py` — env-augmentation test now uses the fork's `CRAN_BASE_URL`/`CRAN_API_KEY`/`CRAN_MODEL_NAME` (previously failing against `KIMI_*` names).
+  - `tests/web/test_sessions_api.py` — new upstream title-budget tests adapted to the fork's `current_user` route param.
+- K3 / highspeed support:
+  - `src/cran_code/llm.py::derive_model_capabilities` — `k3` and `kimi-for-coding-highspeed` get `thinking` capability (image/video still come from the platform `/models` flags).
+  - `src/cran_code/auth/platforms.py::ModelInfo.capabilities` — same name-based `thinking` fallback.
+  - `src/cran_code/app.py` — `/login` nudge no longer shown for `k3` / `kimi-for-coding-highspeed`.
+  - `src/cran_code/agents/default/system.md` — thinking-mode directive documents K3 (effort `max` only) and highspeed.
 
 ### Validation Status
-- `uv lock` succeeds.
-- `uv run pytest tests/core/test_toolset.py tests/core/test_kimisoul_repeat.py` passes (40 passed).
-- `cd web && npx tsc -b --noEmit` passes.
-- Production build succeeds with `NODE_OPTIONS="--max-old-space-size=1800" npm run build`.
+- `uv lock` succeeds; `uv run pyright` 0 errors on merged sources.
+- 371 passed across affected suites (`test_kimisoul_compaction`, `test_kimisoul_completion_budget`, `test_simple_compaction`, `test_context`, `test_create_llm`, `test_toolset`, `test_approval_telemetry`, `test_btw`, `test_sessions_api`, `test_instrumentation`, retry/steer/ralph/auth suites).
 - `crys.tt2.li` returns HTTP 200 after `systemctl restart cran-code.service`.
 
+### Deployment reminder
+`cran-code web` serves statics from the **installed package** (`/root/.local/share/uv/tools/cran-code/.../cran_code/web/static`), not the repo's `web/dist`. Frontend deploy = build in `web/` → copy `dist/*` into `src/cran_code/web/static/` → `uv tool install --force ./` (or copy into the installed tool's static dir) → `systemctl restart cran-code.service`.
+
 ### Known pre-existing test failures
-A broader `pytest tests/core` run shows ~31 failures in branding/path-sensitive tests (`test_agent_spec.py`, `test_skill.py`, `test_default_agent.py`, etc.) caused by the project rename from `kimi_cli` to `cran_code`. These are not introduced by this merge and should be addressed in a dedicated test-maintenance pass.
+A broader `pytest tests/core` run shows failures in branding/path-sensitive tests (`test_agent_spec.py`, `test_skill.py`, `test_default_agent.py`, etc.) caused by the project rename from `kimi_cli` to `cran_code`. These are not introduced by this merge and should be addressed in a dedicated test-maintenance pass. (The `test_create_llm.py` env-augmentation snapshot was fixed in the v1.49.0 merge by aligning it with the fork's `CRAN_*` env names.)
 
 ### Development constraints updated
-- Package version now `1.48.0`; `kosong` dependency is `0.54.0`.
+- Package version now `1.49.0`; `kosong` dependency is `0.55.0`.
 - When merging upstream, always watch for:
   - Imports of `kimi_cli.*` in source and tests — replace with `cran_code.*`.
   - References to `kimi-cli` package name in `pyproject.toml` / `uv.lock` / wrapper package.
