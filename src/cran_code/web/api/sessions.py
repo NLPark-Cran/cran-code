@@ -67,6 +67,7 @@ work_dirs_router = APIRouter(prefix="/api/work-dirs", tags=["work-dirs"])
 # Constants
 MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100MB
 DEFAULT_MAX_PUBLIC_PATH_DEPTH = 6
+SESSION_TITLE_MAX_COMPLETION_TOKENS = 512
 SENSITIVE_PATH_PARTS = {
     "id_rsa",
     "id_ed25519",
@@ -997,7 +998,11 @@ async def generate_session_title(
 
         from cran_code.auth.oauth import OAuthManager
         from cran_code.config import load_config
-        from cran_code.llm import create_llm
+        from cran_code.llm import (
+            create_llm,
+            find_kimi_provider,
+            with_kimi_generation_overrides,
+        )
 
         config = load_config()
         model_name = config.default_model
@@ -1024,8 +1029,25 @@ Assistant: {(assistant_response or "")[:300]}
 
 Title:"""
 
+                    title_generation_overrides = None
+                    if kimi_provider := find_kimi_provider(llm.chat_provider):
+                        title_completion_tokens = SESSION_TITLE_MAX_COMPLETION_TOKENS
+                        configured_budget = kimi_provider.model_parameters.get(
+                            "max_completion_tokens"
+                        )
+                        if type(configured_budget) is int and configured_budget > 0:
+                            title_completion_tokens = min(
+                                title_completion_tokens, configured_budget
+                            )
+                        title_generation_overrides = {
+                            "max_completion_tokens": title_completion_tokens
+                        }
+
                     result = await generate(
-                        chat_provider=llm.chat_provider,
+                        chat_provider=with_kimi_generation_overrides(
+                            llm.chat_provider,
+                            title_generation_overrides,
+                        ),
                         system_prompt=system_prompt,
                         tools=[],
                         history=[Message(role="user", content=prompt)],
