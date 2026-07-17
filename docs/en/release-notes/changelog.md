@@ -4,6 +4,12 @@ This page documents the changes in each Kimi Code CLI release.
 
 ## Unreleased
 
+Cran Code fork changes on top of upstream 1.49.0:
+
+- Models: Support Kimi K3 (`k3`, up to 1M context, thinking effort `max` only) and `kimi-for-coding-highspeed` (6x-speed K2.7 Code variant). Both get the `thinking` capability; kosong 0.55.0 no longer sends an explicit `reasoning_effort`, so K3's server-side default effort applies
+- Soul: Compaction keeps the fork's preserved-tail token budget (fixes context usage >100%) on top of upstream's remaining-context completion budget; refuses with a clear error when even full summarization cannot reach the safe target
+- Web UI: Clamp `context_usage` to [0, 100%] so a backend anomaly can never render impossible percentages
+
 ## 1.49.0 (2026-07-16)
 
 **Highlights**: The completion-token budget for Kimi providers now adapts to the model's remaining context window, reducing context-length overflow errors on long turns
