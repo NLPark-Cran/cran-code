@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import LanguageSwitcher from "./LanguageSwitcher";
 import TeamSelector from "./TeamSelector";
 import { useAuthStore } from "@/stores/auth";
 import { clearAuthToken } from "@/lib/auth";
@@ -21,6 +23,7 @@ interface LayoutProps {
 
 export default function Layout({ children, breadcrumbs }: LayoutProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user, clearAuth } = useAuthStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -41,7 +44,7 @@ export default function Layout({ children, breadcrumbs }: LayoutProps) {
               className="size-6 cursor-pointer"
               onClick={() => navigate("/dashboard")}
             />
-            <span className="font-semibold">Cran Code</span>
+            <span className="font-semibold">{t("common:brandName")}</span>
             <span className="text-muted-foreground">/</span>
             <TeamSelector />
             {breadcrumbs && (
@@ -62,23 +65,28 @@ export default function Layout({ children, breadcrumbs }: LayoutProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                  <span className="text-sm text-muted-foreground">{t("common:language")}</span>
+                  <LanguageSwitcher />
+                </div>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
                   <Settings className="mr-2 h-4 w-4" />
-                  Settings
+                  {t("nav:settings")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/settings/providers")}>
                   <Server className="mr-2 h-4 w-4" />
-                  Providers
+                  {t("nav:providers")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
                   <LogOut className="mr-2 h-4 w-4" />
-                  Logout
+                  {t("nav:logout")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button variant="outline" size="sm" onClick={() => navigate("/")}>
-              Chat
+              {t("nav:chat")}
             </Button>
           </div>
         </div>

@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
 import type { ApprovalResponseDecision } from "@/hooks/wireTypes";
 import type { LiveMessage } from "@/hooks/types";
@@ -60,10 +62,11 @@ export function AssistantMessage({
   canRespondToApproval,
   blocksExpanded,
 }: AssistantMessageProps) {
+  const { t } = useTranslation();
   const content = useMemo(() => {
     switch (message.variant) {
       case "chain-of-thought":
-        return renderChainOfThoughtMessage(message);
+        return renderChainOfThoughtMessage(message, t);
       case "tool":
         return renderToolMessage({
           message,
@@ -71,15 +74,16 @@ export function AssistantMessage({
           onApprovalAction,
           canRespondToApproval,
           blocksExpanded,
+          t,
         });
       case "code":
-        return renderCodeMessage(message);
+        return renderCodeMessage(message, t);
       case "thinking":
-        return renderThinkingMessage(message, blocksExpanded);
+        return renderThinkingMessage(message, blocksExpanded, t);
       case "compaction":
         return renderCompactionMessage(message);
       default:
-        return renderAssistantText(message);
+        return renderAssistantText(message, t);
     }
   }, [
     message,
@@ -87,6 +91,7 @@ export function AssistantMessage({
     onApprovalAction,
     canRespondToApproval,
     blocksExpanded,
+    t,
   ]);
 
   return content;
@@ -105,7 +110,7 @@ const renderCompactionMessage = (message: LiveMessage) => {
   );
 };
 
-const renderAssistantText = (message: LiveMessage) => {
+const renderAssistantText = (message: LiveMessage, t: TFunction) => {
   return (
     <MessageContent className={assistantContentClass}>
       <div className="flex items-start gap-2">
@@ -125,7 +130,7 @@ const renderAssistantText = (message: LiveMessage) => {
             mode={message.isStreaming ? "streaming" : "static"}
             parseIncompleteMarkdown={Boolean(message.isStreaming)}
           >
-            {message.content || "Thinking through the response..."}
+            {message.content || t("chat:thinkingResponse")}
           </MessageResponse>
         </div>
       </div>
@@ -133,10 +138,10 @@ const renderAssistantText = (message: LiveMessage) => {
   );
 };
 
-const renderChainOfThoughtMessage = (message: LiveMessage) => {
+const renderChainOfThoughtMessage = (message: LiveMessage, t: TFunction) => {
   const details = message.chainOfThought;
   if (!details) {
-    return renderAssistantText(message);
+    return renderAssistantText(message, t);
   }
   const visibleSteps = details.steps.slice(0, details.revealedSteps);
 
@@ -171,7 +176,7 @@ const renderChainOfThoughtMessage = (message: LiveMessage) => {
       </ChainOfThought>
       {message.isStreaming ? (
         <div className={`mt-2 ${assistantMetaTextClass}`}>
-          Reasoning through the request…
+          {t("chat:reasoningRequest")}
         </div>
       ) : null}
     </MessageContent>
@@ -184,16 +189,18 @@ const renderToolMessage = ({
   onApprovalAction,
   canRespondToApproval,
   blocksExpanded,
+  t,
 }: {
   message: LiveMessage;
   pendingApprovalMap: Record<string, boolean>;
   onApprovalAction?: AssistantApprovalHandler;
   canRespondToApproval: boolean;
   blocksExpanded: boolean;
+  t: TFunction;
 }) => {
   const toolCall = message.toolCall;
   if (!toolCall) {
-    return renderAssistantText(message);
+    return renderAssistantText(message, t);
   }
 
   // Think tool: render as lightweight reasoning-style block
@@ -222,8 +229,8 @@ const renderToolMessage = ({
 
   const subagentOriginLabel = toolCall.isSubagentOrigin
     ? toolCall.subagentType
-      ? `${toolCall.subagentType} agent`
-      : "sub-agent"
+      ? t("chat:subAgentSuffix", { type: toolCall.subagentType })
+      : t("chat:subAgent")
     : null;
 
   const toolBlock = (
@@ -263,12 +270,12 @@ const renderToolMessage = ({
               className="rounded-md bg-muted/30 px-3 py-2.5 text-sm"
             >
               <ConfirmationTitle>
-                Manual approval required by {approval.sender}
+                {t("chat:manualApprovalRequired", { sender: approval.sender })}
               </ConfirmationTitle>
               <ConfirmationRequest>
                 <div className="text-sm text-muted-foreground">
                   <p>
-                    <span className="font-medium text-foreground">Action:</span>{" "}
+                    <span className="font-medium text-foreground">{t("chat:actionLabel")}</span>{" "}
                     {approval.action}
                   </p>
                   {approval.description ? (
@@ -285,7 +292,7 @@ const renderToolMessage = ({
                     }
                     variant="outline"
                   >
-                    {approvalPending ? "Declining…" : "Decline"}
+                    {approvalPending ? t("chat:declining") : t("chat:decline")}
                   </ConfirmationAction>
                   <ConfirmationAction
                     disabled={disableApprovalActions}
@@ -293,7 +300,7 @@ const renderToolMessage = ({
                       approval && onApprovalAction?.(approval, "approve")
                     }
                   >
-                    {approvalPending ? "Confirming…" : "Approve"}
+                    {approvalPending ? t("chat:confirming") : t("chat:approve")}
                   </ConfirmationAction>
                   <ConfirmationAction
                     disabled={disableApprovalActions}
@@ -305,21 +312,21 @@ const renderToolMessage = ({
                     className="hover:bg-primary/30"
                   >
                     {approvalPending
-                      ? "Approving session…"
-                      : "Approve for session"}
+                      ? t("chat:approvingSession")
+                      : t("chat:approveForSession")}
                   </ConfirmationAction>
                 </ConfirmationActions>
               </ConfirmationRequest>
               <ConfirmationAccepted>
                 <div className="rounded-md bg-success/10 px-3 py-2 text-xs text-success">
                   {approvalResponse === "approve_for_session"
-                    ? "Session approved. Future matching requests auto-approve."
-                    : "Approval confirmed. Continuing execution…"}
+                    ? t("chat:sessionApproved")
+                    : t("chat:approvalConfirmed")}
                 </div>
               </ConfirmationAccepted>
               <ConfirmationRejected>
                 <div className="rounded-md bg-warning/10 px-3 py-2 text-xs text-warning">
-                  Request denied
+                  {t("chat:requestDenied")}
                   {approval.reason ? `: ${approval.reason}` : "."}
                 </div>
               </ConfirmationRejected>
@@ -331,9 +338,9 @@ const renderToolMessage = ({
         <ToolMediaPreview mediaParts={toolCall.mediaParts} />
       ) : null}
       {isApprovalRequested ? (
-        <div className={assistantMetaTextClass}>Waiting for your approval…</div>
+        <div className={assistantMetaTextClass}>{t("chat:waitingApproval")}</div>
       ) : isApprovalDenied ? (
-        <div className={assistantMetaTextClass}>Tool execution cancelled.</div>
+        <div className={assistantMetaTextClass}>{t("chat:toolCancelled")}</div>
       ) : null}
     </div>
   );
@@ -357,6 +364,7 @@ const ThinkToolBlock = ({
   message,
   defaultOpen,
 }: { message: LiveMessage; defaultOpen: boolean }) => {
+  const { t } = useTranslation();
   const toolCall = message.toolCall;
   const thought =
     toolCall?.input && typeof toolCall.input === "object"
@@ -380,8 +388,8 @@ const ThinkToolBlock = ({
           <BrainIcon className="size-3.5 text-muted-foreground/70 shrink-0" />
           <span className="italic">
             {isComplete
-              ? "Thought through the problem"
-              : "Thinking through the problem…"}
+              ? t("chat:thoughtDone")
+              : t("chat:thinkingProblem")}
           </span>
           <ChevronRightIcon
             className={cn(
@@ -415,10 +423,10 @@ const renderThinkToolMessage = (
   );
 };
 
-const renderCodeMessage = (message: LiveMessage) => {
+const renderCodeMessage = (message: LiveMessage, t: TFunction) => {
   const snippet = message.codeSnippet;
   if (!snippet) {
-    return renderAssistantText(message);
+    return renderAssistantText(message, t);
   }
 
   return (
@@ -428,7 +436,7 @@ const renderCodeMessage = (message: LiveMessage) => {
         mode={message.isStreaming ? "streaming" : "static"}
         parseIncompleteMarkdown={Boolean(message.isStreaming)}
       >
-        {message.content ?? snippet.title ?? "Generated code"}
+        {message.content ?? snippet.title ?? t("chat:generatedCode")}
       </MessageResponse>
       {snippet.code ? (
         <div className="mt-3">
@@ -440,7 +448,7 @@ const renderCodeMessage = (message: LiveMessage) => {
         </div>
       ) : (
         <div className={`mt-3 ${assistantMetaTextClass}`}>
-          Assembling snippet…
+          {t("chat:assemblingSnippet")}
         </div>
       )}
     </MessageContent>
@@ -450,10 +458,11 @@ const renderCodeMessage = (message: LiveMessage) => {
 const renderThinkingMessage = (
   message: LiveMessage,
   blocksExpanded: boolean,
+  t: TFunction,
 ) => {
   const thinkingContent = message.thinking;
   if (!thinkingContent) {
-    return renderAssistantText(message);
+    return renderAssistantText(message, t);
   }
 
   return (

@@ -1,4 +1,5 @@
 import { type ReactElement, memo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ChevronDownIcon,
   FileIcon,
@@ -80,6 +81,7 @@ export const ToolbarChangesTab = memo(function ToolbarChangesTabComponent({
   isActive,
   onToggle,
 }: ToolbarChangesTabProps): ReactElement {
+  const { t } = useTranslation();
   const fileCount = stats.files?.length ?? 0;
 
   return (
@@ -103,7 +105,7 @@ export const ToolbarChangesTab = memo(function ToolbarChangesTabComponent({
         </span>
       </span>
       <span>
-        {fileCount} file{fileCount !== 1 ? "s" : ""}
+        {t("chat:filesCount", { count: fileCount })}
       </span>
       <ChevronDownIcon
         className={cn(

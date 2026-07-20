@@ -3,6 +3,7 @@
 import { CodeBlock } from "@/components/ai-elements/code-block";
 import { LazyDiff as Diff, LazyHunk as Hunk } from "@/components/ui/diff/lazy";
 import type { File, Hunk as HunkType, Line } from "@/components/ui/diff/utils";
+import i18n from "@/i18n";
 import { cn } from "@/lib/utils";
 import {
   ChevronDownIcon,
@@ -171,7 +172,7 @@ const ImageSearchByTextResults = ({
           {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: onError is a lifecycle event, not interactive */}
           <img
             src={image.clipThumbnail || image.thumbnail || image.original}
-            alt={image.meta?.title || `Image ${idx + 1}`}
+            alt={image.meta?.title || i18n.t("tools:imageAlt", { index: idx + 1 })}
             className="aspect-square w-full object-cover"
             onError={(e) => {
               (e.currentTarget.parentElement as HTMLElement).style.display = "none";
@@ -605,7 +606,7 @@ const DiffContent = ({ data }: { data: DiffDisplayData }) => {
     // Return a minimal placeholder to avoid zero-height elements in virtualized lists
     return (
       <div className="my-2 rounded-md border border-border/40 bg-card/20 px-3 py-1.5 text-xs font-mono text-muted-foreground">
-        {filePath || "No changes"}
+        {filePath || i18n.t("tools:noChanges")}
       </div>
     );
   }
@@ -763,8 +764,8 @@ const ImageURIResource = ({
   filename: string;
 }) => (
   <div className="my-2 rounded-md bg-muted/40 p-3 text-sm">
-    <div className="font-medium text-foreground">Generated image</div>
-    <div className="mt-1 text-xs text-muted-foreground">File: {filename}</div>
+    <div className="font-medium text-foreground">{i18n.t("tools:generatedImage")}</div>
+    <div className="mt-1 text-xs text-muted-foreground">{i18n.t("tools:fileLabel")} {filename}</div>
     <div className="mt-1 break-all font-mono text-xs opacity-70">{uri}</div>
   </div>
 );
@@ -926,7 +927,7 @@ const ResourceContent = ({ content }: { content: MCPResourceData }) => {
   // Handle image resources
   if (mimeType?.startsWith("image/")) {
     if (blob) {
-      const filename = uri?.split("/").pop() || "Generated image";
+      const filename = uri?.split("/").pop() || i18n.t("tools:generatedImage");
       return (
         <ImageBlobResource
           blob={blob}
@@ -973,7 +974,7 @@ const ImageContent = ({ content }: { content: MCPImageData }) => {
         /* biome-ignore lint/a11y/noNoninteractiveElementInteractions: onError is a lifecycle event */
         <img
           src={`data:${mimeType};base64,${content.data}`}
-          alt="Generated output"
+          alt={i18n.t("tools:generatedOutput")}
           className="h-auto max-w-full overflow-hidden rounded-md border border-border/40"
           onError={() => setError(true)}
         />
@@ -1122,7 +1123,7 @@ const DirectImage = ({ src }: { src: string }) => {
         /* biome-ignore lint/a11y/noNoninteractiveElementInteractions: onError is a lifecycle event */
         <img
           src={src}
-          alt="Generated content"
+          alt={i18n.t("tools:generatedContent")}
           className="h-auto max-w-full overflow-hidden rounded-md border border-border/40"
           onError={() => setError(true)}
         />

@@ -136,6 +136,7 @@ import {
   extractEvent,
 } from "./wireTypes";
 import { createMessageId, getApiBaseUrl } from "./utils";
+import i18n from "@/i18n";
 import { cranCliVersion } from "@/lib/version";
 import { handleToolResult, useToolEventsStore, type TodoItem } from "@/features/tool/store";
 import { v4 as uuidV4 } from "uuid";
@@ -160,18 +161,18 @@ type StepRetryPayload = StepRetryEvent["payload"];
 
 const formatStepRetryReason = (retry: StepRetryPayload): string => {
   if (retry.status_code === 429) {
-    return "rate limit";
+    return i18n.t("chat:rateLimit");
   }
   if (retry.status_code !== null && retry.status_code !== undefined && retry.status_code >= 500) {
-    return "server error";
+    return i18n.t("chat:serverError");
   }
   switch (retry.error_type) {
     case "APITimeoutError":
-      return "timeout";
+      return i18n.t("chat:timeout");
     case "APIConnectionError":
-      return "connection issue";
+      return i18n.t("chat:connectionIssue");
     case "APIEmptyResponseError":
-      return "empty response";
+      return i18n.t("chat:emptyResponse");
     default:
       return retry.error_type;
   }
@@ -179,7 +180,7 @@ const formatStepRetryReason = (retry: StepRetryPayload): string => {
 
 const formatRetryWait = (waitS: number): string => {
   if (!Number.isFinite(waitS)) {
-    return "soon";
+    return i18n.t("chat:retrySoon");
   }
   const seconds = Math.max(0, waitS);
   if (seconds < 10) {
@@ -189,7 +190,38 @@ const formatRetryWait = (waitS: number): string => {
 };
 
 const formatStepRetryStatus = (retry: StepRetryPayload): string =>
-  `Retrying after ${formatStepRetryReason(retry)} · attempt ${retry.next_attempt}/${retry.max_attempts} · ${formatRetryWait(retry.wait_s)}`;
+  i18n.t("chat:retryStatus", {
+    reason: formatStepRetryReason(retry),
+    attempt: retry.next_attempt,
+    max: retry.max_attempts,
+    wait: formatRetryWait(retry.wait_s),
+  });
+
+/**
+ * Prompt-gate error code from the backend (`code: -2`): the session owner
+ * cannot prompt right now (no key / no shared-key grant / quota exhausted).
+ */
+const PROMPT_GATE_ERROR_CODE = -2;
+
+const PROMPT_GATE_PROVIDER_REGEX = /provider '([^']+)'/;
+
+/**
+ * Map a prompt-gate error message to localized guidance based on its content.
+ * Falls back to the raw message when nothing matches.
+ */
+const mapPromptGateMessage = (raw: string): string => {
+  const key = raw.match(PROMPT_GATE_PROVIDER_REGEX)?.[1] ?? "";
+  if (raw.startsWith("No API key configured")) {
+    return i18n.t("chat:gateNoKey", { key });
+  }
+  if (raw.startsWith("You do not have access to the shared key")) {
+    return i18n.t("chat:gateNoGrant", { key });
+  }
+  if (raw.includes("quota") && raw.includes("exhausted")) {
+    return i18n.t("chat:gateQuotaExhausted", { key });
+  }
+  return raw;
+};
 
 const discardSubagentRetryAttempt = (steps: SubagentStep[]): SubagentStep[] => {
   const next = steps.filter(
@@ -2065,7 +2097,7 @@ export function useSessionStream(
               id: compactionMsgId,
               role: "assistant",
               variant: "status",
-              content: "Compacting conversation history…",
+              content: i18n.t("chat:compacting"),
               isStreaming: true,
             },
           ]);
@@ -2113,7 +2145,7 @@ export function useSessionStream(
                 role: "assistant",
                 variant: "compaction",
                 compactionSummary: summary,
-                content: `Conversation summarized (${summary.humanTurns.length} turns)`,
+                content: i18n.t("chat:compactedSummary", { count: summary.humanTurns.length }),
               });
             }
             return result;
@@ -2130,7 +2162,7 @@ export function useSessionStream(
               id: mcpMsgId,
               role: "assistant",
               variant: "status",
-              content: "Connecting to MCP servers…",
+              content: i18n.t("chat:connectingMCP"),
               isStreaming: true,
             },
           ]);
@@ -2244,7 +2276,12 @@ export function useSessionStream(
 
           // Other errors remain fatal
           console.error("[SessionStream] Received error:", message.error);
-          const err = new Error(message.error.message || "Unknown error");
+          const rawMessage = message.error.message || i18n.t("chat:unknownError");
+          const err = new Error(
+            message.error.code === PROMPT_GATE_ERROR_CODE
+              ? mapPromptGateMessage(rawMessage)
+              : rawMessage,
+          );
           setError(err);
           onError?.(err);
           setStatus("error");
@@ -2469,12 +2506,12 @@ export function useSessionStream(
     ) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
-        throw new Error("Not connected to session stream");
+        throw new Error(i18n.t("chat:notConnected"));
       }
 
       const pending = pendingApprovalRequestsRef.current.get(requestId);
       if (!pending) {
-        throw new Error("Approval request not found");
+        throw new Error(i18n.t("chat:approvalNotFound"));
       }
 
       if (pending.submitted) {
@@ -2564,12 +2601,12 @@ export function useSessionStream(
     async (requestId: string, answers: Record<string, string>) => {
       const ws = wsRef.current;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
-        throw new Error("Not connected to session stream");
+        throw new Error(i18n.t("chat:notConnected"));
       }
 
       const pending = pendingQuestionRequestsRef.current.get(requestId);
       if (!pending) {
-        throw new Error("Question request not found");
+        throw new Error(i18n.t("chat:questionNotFound"));
       }
 
       if (pending.submitted) {
@@ -2730,7 +2767,7 @@ export function useSessionStream(
         }
 
         console.error("[SessionStream] WebSocket error:", event);
-        const err = new Error("WebSocket connection error");
+        const err = new Error(i18n.t("chat:wsConnectionError"));
         setError(err);
         onError?.(err);
         setAwaitingFirstResponse(false);
@@ -2760,11 +2797,11 @@ export function useSessionStream(
 
         // Handle specific close codes
         if (event.code === 4004) {
-          const err = new Error("Session not found");
+          const err = new Error(i18n.t("chat:sessionNotFound"));
           setError(err);
           onError?.(err);
         } else if (event.code === 4029) {
-          const err = new Error("Too many concurrent sessions");
+          const err = new Error(i18n.t("chat:tooManySessions"));
           setError(err);
           onError?.(err);
         }
@@ -3038,7 +3075,7 @@ export function useSessionStream(
       // If not connected, store the message and connect
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         if (!sessionId) {
-          throw new Error("No session selected");
+          throw new Error(i18n.t("chat:noSessionSelected"));
         }
 
         pendingMessageRef.current = trimmedText;

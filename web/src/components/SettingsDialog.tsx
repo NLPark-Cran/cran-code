@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,13 @@ import {
 import { RotateCcw, Keyboard, Code, Settings2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const KB_LABEL_KEYS: Record<string, string> = {
+  save: "settings:kbSaveFile",
+  send: "settings:kbSendMessage",
+  newline: "settings:kbNewLine",
+  "toggle-sidebar": "settings:kbToggleSidebar",
+};
+
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -35,6 +43,7 @@ export default function SettingsDialog({
   onOpenChange,
 }: SettingsDialogProps) {
   const { editor, updateEditor, resetEditor } = useSettingsStore();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"editor" | "keybindings">("editor");
 
   return (
@@ -43,7 +52,7 @@ export default function SettingsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
-            Settings
+            {t("settings:title")}
           </DialogTitle>
         </DialogHeader>
 
@@ -59,7 +68,7 @@ export default function SettingsDialog({
             )}
           >
             <Code className="h-3.5 w-3.5" />
-            Editor
+            {t("settings:editorTab")}
           </button>
           <button
             type="button"
@@ -72,14 +81,14 @@ export default function SettingsDialog({
             )}
           >
             <Keyboard className="h-3.5 w-3.5" />
-            Keybindings
+            {t("settings:keybindingsTab")}
           </button>
         </div>
 
         {activeTab === "editor" && (
           <div className="space-y-4 mt-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm">Font size</span>
+              <span className="text-sm">{t("settings:fontSize")}</span>
               <Input
                 type="number"
                 min={8}
@@ -93,7 +102,7 @@ export default function SettingsDialog({
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm">Tab size</span>
+              <span className="text-sm">{t("settings:tabSize")}</span>
               <Input
                 type="number"
                 min={1}
@@ -107,7 +116,7 @@ export default function SettingsDialog({
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm">Word wrap</span>
+              <span className="text-sm">{t("settings:wordWrap")}</span>
               <Select
                 value={editor.wordWrap}
                 onValueChange={(v) =>
@@ -118,16 +127,16 @@ export default function SettingsDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="on">On</SelectItem>
-                  <SelectItem value="off">Off</SelectItem>
-                  <SelectItem value="wordWrapColumn">Column</SelectItem>
-                  <SelectItem value="bounded">Bounded</SelectItem>
+                  <SelectItem value="on">{t("settings:wrapOn")}</SelectItem>
+                  <SelectItem value="off">{t("settings:wrapOff")}</SelectItem>
+                  <SelectItem value="wordWrapColumn">{t("settings:wrapColumn")}</SelectItem>
+                  <SelectItem value="bounded">{t("settings:wrapBounded")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm">Line numbers</span>
+              <span className="text-sm">{t("settings:lineNumbers")}</span>
               <Select
                 value={editor.lineNumbers}
                 onValueChange={(v) =>
@@ -140,16 +149,16 @@ export default function SettingsDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="on">On</SelectItem>
-                  <SelectItem value="off">Off</SelectItem>
-                  <SelectItem value="relative">Relative</SelectItem>
-                  <SelectItem value="interval">Interval</SelectItem>
+                  <SelectItem value="on">{t("settings:lineOn")}</SelectItem>
+                  <SelectItem value="off">{t("settings:lineOff")}</SelectItem>
+                  <SelectItem value="relative">{t("settings:lineRelative")}</SelectItem>
+                  <SelectItem value="interval">{t("settings:lineInterval")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm">Minimap</span>
+              <span className="text-sm">{t("settings:minimap")}</span>
               <Switch
                 checked={editor.minimap}
                 onCheckedChange={(v) => updateEditor({ minimap: v })}
@@ -157,7 +166,7 @@ export default function SettingsDialog({
             </div>
 
             <div className="flex items-center justify-between">
-              <span className="text-sm">Scroll beyond last line</span>
+              <span className="text-sm">{t("settings:scrollBeyond")}</span>
               <Switch
                 checked={editor.scrollBeyondLastLine}
                 onCheckedChange={(v) =>
@@ -174,7 +183,7 @@ export default function SettingsDialog({
                 className="gap-1"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                Reset defaults
+                {t("settings:resetDefaults")}
               </Button>
             </div>
           </div>
@@ -184,15 +193,15 @@ export default function SettingsDialog({
           <div className="mt-4">
             <div className="rounded-md border">
               <div className="grid grid-cols-[1fr_auto] gap-4 px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30">
-                <span>Action</span>
-                <span>Shortcut</span>
+                <span>{t("settings:actionCol")}</span>
+                <span>{t("settings:shortcutCol")}</span>
               </div>
               {DEFAULT_KEYBINDINGS.map((kb) => (
                 <div
                   key={kb.id}
                   className="grid grid-cols-[1fr_auto] gap-4 px-3 py-2 text-sm border-b last:border-0 items-center"
                 >
-                  <span>{kb.label}</span>
+                  <span>{KB_LABEL_KEYS[kb.id] ? t(KB_LABEL_KEYS[kb.id]) : kb.label}</span>
                   <div className="flex gap-1">
                     {kb.keys.map((k) => (
                       <kbd

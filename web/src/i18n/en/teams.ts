@@ -1,0 +1,18 @@
+export default {
+  title: "Teams",
+  subtitle: "Manage your teams and projects",
+  newTeam: "New Team",
+  createTitle: "Create a new team",
+  createDesc: "Teams are shared workspaces for projects and collaboration.",
+  nameLabel: "Team Name",
+  namePlaceholder: "My Team",
+  slugLabel: "Slug",
+  descLabel: "Description",
+  descPlaceholder: "What is this team about?",
+  createButton: "Create Team",
+  loadFailed: "Failed to load teams",
+  createFailed: "Failed to create team",
+  emptyTitle: "No teams yet",
+  emptyDesc: "Create your first team to start collaborating",
+  loadDataFailed: "Failed to load data",
+} as const;

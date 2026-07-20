@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ErrorBoundary as ReactErrorBoundary, type FallbackProps } from "react-error-boundary";
 import { AlertTriangle, RefreshCw, Copy, Check } from "lucide-react";
 import { Button } from "./ui/button";
 
 function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const copyError = async () => {
@@ -22,10 +24,10 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
       <div className="flex max-w-md flex-col items-center gap-4 rounded-lg border border-destructive/20 bg-destructive/5 p-8 text-center">
         <AlertTriangle className="h-12 w-12 text-destructive" />
         <h2 className="text-xl font-semibold text-foreground">
-          Something went wrong
+          {t("common:somethingWentWrong")}
         </h2>
         <p className="text-sm text-muted-foreground">
-          {errorMessage || "An unexpected error occurred"}
+          {errorMessage || t("common:unexpectedErrorOccurred")}
         </p>
         {import.meta.env.DEV && errorStack && (
           <pre className="max-h-40 w-full overflow-auto rounded bg-muted p-2 text-left text-xs">
@@ -39,11 +41,11 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
             ) : (
               <Copy className="mr-2 h-4 w-4" />
             )}
-            {copied ? "Copied" : "Copy error"}
+            {copied ? t("common:copied") : t("common:copyError")}
           </Button>
           <Button onClick={resetErrorBoundary} variant="outline">
             <RefreshCw className="mr-2 h-4 w-4" />
-            Try again
+            {t("common:tryAgain")}
           </Button>
         </div>
       </div>

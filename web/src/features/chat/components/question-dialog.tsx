@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronRightIcon } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -49,6 +50,7 @@ export function QuestionDialog({
   onQuestionResponse,
   pendingQuestionMap,
 }: QuestionDialogProps) {
+  const { t } = useTranslation();
   const pendingQuestion = usePendingQuestion(messages);
 
   const questions = pendingQuestion?.question.questions ?? [];
@@ -443,7 +445,7 @@ export function QuestionDialog({
           <Collapsible defaultOpen className="mx-4 mb-2">
             <CollapsibleTrigger className="group flex items-center gap-2 w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1">
               <ChevronRightIcon className="size-3.5 transition-transform group-data-[state=open]:rotate-90" />
-              <span>Plan Preview</span>
+              <span>{t("chat:planPreview")}</span>
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="border-l-2 border-blue-400/40 pl-3 mt-1 max-h-[360px] overflow-y-auto">
@@ -564,7 +566,7 @@ export function QuestionDialog({
                     e.preventDefault();
                   }
                 }}
-                placeholder={currentQuestion.other_label || "Type your answer..."}
+                placeholder={currentQuestion.other_label || t("chat:typeAnswer")}
                 className={cn(
                   "flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50",
                   "border-0 outline-none ring-0 focus:ring-0 focus:outline-none",
@@ -583,29 +585,29 @@ export function QuestionDialog({
           <div className="flex items-center gap-3 mr-auto text-muted-foreground/40 text-[11px]">
             <span className="inline-flex items-center gap-1">
               <Kbd className="text-[10px] opacity-60">↑↓</Kbd>
-              select
+              {t("chat:hintSelect")}
             </span>
             {totalQuestions > 1 && (
               <span className="inline-flex items-center gap-1">
                 <Kbd className="text-[10px] opacity-60">←→</Kbd>
-                switch
+                {t("chat:hintSwitch")}
               </span>
             )}
             {isMultiSelect ? (
               <>
                 <span className="inline-flex items-center gap-1">
                   <Kbd className="text-[10px] opacity-60">space</Kbd>
-                  toggle
+                  {t("chat:hintToggle")}
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <Kbd className="text-[10px] opacity-60">↵</Kbd>
-                  confirm
+                  {t("chat:hintConfirm")}
                 </span>
               </>
             ) : (
               <span className="inline-flex items-center gap-1">
                 <Kbd className="text-[10px] opacity-60">space/↵</Kbd>
-                confirm
+                {t("chat:hintConfirm")}
               </span>
             )}
           </div>
@@ -616,7 +618,7 @@ export function QuestionDialog({
             onClick={handleDismiss}
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors disabled:opacity-50 cursor-pointer"
           >
-            Dismiss
+            {t("chat:dismiss")}
             <Kbd className="text-[11px] opacity-70">esc</Kbd>
           </button>
           <button
@@ -629,10 +631,10 @@ export function QuestionDialog({
             )}
           >
             {questionPending
-              ? "Submitting..."
+              ? t("chat:submitting")
               : allQuestionsAnswered
-                ? "Submit"
-                : "Next"}
+                ? t("chat:submit")
+                : t("chat:next")}
             {!questionPending && <Kbd className="text-[11px]">↵</Kbd>}
           </button>
         </div>

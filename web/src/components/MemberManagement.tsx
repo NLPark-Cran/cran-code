@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Plus, UserMinus, Loader2, Search } from "lucide-react";
 import { v2Api, type TeamMemberRes, type ProjectMemberRes, type UserProfile } from "@/lib/api/v2";
 import { useAuthStore } from "@/stores/auth";
+import { roleKey } from "@/i18n";
 
 type Member = TeamMemberRes | ProjectMemberRes;
 
@@ -41,6 +43,7 @@ export default function MemberManagement({
   onChange,
 }: MemberManagementProps) {
   const { user } = useAuthStore();
+  const { t } = useTranslation();
   const [addOpen, setAddOpen] = useState(false);
   const [searchQ, setSearchQ] = useState("");
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
@@ -61,11 +64,11 @@ export default function MemberManagement({
       const memberIds = new Set(members.map((m) => m.user_id));
       setSearchResults(results.filter((u) => !memberIds.has(u.id)));
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Search failed");
+      setActionError(e instanceof Error ? e.message : t("common:searchFailed"));
     } finally {
       setSearchLoading(false);
     }
-  }, [searchQ, members]);
+  }, [searchQ, members, t]);
 
   const handleAdd = async () => {
     if (!selectedUser) return;
@@ -83,7 +86,7 @@ export default function MemberManagement({
       setSearchResults([]);
       onChange();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Failed to add member");
+      setActionError(e instanceof Error ? e.message : t("common:addMemberFailed"));
     } finally {
       setActionLoading(false);
     }
@@ -99,14 +102,14 @@ export default function MemberManagement({
       }
       onChange();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Failed to update role");
+      setActionError(e instanceof Error ? e.message : t("common:updateRoleFailed"));
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleRemove = async (memberId: string) => {
-    if (!confirm("Remove this member?")) return;
+    if (!confirm(t("common:confirmRemoveMember"))) return;
     setActionLoading(true);
     try {
       if (resourceType === "team") {
@@ -116,7 +119,7 @@ export default function MemberManagement({
       }
       onChange();
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Failed to remove member");
+      setActionError(e instanceof Error ? e.message : t("common:removeMemberFailed"));
     } finally {
       setActionLoading(false);
     }
@@ -125,19 +128,19 @@ export default function MemberManagement({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold">Members</h3>
+        <h3 className="text-base font-semibold">{t("common:members")}</h3>
         {canManage && (
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
               <Button size="sm" variant="outline">
                 <Plus className="mr-1 h-3.5 w-3.5" />
-                Add
+                {t("common:add")}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Add member</DialogTitle>
-                <DialogDescription>Search by username or email</DialogDescription>
+                <DialogTitle>{t("common:addMember")}</DialogTitle>
+                <DialogDescription>{t("common:addMemberDesc")}</DialogDescription>
               </DialogHeader>
               {actionError && (
                 <Alert variant="destructive">
@@ -146,7 +149,7 @@ export default function MemberManagement({
               )}
               <div className="flex gap-2">
                 <Input
-                  placeholder="Search users..."
+                  placeholder={t("common:searchUsersPlaceholder")}
                   value={searchQ}
                   onChange={(e) => setSearchQ(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && doSearch()}
@@ -174,7 +177,7 @@ export default function MemberManagement({
                   </button>
                 ))}
                 {searchResults.length === 0 && !searchLoading && searchQ && (
-                  <p className="text-sm text-muted-foreground">No users found</p>
+                  <p className="text-sm text-muted-foreground">{t("common:noUsersFound")}</p>
                 )}
               </div>
               {selectedUser && (
@@ -184,8 +187,8 @@ export default function MemberManagement({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="member">{t("common:roleMember")}</SelectItem>
+                      <SelectItem value="admin">{t("common:roleAdmin")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -193,7 +196,7 @@ export default function MemberManagement({
               <DialogFooter>
                 <Button onClick={handleAdd} disabled={!selectedUser || actionLoading}>
                   {actionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Add member
+                  {t("common:addMember")}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -218,7 +221,7 @@ export default function MemberManagement({
                 <p className="text-sm font-medium">
                   {m.display_name || m.username}
                   {isSelf(m) && (
-                    <span className="ml-1 text-xs text-muted-foreground">(you)</span>
+                    <span className="ml-1 text-xs text-muted-foreground">{t("common:you")}</span>
                   )}
                 </p>
                 <p className="text-xs text-muted-foreground">{m.username}</p>
@@ -236,9 +239,9 @@ export default function MemberManagement({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="owner">Owner</SelectItem>
+                      <SelectItem value="member">{t("common:roleMember")}</SelectItem>
+                      <SelectItem value="admin">{t("common:roleAdmin")}</SelectItem>
+                      <SelectItem value="owner">{t("common:roleOwner")}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Button
@@ -253,7 +256,7 @@ export default function MemberManagement({
                 </>
               ) : (
                 <Badge variant="secondary" className="text-xs">
-                  {m.role}
+                  {t(roleKey(m.role))}
                 </Badge>
               )}
             </div>

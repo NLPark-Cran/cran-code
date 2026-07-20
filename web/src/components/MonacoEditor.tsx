@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import Editor from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Save, Loader2, MessageSquarePlus, Trash2, X } from "lucide-react";
@@ -52,6 +53,7 @@ export default function MonacoEditor({
   onDeleteComment,
   currentUser,
 }: MonacoEditorProps) {
+  const { t } = useTranslation();
   const editorRef = useRef<any>(null);
   const bindingRef = useRef<any>(null);
   const decorationsRef = useRef<string[]>([]);
@@ -133,19 +135,19 @@ export default function MonacoEditor({
         <span className="text-xs text-muted-foreground truncate max-w-[60%]">{path}</span>
         <div className="flex items-center gap-2">
           {ytext && (
-            <span className="text-[10px] text-emerald-400 uppercase">Live</span>
+            <span className="text-[10px] text-emerald-400 uppercase">{t("project:liveBadge")}</span>
           )}
           {readOnly && (
-            <span className="text-[10px] text-muted-foreground uppercase">Read-only</span>
+            <span className="text-[10px] text-muted-foreground uppercase">{t("project:readOnlyBadge")}</span>
           )}
           {activeLine !== null && (
             <span className="text-[10px] text-amber-400 uppercase">
-              Line {activeLine}
+              {t("project:lineLabel", { line: activeLine })}
             </span>
           )}
           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onSave} disabled={saving || readOnly}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            <span className="ml-1 text-xs">Save</span>
+            <span className="ml-1 text-xs">{t("common:save")}</span>
           </Button>
         </div>
       </div>
@@ -163,7 +165,7 @@ export default function MonacoEditor({
           </div>
           <div className="space-y-1.5">
             {lineComments.length === 0 && (
-              <div className="text-xs text-muted-foreground/60">No comments yet. Click line number to add.</div>
+              <div className="text-xs text-muted-foreground/60">{t("project:noCommentsYet")}</div>
             )}
             {lineComments.map((c) => (
               <div key={c.id} className="rounded border bg-muted/40 px-2 py-1.5 text-xs">
@@ -191,7 +193,7 @@ export default function MonacoEditor({
           </div>
           <div className="flex gap-1">
             <Input
-              placeholder="Add comment..."
+              placeholder={t("project:addComment")}
               className="h-7 text-xs"
               value={newCommentText}
               onChange={(e) => setNewCommentText(e.target.value)}
@@ -238,7 +240,7 @@ export default function MonacoEditor({
             wordWrap: editorSettings.wordWrap,
             glyphMargin: true,
           }}
-          loading={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading editor...</div>}
+          loading={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">{t("project:loadingEditor")}</div>}
         />
       </div>
     </div>

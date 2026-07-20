@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +14,7 @@ import { useTeamStore } from "@/stores/team";
 
 export default function TeamSelector() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { teamId: urlTeamId } = useParams<{ teamId: string }>();
   const { selectedTeamId, setSelectedTeamId } = useTeamStore();
   const [teams, setTeams] = useState<TeamRes[]>([]);
@@ -36,7 +38,7 @@ export default function TeamSelector() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" className="h-8 gap-1 px-2">
           <span className="max-w-[140px] truncate text-sm">
-            {activeTeam ? activeTeam.name : "Select team"}
+            {activeTeam ? activeTeam.name : t("nav:selectTeam")}
           </span>
           <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
         </Button>
@@ -55,11 +57,11 @@ export default function TeamSelector() {
           </DropdownMenuItem>
         ))}
         {teams.length === 0 && (
-          <DropdownMenuItem disabled>No teams</DropdownMenuItem>
+          <DropdownMenuItem disabled>{t("nav:noTeams")}</DropdownMenuItem>
         )}
         <DropdownMenuItem onClick={() => navigate("/dashboard")}>
           <Plus className="mr-2 h-4 w-4" />
-          New team
+          {t("nav:newTeam")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

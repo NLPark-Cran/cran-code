@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,6 +27,7 @@ interface TeamProviderKeysProps {
  * A team key is used when a team member has no personal key for a provider.
  */
 export default function TeamProviderKeys({ teamId }: TeamProviderKeysProps) {
+  const { t } = useTranslation();
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [teamKeys, setTeamKeys] = useState<ProviderKeyRes[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +47,7 @@ export default function TeamProviderKeys({ teamId }: TeamProviderKeysProps) {
       setProviders(providersRes.providers);
       setTeamKeys(keysRes);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load provider keys");
+      setError(err instanceof Error ? err.message : t("providers:loadKeysFailed"));
     } finally {
       setLoading(false);
     }
@@ -65,19 +67,19 @@ export default function TeamProviderKeys({ teamId }: TeamProviderKeysProps) {
     setNotice(null);
     try {
       await v2Api.teams.putProviderKey(teamId, providerKey, keyInput.trim());
-      setNotice(`Saved team key for ${providerKey}.`);
+      setNotice(t("providers:teamKeySaved", { key: providerKey }));
       setEditorFor(null);
       setKeyInput("");
       await fetchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save key");
+      setError(err instanceof Error ? err.message : t("providers:saveKeyFailed"));
     } finally {
       setBusy(false);
     }
   };
 
   const handleDelete = async (providerKey: string) => {
-    if (!window.confirm(`Remove the team key for "${providerKey}"?`)) {
+    if (!window.confirm(t("providers:confirmRemoveTeamKey", { key: providerKey }))) {
       return;
     }
     setBusy(true);
@@ -85,10 +87,10 @@ export default function TeamProviderKeys({ teamId }: TeamProviderKeysProps) {
     setNotice(null);
     try {
       await v2Api.teams.deleteProviderKey(teamId, providerKey);
-      setNotice(`Removed team key for ${providerKey}.`);
+      setNotice(t("providers:teamKeyRemoved", { key: providerKey }));
       await fetchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove key");
+      setError(err instanceof Error ? err.message : t("providers:removeKeyFailed"));
     } finally {
       setBusy(false);
     }
@@ -97,10 +99,9 @@ export default function TeamProviderKeys({ teamId }: TeamProviderKeysProps) {
   return (
     <Card className="mt-8">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Provider Keys</CardTitle>
+        <CardTitle className="text-lg">{t("providers:teamKeysTitle")}</CardTitle>
         <CardDescription>
-          Team API keys are shared with all team members who have no personal
-          key for the provider.
+          {t("providers:teamKeysDesc")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -120,7 +121,7 @@ export default function TeamProviderKeys({ teamId }: TeamProviderKeysProps) {
           </div>
         ) : providers.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No providers configured.
+            {t("providers:noneConfigured")}
           </p>
         ) : (
           providers.map((provider) => (
@@ -136,11 +137,11 @@ export default function TeamProviderKeys({ teamId }: TeamProviderKeysProps) {
                   </span>
                   {hasTeamKey(provider.key) ? (
                     <Badge variant="secondary" className="shrink-0">
-                      key set
+                      {t("providers:keySet")}
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="shrink-0">
-                      no team key
+                      {t("providers:noTeamKey")}
                     </Badge>
                   )}
                 </div>
@@ -154,7 +155,7 @@ export default function TeamProviderKeys({ teamId }: TeamProviderKeysProps) {
                         setKeyInput("");
                       }}
                     >
-                      {hasTeamKey(provider.key) ? "Replace" : "Set key"}
+                      {hasTeamKey(provider.key) ? t("common:replace") : t("providers:setKey")}
                     </Button>
                   )}
                   {hasTeamKey(provider.key) && (
@@ -185,7 +186,7 @@ export default function TeamProviderKeys({ teamId }: TeamProviderKeysProps) {
                     {busy && (
                       <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                     )}
-                    Save
+                    {t("common:save")}
                   </Button>
                   <Button
                     variant="ghost"
@@ -195,7 +196,7 @@ export default function TeamProviderKeys({ teamId }: TeamProviderKeysProps) {
                       setKeyInput("");
                     }}
                   >
-                    Cancel
+                    {t("common:cancel")}
                   </Button>
                 </div>
               )}

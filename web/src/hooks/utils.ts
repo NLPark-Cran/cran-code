@@ -1,4 +1,5 @@
 import { v4 as uuidV4 } from "uuid";
+import i18n from "@/i18n";
 
 /**
  * Check if running on macOS.
@@ -51,16 +52,16 @@ export const formatRelativeTime = (date: Date): string => {
   const minutes = Math.floor(diff / 60000);
 
   if (minutes < 1) {
-    return "Just now";
+    return i18n.t("project:justNow");
   } else if (minutes < 60) {
-    return `${minutes}m ago`;
+    return i18n.t("project:minutesAgo", { count: minutes });
   } else {
     const hours = Math.floor(minutes / 60);
     if (hours < 24) {
-      return `${hours}h ago`;
+      return i18n.t("project:hoursAgo", { count: hours });
     } else {
       const days = Math.floor(hours / 24);
-      return `${days}d ago`;
+      return i18n.t("project:daysAgo", { count: days });
     }
   }
 };

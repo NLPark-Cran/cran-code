@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, type ReactElement } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Check, Cpu, Paperclip, RefreshCcw } from "lucide-react";
 import { usePromptInputAttachments } from "@ai-elements";
@@ -53,6 +54,7 @@ export function GlobalConfigControls({
   planMode = false,
   onPlanModeChange,
 }: GlobalConfigControlsProps): ReactElement {
+  const { t } = useTranslation();
   const { config, isLoading, isUpdating, error, refresh, update } =
     useGlobalConfig();
 
@@ -88,28 +90,28 @@ export function GlobalConfigControls({
         const skippedBusy = resp.skippedBusySessionIds ?? [];
 
         if (restarted.length > 0) {
-          toast.success("Global model updated", {
-            description: `Restarted ${restarted.length} running session(s).`,
+          toast.success(t("chat:globalModelUpdated"), {
+            description: t("chat:restartedSessions", { count: restarted.length }),
           });
         } else {
-          toast.success("Global model updated");
+          toast.success(t("chat:globalModelUpdated"));
         }
 
         if (skippedBusy.length > 0) {
           setLastBusySkip(skippedBusy);
-          toast.message("Some sessions were skipped (busy)", {
-            description: `Skipped ${skippedBusy.length} busy session(s). You can retry when they are idle, or force restart.`,
+          toast.message(t("chat:sessionsSkippedBusy"), {
+            description: t("chat:sessionsSkippedBusyDesc", { count: skippedBusy.length }),
           });
         } else {
           setLastBusySkip(null);
         }
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Failed to update global model";
-        toast.error("Failed to update global model", { description: message });
+          err instanceof Error ? err.message : t("chat:updateModelFailed");
+        toast.error(t("chat:updateModelFailed"), { description: message });
       }
     },
-    [config, update],
+    [config, update, t],
   );
 
   const handleThinkingToggle = useCallback(
@@ -123,8 +125,8 @@ export function GlobalConfigControls({
 
         if (skippedBusy.length > 0) {
           setLastBusySkip(skippedBusy);
-          toast.message("Some sessions were skipped (busy)", {
-            description: `Skipped ${skippedBusy.length} busy session(s). You can retry when they are idle, or force restart.`,
+          toast.message(t("chat:sessionsSkippedBusy"), {
+            description: t("chat:sessionsSkippedBusyDesc", { count: skippedBusy.length }),
           });
         } else {
           setLastBusySkip(null);
@@ -133,13 +135,13 @@ export function GlobalConfigControls({
         const message =
           err instanceof Error
             ? err.message
-            : "Failed to update global thinking";
-        toast.error("Failed to update global thinking", {
+            : t("chat:updateThinkingFailed");
+        toast.error(t("chat:updateThinkingFailed"), {
           description: message,
         });
       }
     },
-    [config, update],
+    [config, update, t],
   );
 
   const handleForceRestartBusy = useCallback(async () => {
@@ -157,34 +159,34 @@ export function GlobalConfigControls({
         setLastBusySkip(skippedBusy);
       }
 
-      toast.success("Restarted running sessions", {
+      toast.success(t("chat:restartedRunning"), {
         description:
           restarted.length > 0
-            ? `Restarted ${restarted.length} session(s).`
-            : "No running sessions to restart.",
+            ? t("chat:restartedCount", { count: restarted.length })
+            : t("chat:noRunningSessions"),
       });
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to restart busy sessions";
-      toast.error("Failed to restart busy sessions", { description: message });
+        err instanceof Error ? err.message : t("chat:restartBusyFailed");
+      toast.error(t("chat:restartBusyFailed"), { description: message });
     }
-  }, [lastBusySkip, update]);
+  }, [lastBusySkip, update, t]);
 
   const thinkingTooltip = useMemo(() => {
     if (thinkingState === "forced") {
-      return "Thinking is forced by the selected model.";
+      return t("chat:thinkingForced");
     }
     if (thinkingState === "disabled") {
-      return "Thinking is not supported by the selected model.";
+      return t("chat:thinkingUnsupported");
     }
     return null;
-  }, [thinkingState]);
+  }, [thinkingState, t]);
 
   const thinkingToggle = (
     <div className="flex h-9 items-center gap-2 rounded-md px-2">
-      <span className="text-xs text-muted-foreground">Thinking</span>
+      <span className="text-xs text-muted-foreground">{t("chat:thinking")}</span>
       <Switch
-        aria-label="Toggle global thinking"
+        aria-label={t("chat:toggleThinking")}
         checked={
           thinkingState === "forced"
             ? true
@@ -206,7 +208,7 @@ export function GlobalConfigControls({
         variant="ghost"
         size="icon"
         className="size-9 border-0"
-        aria-label="Attach files"
+        aria-label={t("chat:attachFiles")}
         type="button"
         onClick={() => attachments.openFileDialog()}
       >
@@ -221,24 +223,24 @@ export function GlobalConfigControls({
             variant="ghost"
             size="sm"
             className="h-9 max-w-[160px] justify-start gap-2 border-0"
-            aria-label="Change global model"
+            aria-label={t("chat:changeModel")}
             type="button"
             disabled={isLoading || isUpdating || !config}
           >
             <Cpu className="size-4 shrink-0" />
             <span className="truncate">
-              {config ? config.defaultModel : "Model"}
+              {config ? config.defaultModel : t("chat:model")}
             </span>
             {(isLoading || isUpdating) && (
               <Loader className="ml-auto shrink-0" size={14} />
             )}
           </Button>
         </ModelSelectorTrigger>
-        <ModelSelectorContent title="Select global model">
-          <ModelSelectorInput placeholder="Search models..." />
+        <ModelSelectorContent title={t("chat:selectGlobalModel")}>
+          <ModelSelectorInput placeholder={t("chat:searchModels")} />
           <ModelSelectorList>
-            <ModelSelectorEmpty>No models found.</ModelSelectorEmpty>
-            <ModelSelectorGroup heading="Models">
+            <ModelSelectorEmpty>{t("chat:noModelsFound")}</ModelSelectorEmpty>
+            <ModelSelectorGroup heading={t("chat:modelsHeading")}>
               {(config?.models ?? []).map((m) => {
                 const isSelected = m.name === config?.defaultModel;
                 const label = `${m.name} (${m.provider})`;
@@ -286,10 +288,10 @@ export function GlobalConfigControls({
             <TooltipTrigger asChild>
               <div className="flex h-9 items-center gap-2 rounded-md px-2">
                 <span className="text-xs text-muted-foreground">
-                  Plan
+                  {t("chat:plan")}
                 </span>
                 <Switch
-                  aria-label="Toggle plan mode"
+                  aria-label={t("chat:togglePlanMode")}
                   checked={planMode}
                   onCheckedChange={onPlanModeChange}
                 />
@@ -297,8 +299,8 @@ export function GlobalConfigControls({
             </TooltipTrigger>
             <TooltipContent sideOffset={8}>
               {planMode
-                ? "Plan mode is active. The model will only read and plan, not modify files."
-                : "Enable plan mode for read-only research and planning."}
+                ? t("chat:planModeActive")
+                : t("chat:planModeEnable")}
             </TooltipContent>
           </Tooltip>
         </>
@@ -313,8 +315,8 @@ export function GlobalConfigControls({
           variant="outline"
           size="icon"
           className="size-9"
-          aria-label="Force restart busy sessions"
-          title="Force restart busy sessions"
+          aria-label={t("chat:forceRestartBusy")}
+          title={t("chat:forceRestartBusy")}
           type="button"
           onClick={handleForceRestartBusy}
           disabled={isUpdating}
@@ -328,8 +330,8 @@ export function GlobalConfigControls({
           variant="outline"
           size="icon"
           className="size-9"
-          aria-label="Reload global config"
-          title="Reload global config"
+          aria-label={t("chat:reloadGlobalConfig")}
+          title={t("chat:reloadGlobalConfig")}
           type="button"
           onClick={() => {
             refresh();

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Loader2, Users, GitBranch, FolderOpen } from "lucide-react";
 import * as Y from "yjs";
 import { v2Api, type ProjectRes, type FsEntry } from "@/lib/api/v2";
+import { roleKey } from "@/i18n";
 import { useAuthStore } from "@/stores/auth";
 import { useTeamStore } from "@/stores/team";
 import { useYjsCollab, type LineComment } from "@/hooks/useYjsCollab";
@@ -22,6 +24,7 @@ import GitPanel from "@/components/GitPanel";
 export default function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const { setSelectedTeamId } = useTeamStore();
 
@@ -42,7 +45,7 @@ export default function ProjectPage() {
   const [uploading, setUploading] = useState(false);
   const [activityRefreshKey, setActivityRefreshKey] = useState(0);
 
-  const { provider } = useYjsCollab(projectId, user?.display_name || user?.username || "User");
+  const { provider } = useYjsCollab(projectId, user?.display_name || user?.username || t("common:defaultUser"));
   const yTextsRef = useRef<Record<string, Y.Text>>({});
   const commentsObserverRef = useRef<(() => void) | null>(null);
 
@@ -57,7 +60,7 @@ export default function ProjectPage() {
         setSelectedTeamId(data.team_id);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load project");
+      setError(err instanceof Error ? err.message : t("project:loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -71,11 +74,11 @@ export default function ProjectPage() {
       const data = await v2Api.fs.list(projectId, "");
       setRootEntries(data.entries);
     } catch (err) {
-      setFsError(err instanceof Error ? err.message : "Failed to load files");
+      setFsError(err instanceof Error ? err.message : t("project:fsLoadFailed"));
     } finally {
       setFsLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, t]);
 
   useEffect(() => {
     fetchProject();
@@ -116,10 +119,10 @@ export default function ProjectPage() {
           yTextsRef.current[path] = ytext;
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to open file");
+        setError(err instanceof Error ? err.message : t("project:openFileFailed"));
       }
     },
-    [projectId, tabs, provider]
+    [projectId, tabs, provider, t]
   );
 
   const handleTreeSelect = useCallback(
@@ -182,11 +185,11 @@ export default function ProjectPage() {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         line,
         text,
-        author: user.display_name || user.username || user.email || "User",
+        author: user.display_name || user.username || user.email || t("common:defaultUser"),
         timestamp: Date.now() / 1000,
       });
     },
-    [provider, activePath, user]
+    [provider, activePath, user, t]
   );
 
   const handleDeleteComment = useCallback(
@@ -226,12 +229,12 @@ export default function ProjectPage() {
         );
         setActivityRefreshKey((k) => k + 1);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save file");
+        setError(err instanceof Error ? err.message : t("project:saveFileFailed"));
       } finally {
         setSavingPath(null);
       }
     },
-    [projectId, fileContents]
+    [projectId, fileContents, t]
   );
 
   const handleUpload = useCallback(
@@ -248,12 +251,12 @@ export default function ProjectPage() {
         await loadRootEntries();
         setActivityRefreshKey((k) => k + 1);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to upload file");
+        setError(err instanceof Error ? err.message : t("project:uploadFailed"));
       } finally {
         setUploading(false);
       }
     },
-    [projectId, loadRootEntries]
+    [projectId, loadRootEntries, t]
   );
 
   const handleDownload = useCallback(
@@ -263,10 +266,10 @@ export default function ProjectPage() {
         await v2Api.fs.download(projectId, path, name);
         setActivityRefreshKey((k) => k + 1);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to download file");
+        setError(err instanceof Error ? err.message : t("project:downloadFailed"));
       }
     },
-    [projectId]
+    [projectId, t]
   );
 
   const refreshAfterFsChange = useCallback(async () => {
@@ -281,10 +284,10 @@ export default function ProjectPage() {
         await v2Api.fs.copy(projectId, src, dst);
         await refreshAfterFsChange();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to copy");
+        setError(err instanceof Error ? err.message : t("project:copyFailed"));
       }
     },
-    [projectId, refreshAfterFsChange]
+    [projectId, refreshAfterFsChange, t]
   );
 
   const handleMove = useCallback(
@@ -298,10 +301,10 @@ export default function ProjectPage() {
           setTabs((prev) => prev.filter((t) => t.path !== src));
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to move");
+        setError(err instanceof Error ? err.message : t("project:moveFailed"));
       }
     },
-    [projectId, refreshAfterFsChange, activePath]
+    [projectId, refreshAfterFsChange, activePath, t]
   );
 
   const handleDelete = useCallback(
@@ -315,10 +318,10 @@ export default function ProjectPage() {
           setTabs((prev) => prev.filter((t) => t.path !== path));
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete");
+        setError(err instanceof Error ? err.message : t("project:deleteFailed"));
       }
     },
-    [projectId, refreshAfterFsChange, activePath]
+    [projectId, refreshAfterFsChange, activePath, t]
   );
 
   const handleCompress = useCallback(
@@ -328,10 +331,10 @@ export default function ProjectPage() {
         await v2Api.fs.compress(projectId, path, archive);
         await refreshAfterFsChange();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to compress");
+        setError(err instanceof Error ? err.message : t("project:compressFailed"));
       }
     },
-    [projectId, refreshAfterFsChange]
+    [projectId, refreshAfterFsChange, t]
   );
 
   const handleExtract = useCallback(
@@ -341,10 +344,10 @@ export default function ProjectPage() {
         await v2Api.fs.extract(projectId, archive, dest);
         await refreshAfterFsChange();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to extract");
+        setError(err instanceof Error ? err.message : t("project:extractFailed"));
       }
     },
-    [projectId, refreshAfterFsChange]
+    [projectId, refreshAfterFsChange, t]
   );
 
   const userMembership = project?.members.find((m) => m.user_id === user?.id);
@@ -361,7 +364,7 @@ export default function ProjectPage() {
       onClick={() => navigate(`/team/${project?.team_id}`)}
     >
       <ArrowLeft className="mr-1 h-4 w-4" />
-      {project?.name || "Project"}
+      {project?.name || t("project:defaultName")}
     </Button>
   );
 
@@ -382,12 +385,12 @@ export default function ProjectPage() {
           <div className="mb-4">
             <h1 className="text-2xl font-bold">{project.name}</h1>
             <p className="text-muted-foreground">
-              {project.description || "No description"}
+              {project.description || t("common:noDescription")}
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Users className="h-4 w-4" />
-                {project.members.length} members
+                {t("common:memberCount", { count: project.members.length })}
               </span>
               {project.work_dir && (
                 <span className="flex items-center gap-1">
@@ -402,7 +405,7 @@ export default function ProjectPage() {
                 </span>
               )}
               <Badge variant="outline" className="text-xs">
-                {userMembership?.role || "member"}
+                {t(roleKey(userMembership?.role || "member"))}
               </Badge>
             </div>
           </div>
@@ -411,7 +414,7 @@ export default function ProjectPage() {
             {/* File tree */}
             <Card className="lg:col-span-1 flex flex-col overflow-hidden">
               <div className="border-b px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
-                Files
+                {t("project:filesTitle")}
               </div>
               <div className="flex-1 overflow-auto p-1">
                 {fsLoading ? (
@@ -467,9 +470,9 @@ export default function ProjectPage() {
                   />
                 ) : (
                   <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
-                    <p className="mb-2 text-sm">Select a file from the tree to start editing</p>
+                    <p className="mb-2 text-sm">{t("project:selectFileHint")}</p>
                     <Button size="sm" variant="outline" onClick={() => navigate("/")}>
-                      Open Chat
+                      {t("project:openChat")}
                     </Button>
                   </div>
                 )}

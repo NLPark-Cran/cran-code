@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { cranCliVersion } from "@/lib/version";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +13,7 @@ export function CranCliBrand({
   size = "md",
   showVersion = true,
 }: CranCliBrandProps) {
+  const { t } = useTranslation();
   const textSizeClass = size === "sm" ? "text-base" : "text-lg";
   const versionPadding = size === "sm" ? "text-xs" : "text-sm";
   const logoSize = size === "sm" ? "size-6" : "size-7";
@@ -33,7 +35,7 @@ export function CranCliBrand({
           className={logoSize}
         />
         <span className={cn(textSizeClass, "font-semibold text-foreground")}>
-          Cran Code
+          {t("common:brandName")}
         </span>
       </a>
       {showVersion && (

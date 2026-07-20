@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AlertTriangleIcon,
   ChevronLeftIcon,
@@ -73,6 +74,7 @@ export function SessionFilesPanel({
   onListSessionDirectory,
   onGetSessionFileUrl,
 }: SessionFilesPanelProps) {
+  const { t } = useTranslation();
   const [currentPath, setCurrentPath] = useState(".");
   const [entries, setEntries] = useState<SessionFileEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -108,7 +110,7 @@ export function SessionFilesPanel({
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Failed to load workspace files",
+            : t("chat:loadFilesFailed"),
         );
       } finally {
         if (requestId === requestIdRef.current) {
@@ -117,7 +119,7 @@ export function SessionFilesPanel({
         }
       }
     },
-    [onListSessionDirectory, sessionId],
+    [onListSessionDirectory, sessionId, t],
   );
 
   useEffect(() => {
@@ -147,14 +149,14 @@ export function SessionFilesPanel({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold">Workspace files</h2>
+              <h2 className="text-sm font-semibold">{t("chat:workspaceFiles")}</h2>
               <Badge variant="secondary">{entries.length}</Badge>
             </div>
             <p
               className="mt-1 truncate text-xs text-muted-foreground"
               title={workDir ?? undefined}
             >
-              {workDir ?? "Current work directory"}
+              {workDir ?? t("chat:currentWorkDir")}
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -164,7 +166,7 @@ export function SessionFilesPanel({
               size="icon-xs"
               onClick={handleRefresh}
               disabled={isLoading || isRefreshing}
-              aria-label="Refresh workspace files"
+              aria-label={t("chat:refreshFiles")}
             >
               <RefreshCwIcon
                 className={cn(
@@ -178,7 +180,7 @@ export function SessionFilesPanel({
               variant="ghost"
               size="icon-xs"
               onClick={onClose}
-              aria-label="Close workspace files panel"
+              aria-label={t("chat:closeFilesPanel")}
             >
               <PanelRightCloseIcon className="size-3.5" />
             </Button>
@@ -194,7 +196,7 @@ export function SessionFilesPanel({
             disabled={currentPath === "." || isLoading}
           >
             <ChevronLeftIcon className="size-3.5" />
-            Up
+            {t("chat:up")}
           </Button>
           {currentPath !== "." ? (
             <Button
@@ -204,7 +206,7 @@ export function SessionFilesPanel({
               onClick={() => setCurrentPath(".")}
               disabled={isLoading}
             >
-              Root
+              {t("chat:root")}
             </Button>
           ) : null}
         </div>
@@ -222,7 +224,7 @@ export function SessionFilesPanel({
           {isLoading && entries.length === 0 ? (
             <div className="flex min-h-40 flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2Icon className="size-5 animate-spin" />
-              <span>Loading files...</span>
+              <span>{t("chat:loadingFiles")}</span>
             </div>
           ) : null}
 
@@ -232,7 +234,7 @@ export function SessionFilesPanel({
                 <AlertTriangleIcon className="mt-0.5 size-4 text-destructive" />
                 <div className="min-w-0 flex-1">
                   <div className="font-medium text-foreground">
-                    Failed to load this directory
+                    {t("chat:loadDirFailed")}
                   </div>
                   <p className="mt-1 break-words text-muted-foreground">
                     {error}
@@ -244,7 +246,7 @@ export function SessionFilesPanel({
                     className="mt-3"
                     onClick={handleRefresh}
                   >
-                    Try again
+                    {t("common:tryAgain")}
                   </Button>
                 </div>
               </div>
@@ -254,7 +256,7 @@ export function SessionFilesPanel({
           {!(isLoading || error) && entries.length === 0 ? (
             <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed text-sm text-muted-foreground">
               <FolderIcon className="size-5" />
-              <span>No files in this directory.</span>
+              <span>{t("chat:noFilesHere")}</span>
             </div>
           ) : null}
 
@@ -283,7 +285,7 @@ export function SessionFilesPanel({
                         {entry.name}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {isDirectory ? "Directory" : sizeLabel ?? "File"}
+                        {isDirectory ? t("chat:directory") : sizeLabel ?? t("chat:file")}
                       </div>
                     </div>
 
@@ -293,7 +295,7 @@ export function SessionFilesPanel({
                         variant="ghost"
                         size="icon-xs"
                         onClick={() => handleOpenDirectory(itemPath)}
-                        aria-label={`Open directory ${entry.name}`}
+                        aria-label={t("chat:openDirectory", { name: entry.name })}
                       >
                         <ChevronRightIcon className="size-3.5" />
                       </Button>
@@ -302,7 +304,7 @@ export function SessionFilesPanel({
                         <a
                           href={onGetSessionFileUrl(sessionId, itemPath)}
                           download={entry.name}
-                          aria-label={`Download ${entry.name}`}
+                          aria-label={t("chat:downloadFile", { name: entry.name })}
                         >
                           <DownloadIcon className="size-3.5" />
                         </a>

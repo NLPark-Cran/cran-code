@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ interface GitPanelProps {
 }
 
 export default function GitPanel({ projectId }: GitPanelProps) {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<any>(null);
   const [commits, setCommits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,7 +32,7 @@ export default function GitPanel({ projectId }: GitPanelProps) {
       setStatus(s);
       setCommits(c);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load git data");
+      setError(err instanceof Error ? err.message : t("project:gitLoadFailed"));
     } finally {
       setLoading(false);
     }
@@ -48,7 +50,7 @@ export default function GitPanel({ projectId }: GitPanelProps) {
       setCommitMsg("");
       fetchData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Commit failed");
+      setError(err instanceof Error ? err.message : t("project:commitFailed"));
     } finally {
       setCommitting(false);
     }
@@ -57,10 +59,10 @@ export default function GitPanel({ projectId }: GitPanelProps) {
   const handleShowDiff = async (path: string, staged: boolean) => {
     try {
       const data = await v2Api.git.diff(projectId, staged, path);
-      setDiffContent(data[0]?.diff || "No diff");
+      setDiffContent(data[0]?.diff || t("project:noDiff"));
       setSelectedFile(path);
     } catch {
-      setDiffContent("Failed to load diff");
+      setDiffContent(t("project:diffFailed"));
       setSelectedFile(path);
     }
   };
@@ -93,14 +95,14 @@ export default function GitPanel({ projectId }: GitPanelProps) {
       {/* Commit message */}
       <div className="flex gap-2">
         <Input
-          placeholder="Commit message..."
+          placeholder={t("project:commitPlaceholder")}
           value={commitMsg}
           onChange={(e) => setCommitMsg(e.target.value)}
           className="h-8 text-sm"
         />
         <Button size="sm" className="h-8" onClick={handleCommit} disabled={committing || status?.clean}>
           {committing && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-          Commit
+          {t("project:commit")}
         </Button>
       </div>
 
@@ -109,7 +111,7 @@ export default function GitPanel({ projectId }: GitPanelProps) {
         <div className="space-y-2">
           {status.staged.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold uppercase text-emerald-500">Staged</p>
+              <p className="text-[10px] font-semibold uppercase text-emerald-500">{t("project:staged")}</p>
               {status.staged.map((f: string) => (
                 <button
                   key={f}
@@ -123,7 +125,7 @@ export default function GitPanel({ projectId }: GitPanelProps) {
           )}
           {status.modified.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold uppercase text-amber-500">Modified</p>
+              <p className="text-[10px] font-semibold uppercase text-amber-500">{t("project:modified")}</p>
               {status.modified.map((f: string) => (
                 <button
                   key={f}
@@ -137,7 +139,7 @@ export default function GitPanel({ projectId }: GitPanelProps) {
           )}
           {status.untracked.length > 0 && (
             <div>
-              <p className="text-[10px] font-semibold uppercase text-blue-500">Untracked</p>
+              <p className="text-[10px] font-semibold uppercase text-blue-500">{t("project:untracked")}</p>
               {status.untracked.map((f: string) => (
                 <p key={f} className="truncate text-xs text-muted-foreground">{f}</p>
               ))}
@@ -150,8 +152,8 @@ export default function GitPanel({ projectId }: GitPanelProps) {
       {diffContent && (
         <div className="rounded border bg-black/50 p-2">
           <div className="mb-1 flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground">Diff</span>
-            <button onClick={() => setDiffContent(null)} className="text-[10px] text-muted-foreground hover:text-foreground">Close</button>
+            <span className="text-[10px] text-muted-foreground">{t("project:diff")}</span>
+            <button onClick={() => setDiffContent(null)} className="text-[10px] text-muted-foreground hover:text-foreground">{t("common:close")}</button>
           </div>
           <pre className="max-h-40 overflow-auto text-[10px] text-muted-foreground">{diffContent}</pre>
         </div>
@@ -159,7 +161,7 @@ export default function GitPanel({ projectId }: GitPanelProps) {
 
       {/* Recent commits */}
       <div className="space-y-1">
-        <p className="text-[10px] font-semibold uppercase text-muted-foreground">Recent commits</p>
+        <p className="text-[10px] font-semibold uppercase text-muted-foreground">{t("project:recentCommits")}</p>
         {commits.map((c) => (
           <div key={c.hash} className="flex items-start gap-1.5">
             <GitCommit className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />

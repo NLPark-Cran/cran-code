@@ -12,6 +12,7 @@ import {
   usePromptInputController,
 } from "@ai-elements";
 import type { ChatStatus } from "ai";
+import { useTranslation } from "react-i18next";
 import type { PromptInputMessage } from "@ai-elements";
 import type { GitDiffStats, Session } from "@/lib/api/models";
 import type { TokenUsage } from "@/hooks/wireTypes";
@@ -93,6 +94,7 @@ export const ChatPromptComposer = memo(function ChatPromptComposerComponent({
   maxTokens,
   tokenUsage,
 }: ChatPromptComposerProps): ReactElement {
+  const { t } = useTranslation();
   const promptController = usePromptInputController();
   const attachmentContext = usePromptInputAttachments();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -182,9 +184,9 @@ export const ChatPromptComposer = memo(function ChatPromptComposerComponent({
 
   const handleFileError = useCallback(
     (err: { code: string; message: string }) => {
-      toast.error("File Error", { description: err.message });
+      toast.error(t("chat:fileError"), { description: err.message });
     },
-    [],
+    [t],
   );
 
   const handleToggleExpand = useCallback(() => {
@@ -223,7 +225,7 @@ export const ChatPromptComposer = memo(function ChatPromptComposerComponent({
             onClick={handleToggleExpand}
             disabled={!(canSendMessage && currentSession)}
             className="absolute top-2 right-2 z-10 p-1 cursor-pointer rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors disabled:opacity-50 disabled:pointer-events-none"
-            aria-label={isExpanded ? "Collapse input" : "Expand input"}
+            aria-label={isExpanded ? t("chat:collapseInput") : t("chat:expandInput")}
           >
             {isExpanded ? (
               <Minimize2Icon className="size-4" />
@@ -240,7 +242,7 @@ export const ChatPromptComposer = memo(function ChatPromptComposerComponent({
               variant="secondary"
             >
               <Loader2Icon className="size-4 animate-spin text-primary" />
-              <span>Uploading files…</span>
+              <span>{t("chat:uploadingFiles")}</span>
             </Badge>
           ) : null}
           <div className="relative w-full flex items-start">
@@ -255,14 +257,14 @@ export const ChatPromptComposer = memo(function ChatPromptComposerComponent({
                 )}
                 placeholder={
                   !currentSession
-                    ? "Create a session to start..."
+                    ? t("chat:placeholderNoSession")
                     : isAwaitingIdle
                       ? isReplayingHistory
-                        ? "Connecting..."
-                        : "Starting environment..."
+                        ? t("chat:placeholderConnecting")
+                        : t("chat:placeholderStarting")
                       : isStreaming
-                        ? "Add a follow-up message..."
-                        : "Ask anything, / for commands, @ to mention files"
+                        ? t("chat:placeholderFollowUp")
+                        : t("chat:placeholderAsk")
                 }
                 aria-busy={isUploading}
                 disabled={!canSendMessage || isUploading || !currentSession || isAwaitingIdle}
@@ -309,7 +311,7 @@ export const ChatPromptComposer = memo(function ChatPromptComposerComponent({
           {isStreaming ? (
             <div className="flex items-center gap-1.5 shrink-0">
               <PromptInputButton
-                aria-label="Stop generation"
+                aria-label={t("chat:stopGeneration")}
                 disabled={!onCancel}
                 onClick={(event) => {
                   event.preventDefault();
@@ -325,7 +327,7 @@ export const ChatPromptComposer = memo(function ChatPromptComposerComponent({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <PromptInputSubmit
-                    aria-label="Queue message"
+                    aria-label={t("chat:queueMessage")}
                     size="icon-sm"
                     variant="outline"
                     className="shrink-0"
@@ -334,7 +336,7 @@ export const ChatPromptComposer = memo(function ChatPromptComposerComponent({
                     <ArrowUpIcon className="size-4" />
                   </PromptInputSubmit>
                 </TooltipTrigger>
-                <TooltipContent>Queue message</TooltipContent>
+                <TooltipContent>{t("chat:queueMessage")}</TooltipContent>
               </Tooltip>
             </div>
           ) : (

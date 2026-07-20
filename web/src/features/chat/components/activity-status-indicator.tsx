@@ -1,6 +1,7 @@
 import { memo, type ReactElement } from "react";
 import type { ChatStatus } from "ai";
 import { AnimatePresence, motion } from "motion/react";
+import type { TFunction } from "i18next";
 import { Loader } from "@/components/ai-elements/loader";
 import type { LiveMessage } from "@/hooks/types";
 import { cn } from "@/lib/utils";
@@ -16,17 +17,17 @@ export type ActivityDetail = {
 
 // --- Tool Name Mapping ---
 
-const TOOL_DISPLAY_NAMES: Record<string, string> = {
-  Read: "Reading files...",
-  Write: "Writing files...",
-  Edit: "Editing code...",
-  Bash: "Running command...",
-  Glob: "Searching files...",
-  Grep: "Searching content...",
-  WebFetch: "Fetching web content...",
-  WebSearch: "Searching the web...",
-  Task: "Running agent...",
-  NotebookEdit: "Editing notebook...",
+const TOOL_STATUS_KEYS: Record<string, string> = {
+  Read: "chat:toolRead",
+  Write: "chat:toolWrite",
+  Edit: "chat:toolEdit",
+  Bash: "chat:toolBash",
+  Glob: "chat:toolGlob",
+  Grep: "chat:toolGrep",
+  WebFetch: "chat:toolWebFetch",
+  WebSearch: "chat:toolWebSearch",
+  Task: "chat:toolTask",
+  NotebookEdit: "chat:toolNotebookEdit",
 };
 
 // --- Status Derivation ---
@@ -38,6 +39,7 @@ type DeriveActivityStatusParams = {
   isUploadingFiles: boolean;
   messages: LiveMessage[];
   errorMessage?: string | null;
+  t: TFunction;
 };
 
 /**
@@ -50,12 +52,13 @@ export function deriveActivityStatus({
   isUploadingFiles,
   messages,
   errorMessage,
+  t,
 }: DeriveActivityStatusParams): ActivityDetail {
   // Check for pending approval requests (search from end for efficiency)
   if (findPendingApproval(messages)) {
     return {
       status: "waiting_input",
-      description: "Waiting for approval...",
+      description: t("chat:statusWaitingApproval"),
     };
   }
 
@@ -63,7 +66,7 @@ export function deriveActivityStatus({
   if (isUploadingFiles) {
     return {
       status: "processing",
-      description: "Uploading files...",
+      description: t("chat:statusUploading"),
     };
   }
 
@@ -71,7 +74,7 @@ export function deriveActivityStatus({
   if (chatStatus === "error") {
     return {
       status: "error",
-      description: errorMessage || "An error occurred",
+      description: errorMessage || t("chat:statusError"),
     };
   }
 
@@ -79,7 +82,7 @@ export function deriveActivityStatus({
   if (chatStatus === "submitted" || isAwaitingFirstResponse) {
     return {
       status: "connecting",
-      description: "Connecting...",
+      description: t("chat:statusConnecting"),
     };
   }
 
@@ -89,7 +92,7 @@ export function deriveActivityStatus({
     if (isReplayingHistory) {
       return {
         status: "processing",
-        description: "Loading history...",
+        description: t("chat:statusLoadingHistory"),
       };
     }
 
@@ -97,8 +100,11 @@ export function deriveActivityStatus({
     const activeToolCall = findActiveToolCall(messages);
 
     if (activeToolCall) {
-      const toolName = extractToolName(activeToolCall);
-      const displayText = TOOL_DISPLAY_NAMES[toolName] || `Running ${toolName}...`;
+      const toolName = extractToolName(activeToolCall, t);
+      const statusKey = TOOL_STATUS_KEYS[toolName];
+      const displayText = statusKey
+        ? t(statusKey)
+        : t("chat:toolRunning", { tool: toolName });
       return {
         status: "processing",
         description: displayText,
@@ -108,14 +114,14 @@ export function deriveActivityStatus({
     // No active tool call - model is thinking
     return {
       status: "processing",
-      description: "Thinking...",
+      description: t("chat:statusThinking"),
     };
   }
 
   // Default idle state
   return {
     status: "idle",
-    description: "Awaiting input",
+    description: t("chat:statusAwaitingInput"),
   };
 }
 
@@ -160,7 +166,7 @@ function findActiveToolCall(messages: LiveMessage[]): LiveMessage["toolCall"] | 
 /**
  * Extracts the tool name from a tool call.
  */
-function extractToolName(toolCall: NonNullable<LiveMessage["toolCall"]>): string {
+function extractToolName(toolCall: NonNullable<LiveMessage["toolCall"]>, t: TFunction): string {
   // The title often contains the tool name, e.g., "Read: /path/to/file"
   const title = toolCall.title || "";
   const colonIndex = title.indexOf(":");
@@ -168,7 +174,7 @@ function extractToolName(toolCall: NonNullable<LiveMessage["toolCall"]>): string
     return title.substring(0, colonIndex).trim();
   }
   // Fallback to full title
-  return title || "Tool";
+  return title || t("chat:toolFallback");
 }
 
 // --- Status Indicator Component ---

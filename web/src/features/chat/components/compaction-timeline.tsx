@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, User, Bot, Clock } from "lucide-react";
 
@@ -32,6 +33,7 @@ export function CompactionTimeline({
   aiTurns,
   className,
 }: CompactionTimelineProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const totalTurns = humanTurns.length;
 
@@ -49,10 +51,10 @@ export function CompactionTimeline({
         )}
         <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         <span className="text-xs font-medium text-muted-foreground">
-          Conversation summarized
+          {t("chat:compactionSummary")}
         </span>
         <span className="ml-auto text-[10px] text-muted-foreground/60">
-          {totalTurns} {totalTurns === 1 ? "turn" : "turns"}
+          {t("chat:turns", { count: totalTurns })}
         </span>
       </button>
 
@@ -63,7 +65,7 @@ export function CompactionTimeline({
               <div className="flex items-center gap-1.5">
                 <User className="h-3 w-3 text-blue-400 shrink-0" />
                 <span className="text-[10px] font-medium text-blue-400">
-                  {turn.author || "User"}
+                  {turn.author || t("chat:labelUser")}
                 </span>
                 {turn.timestamp ? (
                   <span className="text-[10px] text-muted-foreground/50">
@@ -80,7 +82,7 @@ export function CompactionTimeline({
                 <div className="flex items-start gap-1.5 pl-4">
                   <Bot className="h-3 w-3 text-emerald-400 shrink-0 mt-0.5" />
                   <p className="text-xs text-muted-foreground/70 line-clamp-2">
-                    {aiTurns[i]?.summary || "Response"}
+                    {aiTurns[i]?.summary || t("chat:response")}
                   </p>
                 </div>
               ) : null}

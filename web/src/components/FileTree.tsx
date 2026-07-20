@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ChevronRight,
   ChevronDown,
@@ -66,6 +67,7 @@ function FileTreeNode({
   onCompress,
   onExtract,
 }: FileTreeNodeProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [children, setChildren] = useState<FsEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -124,7 +126,7 @@ function FileTreeNode({
   };
 
   const promptDestination = (defaultValue: string) =>
-    window.prompt("Enter destination path (relative to project root):", defaultValue);
+    window.prompt(t("project:promptDestination"), defaultValue);
 
   const handleCopy = () => {
     const dst = promptDestination(`${entry.path}-copy`);
@@ -137,7 +139,7 @@ function FileTreeNode({
   };
 
   const handleDelete = () => {
-    if (window.confirm(`Delete "${entry.name}"?`)) {
+    if (window.confirm(t("project:confirmDeleteFile", { name: entry.name }))) {
       onDelete?.(entry.path);
     }
   };
@@ -152,7 +154,7 @@ function FileTreeNode({
 
   const handleExtract = () => {
     const dest = window.prompt(
-      "Extract to directory (leave empty for same directory):",
+      t("project:promptExtract"),
       ""
     );
     onExtract?.(entry.path, dest || undefined);
@@ -225,38 +227,38 @@ function FileTreeNode({
           {isDir && onUpload && (
             <ContextMenuItem onClick={handleUploadHere}>
               <FileUp className="mr-2 h-4 w-4" />
-              Upload files here
+              {t("project:uploadHere")}
             </ContextMenuItem>
           )}
           {!isDir && onDownload && (
             <ContextMenuItem onClick={() => onDownload(entry.path, entry.name)}>
               <Download className="mr-2 h-4 w-4" />
-              Download
+              {t("project:download")}
             </ContextMenuItem>
           )}
           <ContextMenuItem onClick={handleCopy}>
             <Copy className="mr-2 h-4 w-4" />
-            Copy
+            {t("project:copy")}
           </ContextMenuItem>
           <ContextMenuItem onClick={handleMove}>
             <Scissors className="mr-2 h-4 w-4" />
-            Move / Rename
+            {t("project:moveRename")}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem onClick={handleCompress}>
             <FileArchive className="mr-2 h-4 w-4" />
-            Compress to .zip
+            {t("project:compressZip")}
           </ContextMenuItem>
           {!isDir && entry.name.endsWith(".zip") && onExtract && (
             <ContextMenuItem onClick={handleExtract}>
               <FolderOpen className="mr-2 h-4 w-4" />
-              Extract .zip
+              {t("project:extractZip")}
             </ContextMenuItem>
           )}
           <ContextMenuSeparator />
           <ContextMenuItem onClick={handleDelete} variant="destructive">
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            {t("common:delete")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -264,7 +266,7 @@ function FileTreeNode({
       {isDir && expanded && (
         <div>
           {loading ? (
-            <div className="py-1 pl-8 text-xs text-muted-foreground">Loading...</div>
+            <div className="py-1 pl-8 text-xs text-muted-foreground">{t("common:loading")}</div>
           ) : children && children.length > 0 ? (
             children.map((child) => (
               <FileTreeNode
@@ -284,7 +286,7 @@ function FileTreeNode({
               />
             ))
           ) : (
-            <div className="py-1 pl-8 text-xs text-muted-foreground">Empty</div>
+            <div className="py-1 pl-8 text-xs text-muted-foreground">{t("project:emptyFolder")}</div>
           )}
         </div>
       )}
@@ -321,6 +323,7 @@ export default function FileTree({
   onExtract,
   uploading,
 }: FileTreeProps) {
+  const { t } = useTranslation();
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -366,7 +369,7 @@ export default function FileTree({
             disabled={uploading}
           >
             <Upload className="h-3.5 w-3.5" />
-            {uploading ? "Uploading..." : "Upload files"}
+            {uploading ? t("project:uploading") : t("project:uploadFiles")}
           </Button>
           <input
             ref={fileInputRef}
@@ -397,7 +400,7 @@ export default function FileTree({
         ))}
         {entries.length === 0 && (
           <p className="p-2 text-xs text-muted-foreground">
-            Drop files here or click "Upload files"
+            {t("project:dropHint")}
           </p>
         )}
       </div>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { v2Api, type ActivityRes } from "@/lib/api/v2";
@@ -8,20 +9,20 @@ interface ActivityStreamProps {
   refreshKey?: number;
 }
 
-const typeLabels: Record<string, string> = {
-  message_sent: "Message",
-  file_edited: "File edit",
-  file_deleted: "Delete",
-  file_uploaded: "Upload",
-  file_downloaded: "Download",
-  command_run: "Command",
-  session_created: "Session",
-  session_forked: "Fork",
-  commit_pushed: "Commit",
-  review_submitted: "Review",
+const typeLabelKeys: Record<string, string> = {
+  message_sent: "project:actMessage",
+  file_edited: "project:actFileEdit",
+  file_deleted: "project:actDelete",
+  file_uploaded: "project:actUpload",
+  file_downloaded: "project:actDownload",
+  command_run: "project:actCommand",
+  session_created: "project:actSession",
+  session_forked: "project:actFork",
+  commit_pushed: "project:actCommit",
+  review_submitted: "project:actReview",
 };
 
-const typeColors: Record<string, string> = {
+const typeColorKeys: Record<string, string> = {
   message_sent: "bg-blue-100 text-blue-800",
   file_edited: "bg-amber-100 text-amber-800",
   file_deleted: "bg-red-100 text-red-800",
@@ -34,17 +35,18 @@ const typeColors: Record<string, string> = {
   review_submitted: "bg-pink-100 text-pink-800",
 };
 
-function formatTime(iso: string): string {
+function formatTime(iso: string, t: (key: string, opts?: { count: number }) => string): string {
   const d = new Date(iso);
   const now = new Date();
   const diff = (now.getTime() - d.getTime()) / 1000;
-  if (diff < 60) return "just now";
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 60) return t("project:justNow");
+  if (diff < 3600) return t("project:minutesAgo", { count: Math.floor(diff / 60) });
+  if (diff < 86400) return t("project:hoursAgo", { count: Math.floor(diff / 3600) });
+  return t("project:daysAgo", { count: Math.floor(diff / 86400) });
 }
 
 export default function ActivityStream({ projectId, refreshKey }: ActivityStreamProps) {
+  const { t } = useTranslation();
   const [activities, setActivities] = useState<ActivityRes[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,11 +58,11 @@ export default function ActivityStream({ projectId, refreshKey }: ActivityStream
       const data = await v2Api.projects.listActivities(projectId, 50);
       setActivities(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load activities");
+      setError(err instanceof Error ? err.message : t("project:activityLoadFailed"));
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [projectId, t]);
 
   useEffect(() => {
     fetchActivities();
@@ -69,12 +71,12 @@ export default function ActivityStream({ projectId, refreshKey }: ActivityStream
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold">Activity</h3>
+        <h3 className="text-base font-semibold">{t("project:activityTitle")}</h3>
         <button
           onClick={fetchActivities}
           className="text-xs text-muted-foreground hover:text-foreground"
         >
-          Refresh
+          {t("common:refresh")}
         </button>
       </div>
 
@@ -85,27 +87,27 @@ export default function ActivityStream({ projectId, refreshKey }: ActivityStream
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
       ) : activities.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No activity yet</p>
+        <p className="text-sm text-muted-foreground">{t("project:activityEmpty")}</p>
       ) : (
         <div className="space-y-3">
           {activities.map((a) => (
             <div key={a.id} className="flex gap-2 text-sm">
               <Badge
                 variant="secondary"
-                className={`shrink-0 text-[10px] ${typeColors[a.type] || ""}`}
+                className={`shrink-0 text-[10px] ${typeColorKeys[a.type] || ""}`}
               >
-                {typeLabels[a.type] || a.type}
+                {typeLabelKeys[a.type] ? t(typeLabelKeys[a.type]) : a.type}
               </Badge>
               <div className="min-w-0">
                 <p className="truncate">
                   <span className="font-medium">
-                    {a.display_name || a.username || "System"}
+                    {a.display_name || a.username || t("project:activitySystem")}
                   </span>
                   {a.payload && (
                     <span className="text-muted-foreground"> {a.payload}</span>
                   )}
                 </p>
-                <p className="text-xs text-muted-foreground">{formatTime(a.created_at)}</p>
+                <p className="text-xs text-muted-foreground">{formatTime(a.created_at, t)}</p>
               </div>
             </div>
           ))}

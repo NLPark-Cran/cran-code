@@ -5,6 +5,7 @@ import {
   useCallback,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowUpIcon,
   CheckIcon,
@@ -26,6 +27,7 @@ import { useQueueStore, type QueuedItem } from "../../queue-store";
 // ─── Sub-components ──────────────────────────────────────────
 
 function QueueItemRow({ item, isFirst, onEdit }: { item: QueuedItem; isFirst: boolean; onEdit: (id: string) => void }): ReactElement {
+  const { t } = useTranslation();
   const removeFromQueue = useQueueStore((s) => s.removeFromQueue);
   const moveQueueItemUp = useQueueStore((s) => s.moveQueueItemUp);
 
@@ -41,7 +43,7 @@ function QueueItemRow({ item, isFirst, onEdit }: { item: QueuedItem; isFirst: bo
               <PencilIcon className="size-3" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Edit</TooltipContent>
+          <TooltipContent>{t("chat:edit")}</TooltipContent>
         </Tooltip>
         {!isFirst && (
           <Tooltip>
@@ -50,7 +52,7 @@ function QueueItemRow({ item, isFirst, onEdit }: { item: QueuedItem; isFirst: bo
                 <ArrowUpIcon className="size-3" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Move up</TooltipContent>
+            <TooltipContent>{t("chat:moveUp")}</TooltipContent>
           </Tooltip>
         )}
         <Tooltip>
@@ -59,7 +61,7 @@ function QueueItemRow({ item, isFirst, onEdit }: { item: QueuedItem; isFirst: bo
               <Trash2Icon className="size-3" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Remove</TooltipContent>
+          <TooltipContent>{t("chat:remove")}</TooltipContent>
         </Tooltip>
       </div>
     </div>
@@ -67,6 +69,7 @@ function QueueItemRow({ item, isFirst, onEdit }: { item: QueuedItem; isFirst: bo
 }
 
 function EditingItemRow({ item, onDone }: { item: QueuedItem; onDone: () => void }): ReactElement {
+  const { t } = useTranslation();
   const [text, setText] = useState(item.text);
   const editQueueItem = useQueueStore((s) => s.editQueueItem);
 
@@ -84,7 +87,7 @@ function EditingItemRow({ item, onDone }: { item: QueuedItem; onDone: () => void
     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted/30">
       <input
         autoFocus
-        aria-label="Edit queued message"
+        aria-label={t("chat:editQueuedMessage")}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -136,6 +139,7 @@ export const ToolbarQueueTab = memo(function ToolbarQueueTabComponent({
   isActive,
   onToggle,
 }: ToolbarQueueTabProps): ReactElement {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -148,7 +152,7 @@ export const ToolbarQueueTab = memo(function ToolbarQueueTabComponent({
       )}
     >
       <ListOrderedIcon className="size-3" />
-      <span>{count} Queued</span>
+      <span>{t("chat:queuedCount", { count })}</span>
       <ChevronDownIcon
         className={cn(
           "size-3 transition-transform duration-200",

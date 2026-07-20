@@ -1,4 +1,5 @@
 import { type ReactElement, memo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   CheckCircle2Icon,
   CheckSquare2Icon,
@@ -65,6 +66,7 @@ export const ToolbarTodoTab = memo(function ToolbarTodoTabComponent({
   isActive,
   onToggle,
 }: ToolbarTodoTabProps): ReactElement {
+  const { t } = useTranslation();
   const doneCount = items.filter((i) => i.status === "done").length;
   const totalCount = items.length;
 
@@ -81,7 +83,7 @@ export const ToolbarTodoTab = memo(function ToolbarTodoTabComponent({
     >
       <CheckSquare2Icon className="size-3" />
       <span>
-        {doneCount}/{totalCount} Tasks
+        {t("chat:tasksCount", { done: doneCount, total: totalCount })}
       </span>
       <ChevronDownIcon
         className={cn(

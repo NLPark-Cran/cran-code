@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import type { ChatStatus } from "ai";
+import { useTranslation } from "react-i18next";
 import type { PromptInputMessage } from "@ai-elements";
 import type { ApprovalResponseDecision, TokenUsage } from "@/hooks/wireTypes";
 import type { LiveMessage } from "@/hooks/types";
@@ -125,6 +126,7 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
   onForkSession,
   errorMessage,
 }: ChatWorkspaceProps): ReactElement {
+  const { t } = useTranslation();
   const [blocksExpanded, setBlocksExpanded] = useState(false);
   const [isFilesPanelOpen, setIsFilesPanelOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -155,6 +157,7 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
       isUploadingFiles,
       messages,
       errorMessage,
+      t,
     });
 
     // If status and description haven't changed, return cached reference
@@ -169,7 +172,7 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
 
     prevActivityRef.current = newStatus;
     return newStatus;
-  }, [status, isAwaitingFirstResponse, isReplayingHistory, isUploadingFiles, messages, errorMessage]);
+  }, [status, isAwaitingFirstResponse, isReplayingHistory, isUploadingFiles, messages, errorMessage, t]);
 
   const maxTokens = maxContextSize ?? 64000;
   const usedTokens = Math.round(contextUsage * maxTokens);
@@ -215,7 +218,7 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
         await onApprovalResponse(approval.id, decision, reason);
       } catch (error) {
         console.error("[ChatWorkspace] Failed to respond to approval", error);
-        toast.error("Approval action failed", {
+        toast.error(t("chat:approvalActionFailed"), {
           description: error instanceof Error ? error.message : String(error),
         });
       } finally {
@@ -226,7 +229,7 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
         });
       }
     },
-    [onApprovalResponse],
+    [onApprovalResponse, t],
   );
 
   // Wrapper for ApprovalDialog that routes through handleApprovalAction
@@ -259,7 +262,7 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
         await onQuestionResponse(requestId, answers);
       } catch (error) {
         console.error("[ChatWorkspace] Failed to respond to question", error);
-        toast.error("Question response failed", {
+        toast.error(t("chat:questionResponseFailed"), {
           description: error instanceof Error ? error.message : String(error),
         });
       } finally {
@@ -270,7 +273,7 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
         });
       }
     },
-    [onQuestionResponse],
+    [onQuestionResponse, t],
   );
 
   return (
@@ -361,7 +364,7 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
             <>
               <button
                 type="button"
-                aria-label="Close workspace files panel"
+                aria-label={t("chat:closeFilesPanel")}
                 className="absolute inset-0 z-10 bg-background/40 backdrop-blur-[1px] lg:hidden"
                 onClick={handleCloseFilesPanel}
               />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -129,6 +130,7 @@ function specsToRows(specs: ProviderModelSpec[]): ModelRow[] {
 
 export default function ProvidersPage() {
   const { user } = useAuthStore();
+  const { t } = useTranslation();
   const isAdmin = user?.role === "admin";
 
   const [data, setData] = useState<ProviderListRes | null>(null);
@@ -159,7 +161,7 @@ export default function ProvidersPage() {
     try {
       setData(await v2Api.providers.list());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load providers");
+      setError(err instanceof Error ? err.message : t("providers:loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -196,12 +198,12 @@ export default function ProvidersPage() {
       const restarted = resp.restarted_session_ids?.length ?? 0;
       const skipped = resp.skipped_busy_session_ids?.length ?? 0;
       setNotice(
-        `Switched default model to ${resp.default_model}. ` +
-          `Restarted ${restarted} session(s)${skipped ? `, skipped ${skipped} busy` : ""}.`,
+        t("providers:switchNotice", { model: resp.default_model, count: restarted }) +
+          (skipped ? t("providers:switchNoticeSkipped", { count: skipped }) : "."),
       );
       await fetchProviders();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to switch model");
+      setError(err instanceof Error ? err.message : t("providers:switchFailed"));
     } finally {
       setSelectingKey(null);
     }
@@ -219,22 +221,20 @@ export default function ProvidersPage() {
       });
       await fetchProviders();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update thinking mode");
+      setError(err instanceof Error ? err.message : t("providers:thinkingFailed"));
     } finally {
       setThinkingBusy(false);
     }
   };
 
   const handleSetContext = async (modelKey: string, size: number) => {
-    const tier = CONTEXT_TIERS.find((t) => t.value === size);
+    const tier = CONTEXT_TIERS.find((ct) => ct.value === size);
     const label = tier?.label ?? formatContext(size);
     const warning =
-      size >= 1048576
-        ? `\n\nNote: a 1M context window requires an Allegretto+ subscription tier on the account behind the provider key.`
-        : "";
+      size >= 1048576 ? `\n\n${t("providers:contextWarning1M")}` : "";
     if (
       !window.confirm(
-        `Set context window of "${modelKey}" to ${label}?${warning}`,
+        t("providers:confirmSetContext", { model: modelKey, label }) + warning,
       )
     ) {
       return;
@@ -247,9 +247,9 @@ export default function ProvidersPage() {
         max_context_size: size,
       });
       setData(resp);
-      setNotice(`Set context window of ${modelKey} to ${label}.`);
+      setNotice(t("providers:contextSet", { model: modelKey, label }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to set context window");
+      setError(err instanceof Error ? err.message : t("providers:contextFailed"));
     } finally {
       setContextBusyKey(null);
     }
@@ -262,19 +262,19 @@ export default function ProvidersPage() {
     setNotice(null);
     try {
       await v2Api.users.putMeProviderKey(providerKey, keyInput.trim());
-      setNotice(`Saved your personal key for ${providerKey}.`);
+      setNotice(t("providers:personalKeySaved", { key: providerKey }));
       setKeyEditorFor(null);
       setKeyInput("");
       await fetchMyKeys();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save key");
+      setError(err instanceof Error ? err.message : t("providers:saveKeyFailed"));
     } finally {
       setKeyBusy(false);
     }
   };
 
   const handleDeleteMyKey = async (providerKey: string) => {
-    if (!window.confirm(`Remove your personal key for "${providerKey}"?`)) {
+    if (!window.confirm(t("providers:confirmRemovePersonalKey", { key: providerKey }))) {
       return;
     }
     setKeyBusy(true);
@@ -282,10 +282,10 @@ export default function ProvidersPage() {
     setNotice(null);
     try {
       await v2Api.users.deleteMeProviderKey(providerKey);
-      setNotice(`Removed your personal key for ${providerKey}.`);
+      setNotice(t("providers:personalKeyRemoved", { key: providerKey }));
       await fetchMyKeys();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove key");
+      setError(err instanceof Error ? err.message : t("providers:removeKeyFailed"));
     } finally {
       setKeyBusy(false);
     }
@@ -313,7 +313,7 @@ export default function ProvidersPage() {
 
   const handleFetchModels = async () => {
     if (!form.base_url.trim()) {
-      setDialogError("Base URL is required to fetch models");
+      setDialogError(t("providers:baseUrlRequired"));
       return;
     }
     setFetchingModels(true);
@@ -330,7 +330,7 @@ export default function ProvidersPage() {
       });
       setForm((f) => ({ ...f, rows: specsToRows(resp.models) }));
     } catch (err) {
-      setDialogError(err instanceof Error ? err.message : "Failed to fetch models");
+      setDialogError(err instanceof Error ? err.message : t("providers:fetchModelsFailed"));
     } finally {
       setFetchingModels(false);
     }
@@ -354,7 +354,7 @@ export default function ProvidersPage() {
       setData(resp);
       setDialogOpen(false);
     } catch (err) {
-      setDialogError(err instanceof Error ? err.message : "Failed to save provider");
+      setDialogError(err instanceof Error ? err.message : t("providers:saveFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -363,7 +363,7 @@ export default function ProvidersPage() {
   const handleDelete = async (provider: ProviderInfo) => {
     if (
       !window.confirm(
-        `Delete provider "${provider.key}" and its ${provider.models.length} model(s)?`,
+        t("providers:confirmDelete", { key: provider.key, count: provider.models.length }),
       )
     ) {
       return;
@@ -373,9 +373,9 @@ export default function ProvidersPage() {
     try {
       const resp = await v2Api.providers.delete(provider.key);
       setData(resp);
-      setNotice(`Deleted provider ${provider.key}.`);
+      setNotice(t("providers:deleted", { key: provider.key }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to delete provider");
+      setError(err instanceof Error ? err.message : t("providers:deleteFailed"));
     }
   };
 
@@ -391,29 +391,29 @@ export default function ProvidersPage() {
 
   const keySourceBadge = (provider: ProviderInfo) => {
     if (hasPersonalKey(provider.key)) {
-      return <Badge variant="secondary">Personal key</Badge>;
+      return <Badge variant="secondary">{t("providers:personalKey")}</Badge>;
     }
     if (provider.has_api_key) {
-      return <Badge variant="outline">Shared/team key</Badge>;
+      return <Badge variant="outline">{t("providers:sharedKey")}</Badge>;
     }
-    return <Badge variant="destructive">Not configured</Badge>;
+    return <Badge variant="destructive">{t("providers:notConfigured")}</Badge>;
   };
 
   return (
     <Layout>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Providers</h1>
+          <h1 className="text-2xl font-bold">{t("providers:title")}</h1>
           <p className="text-muted-foreground">
             {isAdmin
-              ? "Manage LLM providers and switch the active model"
-              : "View LLM providers and manage your personal API keys"}
+              ? t("providers:subtitleAdmin")
+              : t("providers:subtitleMember")}
           </p>
         </div>
         {isAdmin && (
           <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Provider
+            {t("providers:addProvider")}
           </Button>
         )}
       </div>
@@ -421,9 +421,7 @@ export default function ProvidersPage() {
       {!isAdmin && (
         <Alert className="mb-4">
           <AlertDescription>
-            Shared providers are managed by administrators. You can set a
-            personal API key for any provider below — it takes precedence over
-            the shared key for your own sessions.
+            {t("providers:sharedNotice")}
           </AlertDescription>
         </Alert>
       )}
@@ -441,9 +439,9 @@ export default function ProvidersPage() {
 
       {data && (
         <div className="mb-6 flex items-center gap-3 text-sm">
-          <span className="text-muted-foreground">Default model:</span>
+          <span className="text-muted-foreground">{t("providers:defaultModel")}:</span>
           <Badge variant="secondary">{data.default_model}</Badge>
-          <span className="text-muted-foreground ml-4">Thinking:</span>
+          <span className="text-muted-foreground ml-4">{t("providers:thinking")}:</span>
           {isAdmin ? (
             <Switch
               checked={data.default_thinking}
@@ -451,7 +449,7 @@ export default function ProvidersPage() {
               onCheckedChange={handleThinkingToggle}
             />
           ) : (
-            <Badge variant="outline">{data.default_thinking ? "on" : "off"}</Badge>
+            <Badge variant="outline">{data.default_thinking ? t("common:on") : t("common:off")}</Badge>
           )}
         </div>
       )}
@@ -492,7 +490,7 @@ export default function ProvidersPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {provider.models.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No models configured.</p>
+                  <p className="text-sm text-muted-foreground">{t("providers:noModels")}</p>
                 ) : (
                   <div className="space-y-2">
                     {provider.models.map((spec, idx) => {
@@ -512,7 +510,7 @@ export default function ProvidersPage() {
                             </Badge>
                             {spec.capabilities?.includes("thinking") && (
                               <Badge variant="secondary" className="shrink-0">
-                                thinking
+                                {t("providers:thinkingBadge")}
                               </Badge>
                             )}
                           </div>
@@ -550,7 +548,7 @@ export default function ProvidersPage() {
                               (isActive ? (
                                 <Badge className="shrink-0">
                                   <Check className="mr-1 h-3 w-3" />
-                                  Active
+                                  {t("providers:active")}
                                 </Badge>
                               ) : (
                                 <Button
@@ -563,14 +561,14 @@ export default function ProvidersPage() {
                                   {selectingKey === modelKey ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                   ) : (
-                                    "Use"
+                                    t("providers:use")
                                   )}
                                 </Button>
                               ))}
                             {!isAdmin && isActive && (
                               <Badge className="shrink-0">
                                 <Check className="mr-1 h-3 w-3" />
-                                Active
+                                {t("providers:active")}
                               </Badge>
                             )}
                           </div>
@@ -585,12 +583,12 @@ export default function ProvidersPage() {
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm">
                       <KeyRound className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">My key</span>
+                      <span className="font-medium">{t("providers:myKey")}</span>
                       {hasPersonalKey(provider.key) ? (
-                        <Badge variant="secondary">set</Badge>
+                        <Badge variant="secondary">{t("providers:myKeySet")}</Badge>
                       ) : (
                         <span className="text-muted-foreground text-xs">
-                          not set — falls back to shared/team key
+                          {t("providers:myKeyNotSet")}
                         </span>
                       )}
                     </div>
@@ -604,7 +602,7 @@ export default function ProvidersPage() {
                             setKeyInput("");
                           }}
                         >
-                          {hasPersonalKey(provider.key) ? "Replace" : "Set key"}
+                          {hasPersonalKey(provider.key) ? t("common:replace") : t("providers:setKey")}
                         </Button>
                       )}
                       {hasPersonalKey(provider.key) && (
@@ -633,7 +631,7 @@ export default function ProvidersPage() {
                         onClick={() => handleSaveMyKey(provider.key)}
                       >
                         {keyBusy && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}
-                        Save
+                        {t("common:save")}
                       </Button>
                       <Button
                         variant="ghost"
@@ -643,7 +641,7 @@ export default function ProvidersPage() {
                           setKeyInput("");
                         }}
                       >
-                        Cancel
+                        {t("common:cancel")}
                       </Button>
                     </div>
                   )}
@@ -660,20 +658,20 @@ export default function ProvidersPage() {
           <CollapsibleTrigger asChild>
             <CardHeader className="cursor-pointer pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Usage</CardTitle>
+                <CardTitle className="text-lg">{t("providers:usageTitle")}</CardTitle>
                 <ChevronDown
                   className={`h-4 w-4 text-muted-foreground transition-transform ${usageOpen ? "rotate-180" : ""}`}
                 />
               </div>
               <CardDescription>
-                Token usage per provider and key source.
+                {t("providers:usageDesc")}
               </CardDescription>
             </CardHeader>
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent>
               {usage.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No usage recorded yet.</p>
+                <p className="text-sm text-muted-foreground">{t("providers:usageEmpty")}</p>
               ) : (
                 <div className="space-y-2">
                   {usage.map((row) => (
@@ -689,14 +687,16 @@ export default function ProvidersPage() {
                       </div>
                       <div className="flex items-center gap-3 text-muted-foreground shrink-0">
                         <span>
-                          {formatTokens(row.input_tokens)} in /{" "}
-                          {formatTokens(row.output_tokens)} out
+                          {t("providers:tokensInOut", {
+                            input: formatTokens(row.input_tokens),
+                            output: formatTokens(row.output_tokens),
+                          })}
                         </span>
                         {row.remaining_tokens !== null && (
                           <Badge variant="secondary" className="shrink-0">
-                            {formatTokens(row.remaining_tokens)} remaining
+                            {t("providers:remaining", { count: formatTokens(row.remaining_tokens) })}
                             {row.quota_tokens !== null &&
-                              ` of ${formatTokens(row.quota_tokens)}`}
+                              t("providers:ofQuota", { count: formatTokens(row.quota_tokens) })}
                           </Badge>
                         )}
                       </div>
@@ -712,11 +712,11 @@ export default function ProvidersPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? `Edit ${editing.key}` : "Add provider"}</DialogTitle>
+            <DialogTitle>{editing ? t("providers:editTitle", { key: editing.key }) : t("providers:addTitle")}</DialogTitle>
             <DialogDescription>
               {editing
-                ? "Leave the API key blank to keep the stored key."
-                : "Models are fetched from {base_url}/models when none are listed."}
+                ? t("providers:editDesc")
+                : t("providers:addDesc")}
             </DialogDescription>
           </DialogHeader>
           {dialogError && (
@@ -727,7 +727,7 @@ export default function ProvidersPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Key</label>
+                <label className="text-sm font-medium">{t("providers:fieldKey")}</label>
                 <Input
                   value={form.key}
                   disabled={!!editing}
@@ -737,7 +737,7 @@ export default function ProvidersPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Type</label>
+                <label className="text-sm font-medium">{t("providers:fieldType")}</label>
                 <Select
                   value={form.type}
                   onValueChange={(v) => setForm((f) => ({ ...f, type: v }))}
@@ -746,9 +746,9 @@ export default function ProvidersPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {PROVIDER_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
+                    {PROVIDER_TYPES.map((pt) => (
+                      <SelectItem key={pt} value={pt}>
+                        {pt}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -756,7 +756,7 @@ export default function ProvidersPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Base URL</label>
+              <label className="text-sm font-medium">{t("providers:fieldBaseUrl")}</label>
               <Input
                 value={form.base_url}
                 placeholder="https://example.com/v1"
@@ -765,18 +765,18 @@ export default function ProvidersPage() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">API Key</label>
+              <label className="text-sm font-medium">{t("providers:fieldApiKey")}</label>
               <Input
                 type="password"
                 value={form.api_key}
-                placeholder={editing ? "(unchanged)" : "sk-..."}
+                placeholder={editing ? t("providers:apiKeyUnchanged") : "sk-..."}
                 onChange={(e) => setForm((f) => ({ ...f, api_key: e.target.value }))}
               />
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Models</label>
+                <label className="text-sm font-medium">{t("providers:modelsLabel")}</label>
                 <div className="flex gap-2">
                   <Button
                     type="button"
@@ -790,7 +790,7 @@ export default function ProvidersPage() {
                     ) : (
                       <RefreshCw className="mr-1 h-3.5 w-3.5" />
                     )}
-                    Fetch models
+                    {t("providers:fetchModels")}
                   </Button>
                   <Button
                     type="button"
@@ -812,13 +812,13 @@ export default function ProvidersPage() {
                     }
                   >
                     <Plus className="mr-1 h-3.5 w-3.5" />
-                    Add model
+                    {t("providers:addModel")}
                   </Button>
                 </div>
               </div>
               {form.rows === null ? (
                 <p className="text-sm text-muted-foreground">
-                  No explicit models — they will be fetched automatically on save.
+                  {t("providers:noExplicitModels")}
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -826,13 +826,13 @@ export default function ProvidersPage() {
                     <div key={idx} className="flex items-center gap-2">
                       <Input
                         className="flex-[2]"
-                        placeholder="model id"
+                        placeholder={t("providers:phModelId")}
                         value={row.model}
                         onChange={(e) => setRow(idx, { model: e.target.value })}
                       />
                       <Input
                         className="w-24"
-                        placeholder="context"
+                        placeholder={t("providers:phContext")}
                         value={row.max_context_size}
                         onChange={(e) =>
                           setRow(idx, { max_context_size: e.target.value })
@@ -840,13 +840,13 @@ export default function ProvidersPage() {
                       />
                       <Input
                         className="flex-[2]"
-                        placeholder="capabilities, comma-sep"
+                        placeholder={t("providers:phCapabilities")}
                         value={row.capabilities}
                         onChange={(e) => setRow(idx, { capabilities: e.target.value })}
                       />
                       <Input
                         className="flex-[2]"
-                        placeholder="display name"
+                        placeholder={t("providers:phDisplayName")}
                         value={row.display_name}
                         onChange={(e) => setRow(idx, { display_name: e.target.value })}
                       />
@@ -872,7 +872,7 @@ export default function ProvidersPage() {
             <DialogFooter>
               <Button type="submit" disabled={submitting}>
                 {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {editing ? "Save changes" : "Create provider"}
+                {editing ? t("providers:saveChanges") : t("providers:createProvider")}
               </Button>
             </DialogFooter>
           </form>

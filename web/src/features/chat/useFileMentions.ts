@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { FileUIPart } from "ai";
+import i18n from "@/i18n";
 import type { SessionFileEntry } from "@/hooks/useSessions";
 
 const STOP_CHARS = /[\s,;:!?,()[\]{}<>"'`]/;
@@ -179,7 +180,7 @@ const toAttachmentOptions = (
       id: `upload-${attachment.id}`,
       type: "attachment" as const,
       label,
-      description: attachment.mediaType ?? "Pending upload",
+      description: attachment.mediaType ?? i18n.t("chat:pendingUpload"),
       insertValue: label,
       meta: {
         mediaType: attachment.mediaType,
@@ -341,7 +342,7 @@ export const useFileMentions = ({
       setWorkspaceError(
         error instanceof Error
           ? error.message
-          : "Failed to load workspace files",
+          : i18n.t("chat:loadFilesFailed"),
       );
     }
   }, [sessionId, listDirectory]);

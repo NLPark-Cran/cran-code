@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,7 @@ import {
   GitBranch,
 } from "lucide-react";
 import { v2Api, type TeamRes, type ProjectRes } from "@/lib/api/v2";
+import { roleKey } from "@/i18n";
 import { useAuthStore } from "@/stores/auth";
 import Layout from "@/components/Layout";
 import MemberManagement from "@/components/MemberManagement";
@@ -39,6 +41,7 @@ import TeamProviderKeys from "@/components/TeamProviderKeys";
 export default function TeamPage() {
   const { teamId } = useParams<{ teamId: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user } = useAuthStore();
 
   const [team, setTeam] = useState<TeamRes | null>(null);
@@ -67,7 +70,7 @@ export default function TeamPage() {
       setTeam(teamData);
       setProjects(projectsData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load data");
+      setError(err instanceof Error ? err.message : t("teams:loadDataFailed"));
     } finally {
       setLoading(false);
     }
@@ -99,7 +102,7 @@ export default function TeamPage() {
       setCreateGitUrl("");
       navigate(`/project/${project.id}`);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create project");
+      setCreateError(err instanceof Error ? err.message : t("project:createFailed"));
     } finally {
       setCreateLoading(false);
     }
@@ -124,7 +127,7 @@ export default function TeamPage() {
       onClick={() => navigate("/dashboard")}
     >
       <ArrowLeft className="mr-1 h-4 w-4" />
-      Dashboard
+      {t("nav:dashboard")}
     </Button>
   );
 
@@ -148,15 +151,15 @@ export default function TeamPage() {
               <div>
                 <h1 className="text-2xl font-bold">{team.name}</h1>
                 <p className="text-muted-foreground">
-                  {team.description || "No description"}
+                  {team.description || t("common:noDescription")}
                 </p>
                 <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Users className="h-4 w-4" />
-                    {team.members.length} members
+                    {t("common:memberCount", { count: team.members.length })}
                   </span>
                   <Badge variant="outline" className="text-xs">
-                    {userMembership?.role || "member"}
+                    {t(roleKey(userMembership?.role || "member"))}
                   </Badge>
                 </div>
               </div>
@@ -165,14 +168,14 @@ export default function TeamPage() {
                   <DialogTrigger asChild>
                     <Button>
                       <Plus className="mr-2 h-4 w-4" />
-                      New Project
+                      {t("project:newProject")}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-w-lg">
                     <DialogHeader>
-                      <DialogTitle>Create a new project</DialogTitle>
+                      <DialogTitle>{t("project:createTitle")}</DialogTitle>
                       <DialogDescription>
-                        Projects contain code, chat sessions, and collaboration history.
+                        {t("project:createDesc")}
                       </DialogDescription>
                     </DialogHeader>
                     {createError && (
@@ -182,7 +185,7 @@ export default function TeamPage() {
                     )}
                     <form onSubmit={handleCreateProject} className="space-y-4">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Project Name</label>
+                        <label className="text-sm font-medium">{t("project:nameLabel")}</label>
                         <Input
                           placeholder="my-app"
                           value={createName}
@@ -196,7 +199,7 @@ export default function TeamPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Slug</label>
+                        <label className="text-sm font-medium">{t("project:slugLabel")}</label>
                         <Input
                           placeholder="my-app"
                           value={createSlug}
@@ -205,15 +208,15 @@ export default function TeamPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Description</label>
+                        <label className="text-sm font-medium">{t("project:descLabel")}</label>
                         <Textarea
-                          placeholder="What does this project do?"
+                          placeholder={t("project:descPlaceholder")}
                           value={createDesc}
                           onChange={(e) => setCreateDesc(e.target.value)}
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Working Directory</label>
+                        <label className="text-sm font-medium">{t("project:workDirLabel")}</label>
                         <Input
                           placeholder="/home/user/projects/my-app"
                           value={createWorkDir}
@@ -221,7 +224,7 @@ export default function TeamPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium">Git Repository URL</label>
+                        <label className="text-sm font-medium">{t("project:gitUrlLabel")}</label>
                         <Input
                           placeholder="https://github.com/..."
                           value={createGitUrl}
@@ -231,7 +234,7 @@ export default function TeamPage() {
                       <DialogFooter>
                         <Button type="submit" disabled={createLoading}>
                           {createLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Create Project
+                          {t("project:createButton")}
                         </Button>
                       </DialogFooter>
                     </form>
@@ -242,19 +245,19 @@ export default function TeamPage() {
 
             {/* Projects */}
             <div>
-              <h2 className="text-lg font-semibold mb-4">Projects</h2>
+              <h2 className="text-lg font-semibold mb-4">{t("project:listTitle")}</h2>
               {projects.length === 0 ? (
                 <Card className="border-dashed">
                   <CardContent className="flex flex-col items-center justify-center py-16">
                     <FolderGit className="mb-4 h-12 w-12 text-muted-foreground" />
-                    <p className="text-lg font-medium">No projects yet</p>
+                    <p className="text-lg font-medium">{t("project:emptyTitle")}</p>
                     <p className="text-muted-foreground">
-                      Create your first project in this team
+                      {t("project:emptyDesc")}
                     </p>
                     {canCreateProject && (
                       <Button className="mt-4" onClick={() => setCreateOpen(true)}>
                         <Plus className="mr-2 h-4 w-4" />
-                        New Project
+                        {t("project:newProject")}
                       </Button>
                     )}
                   </CardContent>
@@ -273,14 +276,14 @@ export default function TeamPage() {
                           <Settings className="h-4 w-4 text-muted-foreground" />
                         </div>
                         <CardDescription className="line-clamp-2">
-                          {project.description || "No description"}
+                          {project.description || t("common:noDescription")}
                         </CardDescription>
                       </CardHeader>
                       <CardContent>
                         <div className="flex flex-col gap-2 text-sm text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <Users className="h-4 w-4" />
-                            <span>{project.members.length} members</span>
+                            <span>{t("common:memberCount", { count: project.members.length })}</span>
                           </div>
                           {project.git_repo_url && (
                             <div className="flex items-center gap-2">

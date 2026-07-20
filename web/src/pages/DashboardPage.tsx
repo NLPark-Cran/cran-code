@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ import Layout from "@/components/Layout";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [teams, setTeams] = useState<TeamRes[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export default function DashboardPage() {
       const data = await v2Api.teams.list();
       setTeams(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load teams");
+      setError(err instanceof Error ? err.message : t("teams:loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -72,7 +74,7 @@ export default function DashboardPage() {
       setCreateDesc("");
       navigate(`/team/${team.id}`);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create team");
+      setCreateError(err instanceof Error ? err.message : t("teams:createFailed"));
     } finally {
       setCreateLoading(false);
     }
@@ -89,23 +91,23 @@ export default function DashboardPage() {
     <Layout>
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Teams</h1>
+          <h1 className="text-2xl font-bold">{t("teams:title")}</h1>
           <p className="text-muted-foreground">
-            Manage your teams and projects
+            {t("teams:subtitle")}
           </p>
         </div>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              New Team
+              {t("teams:newTeam")}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create a new team</DialogTitle>
+              <DialogTitle>{t("teams:createTitle")}</DialogTitle>
               <DialogDescription>
-                Teams are shared workspaces for projects and collaboration.
+                {t("teams:createDesc")}
               </DialogDescription>
             </DialogHeader>
             {createError && (
@@ -115,9 +117,9 @@ export default function DashboardPage() {
             )}
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Team Name</label>
+                <label className="text-sm font-medium">{t("teams:nameLabel")}</label>
                 <Input
-                  placeholder="My Team"
+                  placeholder={t("teams:namePlaceholder")}
                   value={createName}
                   onChange={(e) => {
                     setCreateName(e.target.value);
@@ -129,7 +131,7 @@ export default function DashboardPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Slug</label>
+                <label className="text-sm font-medium">{t("teams:slugLabel")}</label>
                 <Input
                   placeholder="my-team"
                   value={createSlug}
@@ -138,9 +140,9 @@ export default function DashboardPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Description</label>
+                <label className="text-sm font-medium">{t("teams:descLabel")}</label>
                 <Textarea
-                  placeholder="What is this team about?"
+                  placeholder={t("teams:descPlaceholder")}
                   value={createDesc}
                   onChange={(e) => setCreateDesc(e.target.value)}
                 />
@@ -148,7 +150,7 @@ export default function DashboardPage() {
               <DialogFooter>
                 <Button type="submit" disabled={createLoading}>
                   {createLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Create Team
+                  {t("teams:createButton")}
                 </Button>
               </DialogFooter>
             </form>
@@ -170,13 +172,13 @@ export default function DashboardPage() {
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16">
             <Users className="mb-4 h-12 w-12 text-muted-foreground" />
-            <p className="text-lg font-medium">No teams yet</p>
+            <p className="text-lg font-medium">{t("teams:emptyTitle")}</p>
             <p className="text-muted-foreground">
-              Create your first team to start collaborating
+              {t("teams:emptyDesc")}
             </p>
             <Button className="mt-4" onClick={() => setCreateOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
-              Create Team
+              {t("teams:createButton")}
             </Button>
           </CardContent>
         </Card>
@@ -194,13 +196,13 @@ export default function DashboardPage() {
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <CardDescription className="line-clamp-2">
-                  {team.description || "No description"}
+                  {team.description || t("common:noDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Users className="h-4 w-4" />
-                  <span>{team.members.length} members</span>
+                  <span>{t("common:memberCount", { count: team.members.length })}</span>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {team.members.slice(0, 3).map((m) => (

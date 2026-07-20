@@ -1,4 +1,5 @@
 import { DiffEditor } from "@monaco-editor/react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
 
@@ -11,6 +12,7 @@ interface DiffViewerProps {
 }
 
 export default function DiffViewer({ original, modified, path, onAccept, onReject }: DiffViewerProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b bg-card px-3 py-2">
@@ -42,7 +44,7 @@ export default function DiffViewer({ original, modified, path, onAccept, onRejec
             renderSideBySide: true,
             wordWrap: "on",
           }}
-          loading={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading diff...</div>}
+          loading={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">{t("project:loadingDiff")}</div>}
         />
       </div>
     </div>

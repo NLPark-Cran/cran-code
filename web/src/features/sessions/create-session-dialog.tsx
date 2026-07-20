@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   AlertDialog,
@@ -81,6 +82,7 @@ export function CreateSessionDialog({
   fetchWorkDirs,
   fetchStartupDir,
 }: CreateSessionDialogProps): ReactElement {
+  const { t } = useTranslation();
   const [workDirs, setWorkDirs] = useState<string[]>(
     () => cachedWorkDirs ?? [],
   );
@@ -246,13 +248,13 @@ export function CreateSessionDialog({
       <CommandDialog
         open={open}
         onOpenChange={onOpenChange}
-        title="Create New Session"
-        description="Search directories or type a new path"
+        title={t("sessions:createTitle")}
+        description={t("sessions:createDesc")}
         showCloseButton={false}
       >
         <Command value={commandValue} onValueChange={setCommandValue}>
           <CommandInput
-            placeholder="Search directories or type a path..."
+            placeholder={t("sessions:createPlaceholder")}
             value={inputValue}
             onValueChange={setInputValue}
             onKeyDown={handleKeyDown}
@@ -260,15 +262,15 @@ export function CreateSessionDialog({
           <CommandList ref={commandListRef}>
             <CommandEmpty>
               {trimmedInput
-                ? "No matching directories."
+                ? t("sessions:noMatchingDirs")
                 : isLoading
-                  ? "Loading directories..."
-                  : "Type a path to start a new session."}
+                  ? t("sessions:loadingDirs")
+                  : t("sessions:typePathToStart")}
             </CommandEmpty>
 
             {showCustomPathOption && (
               <>
-                <CommandGroup heading="Custom Path">
+                <CommandGroup heading={t("sessions:customPath")}>
                   <CommandItem
                     className="group"
                     value={`__custom__${trimmedInput}`}
@@ -294,7 +296,7 @@ export function CreateSessionDialog({
 
             {startupDir && (
               <>
-                <CommandGroup heading="Current Directory">
+                <CommandGroup heading={t("sessions:currentDir")}>
                   <CommandItem
                     className="group"
                     value={startupDir}
@@ -322,7 +324,7 @@ export function CreateSessionDialog({
             )}
 
             {recentDirs.length > 0 && (
-              <CommandGroup heading="Recent Directories">
+              <CommandGroup heading={t("sessions:recentDirs")}>
                 {recentDirs.map((dir) => (
                   <CommandItem
                     className="group"
@@ -360,21 +362,21 @@ export function CreateSessionDialog({
       <AlertDialog open={showConfirmCreate} onOpenChange={setShowConfirmCreate}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Directory Not Found</AlertDialogTitle>
+            <AlertDialogTitle>{t("sessions:dirNotFound")}</AlertDialogTitle>
             <AlertDialogDescription>
-              The directory{" "}
+              {t("sessions:dirNotFoundPre")}{" "}
               <code className="bg-muted px-1 py-0.5 rounded text-foreground break-all">
                 {pendingPath}
               </code>{" "}
-              does not exist. Would you like to create it?
+              {t("sessions:dirNotFoundPost")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={handleCancelCreateDir}>
-              Cancel
+              {t("common:cancel")}
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmCreateDir}>
-              Create Directory
+              {t("sessions:createDirectory")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

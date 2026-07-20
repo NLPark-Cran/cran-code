@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { ChatStatus } from "ai";
 import { PromptInputProvider } from "@ai-elements";
 import { toast } from "sonner";
@@ -46,6 +47,7 @@ const SIDEBAR_ANIMATION_MS = 250;
 
 function App() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   // Initialize theme on app startup
   useTheme();
 
@@ -262,11 +264,11 @@ function App() {
       if (sessionsError === "Unauthorized") {
         return;
       }
-      toast.error("Session Error", {
+      toast.error(t("sessions:sessionError"), {
         description: sessionsError,
       });
     }
-  }, [sessionsError]);
+  }, [sessionsError, t]);
 
   const handleStreamStatusChange = useCallback((nextStatus: ChatStatus) => {
     setStreamStatus(nextStatus);
@@ -345,14 +347,14 @@ function App() {
     () =>
       sessions.map((session) => ({
         id: session.sessionId,
-        title: session.title ?? "Untitled",
+        title: session.title ?? t("sessions:untitled"),
         updatedAt: formatRelativeTime(session.lastUpdated),
         workDir: session.workDir,
         lastUpdated: session.lastUpdated,
         ownerId: session.ownerId,
         shared: session.shared,
       })),
-    [sessions],
+    [sessions, t],
   );
 
   // Transform archived Session[] to SessionSummary[] for sidebar
@@ -360,14 +362,14 @@ function App() {
     () =>
       archivedSessions.map((session) => ({
         id: session.sessionId,
-        title: session.title ?? "Untitled",
+        title: session.title ?? t("sessions:untitled"),
         updatedAt: formatRelativeTime(session.lastUpdated),
         workDir: session.workDir,
         lastUpdated: session.lastUpdated,
         ownerId: session.ownerId,
         shared: session.shared,
       })),
-    [archivedSessions],
+    [archivedSessions, t],
   );
 
   const handleForkSession = useCallback(
@@ -442,7 +444,7 @@ function App() {
                   </a>
                   <button
                     type="button"
-                    aria-label="Expand sidebar"
+                    aria-label={t("sessions:expandSidebar")}
                     className="mt-auto mb-1 inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
                     onClick={handleExpandSidebar}
                   >
@@ -490,7 +492,7 @@ function App() {
                       <ThemeToggle />
                       <button
                         type="button"
-                        aria-label="Dashboard"
+                        aria-label={t("sessions:dashboard")}
                         className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
                         onClick={() => navigate("/dashboard")}
                       >
@@ -499,7 +501,7 @@ function App() {
                     </div>
                     <button
                       type="button"
-                      aria-label="Collapse sidebar"
+                      aria-label={t("sessions:collapseSidebar")}
                       className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary/50 hover:text-foreground"
                       onClick={handleCollapseSidebar}
                     >
@@ -540,7 +542,7 @@ function App() {
           <button
             type="button"
             className="absolute inset-0 bg-black/40"
-            aria-label="Close sessions sidebar"
+            aria-label={t("sessions:closeSessionsSidebar")}
             onClick={handleCloseMobileSidebar}
           />
           <div className="relative flex h-full w-[min(86vw,360px)] flex-col border-r border-border bg-background pt-[var(--safe-top)] shadow-2xl">

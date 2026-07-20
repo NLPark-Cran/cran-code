@@ -1,4 +1,5 @@
 import { type ReactNode, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   CopyIcon,
   ExternalLinkIcon,
@@ -43,6 +44,7 @@ export function OpenInButton({
   path: string;
   className?: string;
 }) {
+  const { t } = useTranslation();
   const isMac = isMacOS();
 
   const targets = useMemo<OpenTarget[]>(
@@ -60,13 +62,13 @@ export function OpenInButton({
         await openViaBackend(target.backendApp, path);
         setLastOpenTargetId(target.id);
       } catch (error) {
-        toast.error("Failed to open", {
+        toast.error(t("chat:openFailed"), {
           description:
-            error instanceof Error ? error.message : "Unexpected error",
+            error instanceof Error ? error.message : t("chat:unexpectedError"),
         });
       }
     },
-    [path],
+    [path, t],
   );
 
   const handleCopyPath = useCallback(
@@ -74,12 +76,12 @@ export function OpenInButton({
       e.stopPropagation();
       try {
         await navigator.clipboard.writeText(path);
-        toast.success("Path copied", { description: path });
+        toast.success(t("chat:pathCopied"), { description: path });
       } catch {
-        toast.error("Failed to copy path");
+        toast.error(t("chat:copyPathFailed"));
       }
     },
-    [path],
+    [path, t],
   );
 
   return (
@@ -97,7 +99,7 @@ export function OpenInButton({
           )}
         >
           <ExternalLinkIcon className="size-2.5" />
-          <span>Open</span>
+          <span>{t("chat:open")}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -118,7 +120,7 @@ export function OpenInButton({
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={handleCopyPath} className="text-xs">
           <CopyIcon className="size-3.5" />
-          <span>Copy path</span>
+          <span>{t("chat:copyPath")}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

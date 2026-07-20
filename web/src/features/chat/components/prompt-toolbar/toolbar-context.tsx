@@ -1,4 +1,5 @@
 import { type ReactElement, memo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   HoverCard,
   HoverCardContent,
@@ -30,6 +31,7 @@ export const ToolbarContextIndicator = memo(
     tokenUsage,
     className,
   }: ToolbarContextIndicatorProps): ReactElement {
+    const { t } = useTranslation();
     const usedPercent = maxTokens > 0 ? usedTokens / maxTokens : 0;
 
     const used = new Intl.NumberFormat("en-US", {
@@ -53,7 +55,7 @@ export const ToolbarContextIndicator = memo(
             )}
           >
             <ContextProgressIcon usedPercent={usedPercent} size={14} />
-            <span>{usagePercent.toFixed(1)}% context</span>
+            <span>{t("chat:contextUsage", { percent: usagePercent.toFixed(1) })}</span>
           </button>
         </HoverCardTrigger>
         <HoverCardContent
@@ -76,25 +78,25 @@ export const ToolbarContextIndicator = memo(
             <div className="border-t p-3 space-y-2.5 text-xs">
               <div className="space-y-1">
                 <div className="text-[11px] font-medium text-muted-foreground">
-                  Input Tokens
+                  {t("chat:inputTokens")}
                 </div>
                 <RawUsageRow
-                  label="Regular"
+                  label={t("chat:regular")}
                   value={tokenUsage.input_other}
-                  description="Tokens processed without cache"
+                  description={t("chat:regularDesc")}
                 />
                 <RawUsageRow
-                  label="Cache Read"
+                  label={t("chat:cacheRead")}
                   value={tokenUsage.input_cache_read}
-                  description="Tokens loaded from cache"
+                  description={t("chat:cacheReadDesc")}
                 />
                 <RawUsageRow
-                  label="Cache Write"
+                  label={t("chat:cacheWrite")}
                   value={tokenUsage.input_cache_creation}
-                  description="Tokens written to cache"
+                  description={t("chat:cacheWriteDesc")}
                 />
                 <div className="flex items-center justify-between text-xs font-medium border-t mt-1 pt-1">
-                  <span>Total Input</span>
+                  <span>{t("chat:totalInput")}</span>
                   <span>
                     {new Intl.NumberFormat("en-US", { notation: "compact" }).format(
                       tokenUsage.input_other +
@@ -107,12 +109,12 @@ export const ToolbarContextIndicator = memo(
 
               <div className="space-y-1 border-t pt-2.5">
                 <div className="text-[11px] font-medium text-muted-foreground">
-                  Output Tokens
+                  {t("chat:outputTokens")}
                 </div>
                 <RawUsageRow
-                  label="Generated"
+                  label={t("chat:generated")}
                   value={tokenUsage.output}
-                  description="Tokens generated in response"
+                  description={t("chat:generatedDesc")}
                 />
               </div>
             </div>
