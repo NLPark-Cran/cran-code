@@ -71,13 +71,28 @@ _BLOCKED_WORKER_ENV_VARS = {
     "CRAN_DATABASE_URL",
 }
 
+# Provider credential / endpoint env vars: stripped so a server-side value can
+# never silently override per-user key resolution; targeted injection in
+# _build_worker_env re-adds the right ones.
+_BLOCKED_PROVIDER_ENV_VARS = {
+    "CRAN_API_KEY",
+    "CRAN_BASE_URL",
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_BASE_URL",
+    "GOOGLE_API_KEY",
+    "GEMINI_API_KEY",
+}
+
 
 def _sanitize_worker_env(env: dict[str, str]) -> dict[str, str]:
-    """Remove web-server secrets from the environment passed to workers."""
+    """Remove web-server secrets and provider credentials from worker env."""
     return {
         k: v
         for k, v in env.items()
         if k not in _BLOCKED_WORKER_ENV_VARS
+        and k not in _BLOCKED_PROVIDER_ENV_VARS
         and not (k.startswith("CRAN_") and k.endswith(("_SECRET", "_SECRET_KEY")))
     }
 
@@ -157,6 +172,10 @@ class SessionProcess:
         # The initialize message most recently replayed by start(), used to
         # avoid writing the same message twice when it triggered the spawn.
         self._replayed_initialize_message: str | None = None
+        # Whether the current worker generation already received an initialize
+        # (via replay or a forwarded client message). Multi-client sessions
+        # resend initialize on worker_id change; only the first may pass.
+        self._worker_initialized: bool = False
         # Latest key-resolution snapshot (per worker spawn), used for usage
         # metering of direct-injected personal keys.
         self._key_info: _SessionKeyInfo | None = None
@@ -296,6 +315,7 @@ class SessionProcess:
           sources.
         """
         env = _sanitize_worker_env(get_clean_env())
+        self._key_info = None
         try:
             info = await self._resolve_session_key()
         except Exception as e:
@@ -304,22 +324,38 @@ class SessionProcess:
         self._key_info = info
         if info is None or not info.api_key:
             return env
+        proxy_url = self._key_proxy_url()
         if info.provider_type == "kimi":
             if info.source == "personal":
                 env["CRAN_API_KEY"] = info.api_key
+            elif proxy_url:
+                # Team/shared kimi keys go through the proxy as well so quota
+                # enforcement and usage metering apply (OAuth-managed kimi
+                # providers have no resolvable key and never reach this path).
+                from cran_code.web.api_v2.keyproxy import mint_proxy_token
+
+                env["CRAN_BASE_URL"] = proxy_url
+                env["CRAN_API_KEY"] = mint_proxy_token(
+                    info.owner_id, info.provider_key, info.source
+                )
         elif info.provider_type in ("openai_legacy", "openai_responses"):
             if info.source == "personal":
                 env["OPENAI_API_KEY"] = info.api_key
-            else:
-                port = os.environ.get("CRAN_KEY_PROXY_PORT")
-                if port:
-                    from cran_code.web.api_v2.keyproxy import mint_proxy_token
+            elif proxy_url:
+                from cran_code.web.api_v2.keyproxy import mint_proxy_token
 
-                    env["OPENAI_BASE_URL"] = f"http://127.0.0.1:{port}/px/v1"
-                    env["OPENAI_API_KEY"] = mint_proxy_token(
-                        info.owner_id, info.provider_key, info.source
-                    )
+                env["OPENAI_BASE_URL"] = proxy_url
+                env["OPENAI_API_KEY"] = mint_proxy_token(
+                    info.owner_id, info.provider_key, info.source
+                )
+        # Other provider types (anthropic/google/...) have no env-override
+        # channel in augment_provider_with_env_vars; they use config as-is.
         return env
+
+    @staticmethod
+    def _key_proxy_url() -> str | None:
+        port = os.environ.get("CRAN_KEY_PROXY_PORT")
+        return f"http://127.0.0.1:{port}/px/v1" if port else None
 
     async def start(
         self,
@@ -379,6 +415,7 @@ class SessionProcess:
         # server restores client capabilities (supports_question,
         # supports_plan_mode), client info, external tools and hooks.
         self._replayed_initialize_message = None
+        self._worker_initialized = False
         if self._cached_initialize_message is not None:
             assert self._process.stdin is not None
             self._process.stdin.write(
@@ -386,6 +423,7 @@ class SessionProcess:
             )
             await self._process.stdin.drain()
             self._replayed_initialize_message = self._cached_initialize_message
+            self._worker_initialized = True
 
         if restart_started_at is not None:
             elapsed_ms = int((time.perf_counter() - restart_started_at) * 1000)
@@ -803,10 +841,13 @@ class SessionProcess:
                         else:
                             pil_img.save(buffer, format="PNG", optimize=True)
                         encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-                        tag = f'<image path="{file_path}" content_type="{mime_type}">'
+                        out_mime = (
+                            "image/jpeg" if save_format == "JPEG" else "image/png"
+                        )
+                        tag = f'<image path="{file_path}" content_type="{out_mime}">'
                         yield TextPart(text=tag)
                         yield ImageURLPart(
-                            image_url=ImageURLPart.ImageURL(url=f"data:image/png;base64,{encoded}")
+                            image_url=ImageURLPart.ImageURL(url=f"data:{out_mime};base64,{encoded}")
                         )
                         yield TextPart(text="</image>\n\n")
                         self._sent_files.add(file.name)
@@ -970,7 +1011,12 @@ class SessionProcess:
         the worker.
         """
         try:
-            info = await self._resolve_session_key()
+            # Prefer the spawn-time snapshot when the worker is alive: it
+            # reflects the model/provider the worker is actually using, which
+            # may lag behind a freshly switched global default.
+            info = self._key_info if self.is_alive and self._key_info else None
+            if info is None:
+                info = await self._resolve_session_key()
         except Exception as e:
             logger.warning(f"Prompt gate resolution failed: {e}")
             return None
@@ -1045,9 +1091,12 @@ class SessionProcess:
 
             if (
                 isinstance(in_message, JSONRPCInitializeMessage)
-                and message == self._replayed_initialize_message
+                and self._worker_initialized
             ):
-                # start() already replayed this exact initialize to the fresh worker.
+                # This worker generation already has its initialize (replayed
+                # by start() or sent by another client); a duplicate would
+                # confuse the wire server. The latest message is still cached
+                # above for future restarts.
                 return
 
             # Handle in message
@@ -1070,6 +1119,8 @@ class SessionProcess:
             try:
                 process.stdin.write((message + "\n").encode("utf-8"))
                 await process.stdin.drain()
+                if isinstance(in_message, JSONRPCInitializeMessage):
+                    self._worker_initialized = True
             except (BrokenPipeError, ConnectionResetError) as e:
                 # Worker died between the liveness check and the write.
                 # Roll back bookkeeping and tell the client (with the

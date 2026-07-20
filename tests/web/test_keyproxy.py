@@ -26,7 +26,28 @@ class TestProxyToken:
     def test_roundtrip(self) -> None:
         token = mint_proxy_token("user-1", "tokendance", "team")
         claims = verify_proxy_token(token)
-        assert claims == {"u": "user-1", "p": "tokendance", "s": "team"}
+        assert claims is not None
+        assert claims["u"] == "user-1"
+        assert claims["p"] == "tokendance"
+        assert claims["s"] == "team"
+        assert claims["exp"] > claims["iat"] > 0
+
+    def test_expired_token_rejected(self) -> None:
+        import time as _time
+
+        token = mint_proxy_token("user-1", "tokendance", "team")
+        claims = verify_proxy_token(token)
+        assert claims is not None
+        # Forge an expired token by re-minting in the past via patched time.
+        import cran_code.web.api_v2.keyproxy as kp
+
+        real_time = kp.time.time
+        kp.time.time = lambda: real_time() - 4 * 24 * 3600  # type: ignore[assignment]
+        try:
+            expired = mint_proxy_token("user-1", "tokendance", "team")
+        finally:
+            kp.time.time = real_time  # type: ignore[assignment]
+        assert verify_proxy_token(expired) is None
 
     def test_tampered_payload_rejected(self) -> None:
         token = mint_proxy_token("user-1", "tokendance", "team")
@@ -41,10 +62,12 @@ class TestProxyToken:
         assert verify_proxy_token("sk-whatever") is None
         assert verify_proxy_token("") is None
 
-    def test_wrong_secret_rejected(self) -> None:
+    def test_wrong_secret_rejected(self, monkeypatch: pytest.MonkeyPatch) -> None:
         token = mint_proxy_token("user-1", "tokendance", "shared")
-        with patch.dict(os.environ, {"CRAN_JWT_SECRET": "another-secret"}):
-            assert verify_proxy_token(token) is None
+        monkeypatch.setattr(
+            "cran_code.web.auth_v2.jwt._SECRET_KEY", "another-secret"
+        )
+        assert verify_proxy_token(token) is None
 
 
 def _info(**overrides: object) -> _SessionKeyInfo:
@@ -90,7 +113,12 @@ class TestBuildWorkerEnv:
         assert env["OPENAI_BASE_URL"] == "http://127.0.0.1:5496/px/v1"
         token = env["OPENAI_API_KEY"]
         claims = verify_proxy_token(token)
-        assert claims == {"u": "user-1", "p": "tokendance", "s": "team"}
+        assert claims is not None
+        assert (claims["u"], claims["p"], claims["s"]) == (
+            "user-1",
+            "tokendance",
+            "team",
+        )
         assert "sk-team" not in json.dumps(env)
 
     @pytest.mark.asyncio

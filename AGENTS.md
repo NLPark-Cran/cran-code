@@ -583,8 +583,13 @@ A broader `pytest tests/core` run shows failures in branding/path-sensitive test
 **Deferred borrowings** (from kimi-code research, not yet applied): blob-ref offload for context JSONL, strict-resend projector repairs, compaction handoff origin tagging, overflow→compact→retry loop.
 
 ### Validation
-- `uv run pytest tests/web/`: 129 passed; pyright: only 4 pre-existing baseline errors in process.py.
-- Live: crys.tt2.li 200, bundle `index-DJAXV9iD.js`, `/px/v1/*` 401 unauth, providers GET 401 unauth.
+- `uv run pytest tests/web/`: 132 passed; pyright: only 4 pre-existing baseline errors in process.py.
+- Live: crys.tt2.li 200, bundle `index-DJAXV9iD.js`, `/px/v1/*` loopback+token-gated, providers GET 401 unauth.
+
+### Second review round (2026-07-20, post-deploy audit fixes)
+Follow-up audit of the above found and fixed: proxy tokens now signed with the JWT secret (no hardcoded fallback — was forgeable when CRAN_JWT_SECRET unset), carry iat/exp (3-day TTL), and the proxy is loopback-only + path-allowlisted (`chat/completions`, `responses`, `models`, `embeddings`, `completions`); kimi team/shared keys also route through the proxy (was: quota unenforced for kimi); v1 PATCH `/api/config/` requires v2 **admin** (was: any v2 user could force-restart everyone); worker env strips all provider credential vars (was: server env silently overrode per-user resolution); image re-encode emits correct JPEG mime; prompt gate uses the spawn-time key snapshot while the worker is alive; initialize dedup per worker generation (multi-client); `_config_lock` moved to `cran_code.config.config_write_lock` and shared with v1 config routes; fs write/upload/delete also sensitive-path-guarded; login rate limit trusts XFF only from loopback peers + bounded buckets; fetch-models no longer follows redirects; PUT toml rejects the `***redacted***` placeholder. Known accepted bounds (documented, not fixed): quota check-then-act race (overshoot bounded by in-flight requests), streaming usage tee misses aborted-stream tails, cache_read tokens metered at full weight, ProviderPolicy/ProviderGrant editable only via DB (admin CRUD UI deferred).
+
+**Agent guidance for media in history**: `agents/default/system.md` now tells the model that media in earlier turns is historical (don't re-analyze unless relevant), new uploads arrive via `<uploaded_files>`, and files persist on disk for targeted re-reads. We deliberately do NOT annotate/rewrite historical messages — that would break prompt-cache prefix stability.
 
 ## Merge Log (2026-07-19): providers + initialize replay
 

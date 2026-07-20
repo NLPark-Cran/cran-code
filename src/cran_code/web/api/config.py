@@ -146,25 +146,6 @@ def _redact_toml_api_keys(content: str) -> str:
     return tomlkit.dumps(doc)
 
 
-async def _has_v2_user(request: Request) -> bool:
-    """Return True if the request carries a valid v2 user JWT.
-
-    Used to let authenticated v2 users perform model switching even on
-    public deployments where anonymous/v1-token callers are blocked.
-    """
-    auth = request.headers.get("authorization", "")
-    scheme, _, token = auth.partition(" ")
-    if scheme.lower() != "bearer" or not token.strip():
-        return False
-    try:
-        from cran_code.web.auth_v2.jwt import get_current_user
-
-        user = await get_current_user(token.strip())
-    except Exception:
-        return False
-    return user is not None
-
-
 async def _has_v2_admin(request: Request) -> bool:
     """Return True if the request carries a valid v2 admin JWT.
 
@@ -201,27 +182,30 @@ async def update_global_config(
     runner: KimiCLIRunner = Depends(_get_runner),
 ) -> UpdateGlobalConfigResponse:
     """Update global (cran-code) default model/thinking."""
-    # Public deployments block this endpoint for anonymous/v1-token callers,
-    # but a valid v2 user JWT is allowed through (model switching).
-    if not await _has_v2_user(http_request):
+    # Switching the global model restarts workers for ALL users — admin only,
+    # same as the v2 providers/select endpoint.
+    if not await _has_v2_admin(http_request):
         _ensure_sensitive_apis_allowed(http_request)
-    config = load_config()
+    from cran_code.config import config_write_lock
 
-    # Validate and update default_model
-    if request.default_model is not None:
-        if request.default_model not in config.models:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Model '{request.default_model}' not found in config",
-            )
-        config.default_model = request.default_model
+    async with config_write_lock:
+        config = load_config()
 
-    # Update default_thinking
-    if request.default_thinking is not None:
-        config.default_thinking = request.default_thinking
+        # Validate and update default_model
+        if request.default_model is not None:
+            if request.default_model not in config.models:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Model '{request.default_model}' not found in config",
+                )
+            config.default_model = request.default_model
 
-    # Save config
-    save_config(config)
+        # Update default_thinking
+        if request.default_thinking is not None:
+            config.default_thinking = request.default_thinking
+
+        # Save config
+        save_config(config)
 
     # Restart running workers to apply config changes
     restarted: list[str] = []
@@ -269,21 +253,31 @@ async def update_config_toml(
     runner: KimiCLIRunner = Depends(_get_runner),
 ) -> UpdateConfigTomlResponse:
     """Update cran-code config.toml."""
-    from cran_code.config import load_config_from_string
-
     if not await _has_v2_admin(http_request):
         _ensure_sensitive_apis_allowed(http_request)
-    try:
-        # Validate the config first
-        load_config_from_string(request.content)
+    if "***redacted***" in request.content:
+        # L8: a fetch→edit→PUT round-trip on the redacted view would
+        # overwrite real keys with the placeholder.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Content contains the redaction placeholder; restore real api_key values before saving",
+        )
+    from cran_code.config import config_write_lock, load_config_from_string
 
-        # Write to file
-        config_file = get_config_file()
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text(request.content, encoding="utf-8")
-    except Exception as e:
-        logger.warning(f"Failed to update config.toml: {e}")
-        return UpdateConfigTomlResponse(success=False, error=str(e))
+    async with config_write_lock:
+        try:
+            # Validate the config first
+            load_config_from_string(request.content)
+
+            # Write to file
+            config_file = get_config_file()
+            config_file.parent.mkdir(parents=True, exist_ok=True)
+            config_file.write_text(request.content, encoding="utf-8")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Failed to update config.toml: {e}")
+            return UpdateConfigTomlResponse(success=False, error=str(e))
 
     # Restart running workers to apply config changes
     restarted: list[str] = []

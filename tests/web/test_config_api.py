@@ -1,9 +1,9 @@
 """Tests for the v1 global-config PATCH auth rules.
 
 Public deployments (``restrict_sensitive_apis``) block anonymous and
-v1-token callers, but a request carrying a valid v2 user JWT must be
-allowed through so the web UI can switch models (including third-party
-providers such as TokenDance).
+v1-token callers. Global model switching restarts every user's workers,
+so only a request carrying a valid v2 **admin** JWT is allowed through
+(aligned with the v2 providers/select endpoint).
 """
 
 from __future__ import annotations
@@ -75,11 +75,13 @@ async def test_patch_blocked_for_anonymous_when_restricted(fake_config: Config):
 
 
 @pytest.mark.asyncio
-async def test_patch_allowed_for_v2_user_when_restricted(
+async def test_patch_allowed_for_v2_admin_when_restricted(
     fake_config: Config, monkeypatch: pytest.MonkeyPatch
 ):
+    from cran_code.web.db.models import UserRole
+
     async def fake_get_current_user(token: str):
-        return SimpleNamespace(id="user-1", is_active=True)
+        return SimpleNamespace(id="user-1", is_active=True, role=UserRole.admin)
 
     monkeypatch.setattr(
         "cran_code.web.auth_v2.jwt.get_current_user", fake_get_current_user
@@ -94,6 +96,31 @@ async def test_patch_allowed_for_v2_user_when_restricted(
     assert fake_config.default_model == "td-kimi-k3"
     assert resp.config.default_model == "td-kimi-k3"
     assert runner.restarts == [{"reason": "config_update", "force": False}]
+
+
+@pytest.mark.asyncio
+async def test_patch_blocked_for_non_admin_v2_user_when_restricted(
+    fake_config: Config, monkeypatch: pytest.MonkeyPatch
+):
+    # Global model switching restarts every user's workers — admin only,
+    # same as the v2 providers/select endpoint.
+    from cran_code.web.db.models import UserRole
+
+    async def fake_get_current_user(token: str):
+        return SimpleNamespace(id="user-2", is_active=True, role=UserRole.user)
+
+    monkeypatch.setattr(
+        "cran_code.web.auth_v2.jwt.get_current_user", fake_get_current_user
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await config_api.update_global_config(
+            _patch_request("td-kimi-k3"),
+            _http_request(restricted=True, auth_header="Bearer valid.jwt.token"),
+            runner=_FakeRunner(),
+        )
+    assert exc_info.value.status_code == 403
+    assert fake_config.default_model == "kimi-for-coding"
 
 
 @pytest.mark.asyncio

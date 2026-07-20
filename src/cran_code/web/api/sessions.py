@@ -963,11 +963,14 @@ async def generate_session_title(
     If request body is empty or parameters are missing, the backend will
     automatically read the first turn from wire.jsonl.
     """
-    session = get_editable_session(session_id, runner)
+    # Access check BEFORE the existence/busy probe (which would otherwise
+    # leak session existence and busy state to unauthorized users).
+    session = get_session_or_404(session_id)
     if not can_access_session(
         session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    session = get_editable_session(session_id, runner)
     session_dir = session.cran_code_session.dir
 
     from cran_code.session_state import load_session_state, save_session_state

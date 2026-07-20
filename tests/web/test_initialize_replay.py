@@ -199,7 +199,8 @@ async def test_restart_skipped_when_busy_unless_forced(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_new_client_initialize_after_restart_not_skipped() -> None:
-    """A fresh initialize (new id) after restart is forwarded, not deduped."""
+    """A duplicate initialize for the same worker generation is deduped, but
+    the latest initialize is still cached and replayed on the NEXT restart."""
     factory = _FakeProcessFactory()
     sp = SessionProcess(uuid4())
 
@@ -209,8 +210,13 @@ async def test_new_client_initialize_after_restart_not_skipped() -> None:
         new_worker = factory.processes[1]
         assert len(new_worker.stdin.writes) == 1  # replay only
 
-        # A new client connects and sends its own initialize: cached + forwarded.
+        # A new client connects and sends its own initialize: cached, but NOT
+        # forwarded — this worker generation already has one.
         new_init = _initialize_message("init-2")
         await sp.send_message(new_init)
-        assert new_worker.stdin.writes[-1] == (new_init + "\n").encode()
-        assert len(new_worker.stdin.writes) == 2
+        assert len(new_worker.stdin.writes) == 1
+
+        # On the next restart the LATEST initialize (init-2) is replayed.
+        await sp.restart_worker(reason="config_update")
+        third_worker = factory.processes[2]
+        assert third_worker.stdin.writes == [(new_init + "\n").encode()]

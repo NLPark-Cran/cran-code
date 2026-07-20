@@ -17,7 +17,7 @@ import base64
 import hashlib
 import hmac
 import json
-import os
+import time
 from typing import Any
 
 import aiohttp
@@ -33,17 +33,27 @@ from cran_code.web.db.models import TeamMember, UsageRecord
 router = APIRouter(prefix="/px/v1", tags=["keyproxy"])
 
 _TOKEN_PREFIX = "cwk_"
+# Tokens are placed in worker env vars, so they must expire: an exfiltrated
+# token (e.g. via prompt injection into a session's Shell tool) must not work
+# forever. Workers restart on model switches and pick up a fresh token.
+_TOKEN_TTL_SECONDS = 3 * 24 * 3600
+# Only these upstream endpoints may be reached through the proxy.
+_ALLOWED_PATHS = frozenset(
+    {"chat/completions", "completions", "responses", "models", "embeddings"}
+)
 # Cap upstream responses we are willing to buffer for non-streaming calls.
 _MAX_UPSTREAM_BYTES = 64 * 1024 * 1024
 
 
 def _proxy_secret() -> bytes:
-    secret = os.environ.get("CRAN_JWT_SECRET", "")
-    if not secret:
-        # Local mode without a configured secret: proxy tokens are pointless
-        # but must not crash; use a fixed process-local secret.
-        secret = "cran-keyproxy-local"
-    return secret.encode("utf-8")
+    """HMAC secret for proxy tokens — the same key that signs user JWTs.
+
+    Falls back to the JWT module's ephemeral random key when CRAN_JWT_SECRET
+    is unset (never a hardcoded constant, so tokens stay unforgeable).
+    """
+    from cran_code.web.auth_v2 import jwt as _jwt
+
+    return str(_jwt._SECRET_KEY).encode("utf-8")
 
 
 def _b64url_encode(data: bytes) -> str:
@@ -57,14 +67,17 @@ def _b64url_decode(data: str) -> bytes:
 
 def mint_proxy_token(user_id: str, provider_key: str, source: str) -> str:
     """Mint a worker credential for (user, provider, key source)."""
+    now = int(time.time())
     payload = _b64url_encode(
-        json.dumps({"u": user_id, "p": provider_key, "s": source}).encode("utf-8")
+        json.dumps(
+            {"u": user_id, "p": provider_key, "s": source, "iat": now, "exp": now + _TOKEN_TTL_SECONDS}
+        ).encode("utf-8")
     )
     sig = _b64url_encode(hmac.new(_proxy_secret(), payload.encode(), hashlib.sha256).digest())
     return f"{_TOKEN_PREFIX}{payload}.{sig}"
 
 
-def verify_proxy_token(token: str) -> dict[str, str] | None:
+def verify_proxy_token(token: str) -> dict[str, Any] | None:
     """Validate a proxy token; return its claims or ``None``."""
     if not token.startswith(_TOKEN_PREFIX):
         return None
@@ -80,6 +93,9 @@ def verify_proxy_token(token: str) -> dict[str, str] | None:
     except Exception:
         return None
     if not all(isinstance(claims.get(k), str) for k in ("u", "p", "s")):
+        return None
+    exp = claims.get("exp")
+    if not isinstance(exp, int) or exp < time.time():
         return None
     return claims
 
@@ -144,6 +160,17 @@ def _usage_from_openai_payload(payload: dict[str, Any]) -> tuple[int, int] | Non
 @router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
 async def proxy(path: str, request: Request) -> Response:
     """Forward a provider API call with the resolved real key."""
+    # Loopback-only: this endpoint exists for local workers. On public
+    # deployments Nginx proxies from 127.0.0.1, so external clients arriving
+    # with a non-loopback peer (direct port access) are rejected.
+    client_host = request.client.host if request.client else ""
+    if client_host not in ("127.0.0.1", "::1", "localhost"):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Loopback only")
+    normalized = path.strip("/")
+    if normalized not in _ALLOWED_PATHS:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Endpoint not proxied"
+        )
     token = _extract_bearer(request)
     claims = verify_proxy_token(token) if token else None
     if claims is None:
@@ -224,7 +251,7 @@ async def proxy(path: str, request: Request) -> Response:
             data=body or None,
             headers=headers,
         )
-    except aiohttp.ClientError as e:
+    except Exception as e:
         await session.close()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -234,8 +261,17 @@ async def proxy(path: str, request: Request) -> Response:
     if stream:
         return await _stream_response(session, upstream, user_id, provider_key, model, source)
 
+    usage: tuple[int, int] | None = None
     try:
         data = await upstream.read()
+        if upstream.status < 400 and len(data) <= _MAX_UPSTREAM_BYTES:
+            try:
+                parsed = json.loads(data)
+                usage = _usage_from_openai_payload(parsed)
+                if usage is not None and not model:
+                    model = str(parsed.get("model") or "")
+            except ValueError:
+                pass
     finally:
         upstream.release()
         await session.close()
@@ -243,21 +279,15 @@ async def proxy(path: str, request: Request) -> Response:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail="Upstream response too large"
         )
-    if upstream.status < 400:
-        try:
-            parsed = json.loads(data)
-            usage = _usage_from_openai_payload(parsed)
-            if usage is not None:
-                await record_usage(
-                    user_id=user_id,
-                    provider_key=provider_key,
-                    model=model or str(parsed.get("model") or ""),
-                    source=source,
-                    input_tokens=usage[0],
-                    output_tokens=usage[1],
-                )
-        except ValueError:
-            pass
+    if usage is not None:
+        await record_usage(
+            user_id=user_id,
+            provider_key=provider_key,
+            model=model,
+            source=source,
+            input_tokens=usage[0],
+            output_tokens=usage[1],
+        )
     return Response(
         content=data,
         status_code=upstream.status,

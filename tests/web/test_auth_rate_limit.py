@@ -51,14 +51,21 @@ def test_buckets_are_per_client_ip():
 
 
 def test_x_forwarded_for_first_hop_wins():
-    req = _request(ip="10.0.0.1", forwarded_for="9.9.9.9, 10.0.0.1")
+    # XFF is only trusted when the immediate peer is loopback (local Nginx).
+    req = _request(ip="127.0.0.1", forwarded_for="9.9.9.9, 10.0.0.1")
     assert auth_api._client_ip(req) == "9.9.9.9"
     for _ in range(auth_api._RATE_LIMIT_ATTEMPTS):
         auth_api._check_rate_limit(req)
-    # The proxy IP itself has a separate bucket.
-    auth_api._check_rate_limit(_request(ip="10.0.0.1"))
+    # The proxy peer itself has a separate bucket.
+    auth_api._check_rate_limit(_request(ip="127.0.0.1"))
     with pytest.raises(HTTPException):
         auth_api._check_rate_limit(req)
+
+
+def test_x_forwarded_for_ignored_from_external_peer():
+    # A client hitting the app directly cannot spoof XFF to rotate buckets.
+    req = _request(ip="10.0.0.1", forwarded_for="9.9.9.9")
+    assert auth_api._client_ip(req) == "10.0.0.1"
 
 
 def test_missing_client_ip_falls_back_to_unknown():

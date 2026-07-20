@@ -115,6 +115,7 @@ class TestCreateProvider:
             ]
 
         monkeypatch.setattr(providers_api, "_fetch_remote_models", fake_fetch)
+        monkeypatch.setattr(providers_api, "_validate_fetch_url", AsyncMock())
         resp = await providers_api.create_provider(_upsert(), _=None)
         td = next(p for p in resp.providers if p.key == "tokendance")
         assert td.model_keys == ["kimi-k3"]

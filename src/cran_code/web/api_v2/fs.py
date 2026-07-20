@@ -207,6 +207,7 @@ async def write_fs(
 ) -> dict[str, str]:
     work_dir = await _resolve_project_dir(project_id, current_user.id)
     target = _resolve_path(work_dir, req.path)
+    _ensure_not_sensitive(target, work_dir)
 
     if len(req.content.encode("utf-8")) > _MAX_FILE_SIZE:
         raise HTTPException(
@@ -258,6 +259,7 @@ async def upload_fs(
     rel_dir = path.strip("/")
     rel_path = f"{rel_dir}/{file.filename}" if rel_dir else file.filename
     target = _resolve_path(work_dir, rel_path)
+    _ensure_not_sensitive(target, work_dir)
 
     # Reject overly large uploads
     contents = await file.read()
@@ -330,6 +332,7 @@ async def delete_fs(
     """Delete a file or directory inside the project working directory."""
     work_dir = await _resolve_project_dir(project_id, current_user.id)
     target = _resolve_path(work_dir, path)
+    _ensure_not_sensitive(target, work_dir)
 
     if not target.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Path not found")

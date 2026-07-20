@@ -21,21 +21,33 @@ _rate_limit_buckets: dict[str, list[float]] = {}
 
 
 def _client_ip(request: Request) -> str:
-    """Resolve the client IP, honoring the first X-Forwarded-For hop (Nginx)."""
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        first_hop = forwarded_for.split(",")[0].strip()
-        if first_hop:
-            return first_hop
-    return request.client.host if request.client else "unknown"
+    """Resolve the client IP.
+
+    X-Forwarded-For is only trusted when the immediate peer is loopback
+    (i.e. the local Nginx reverse proxy); otherwise a client could spoof the
+    header to reset its rate-limit window.
+    """
+    peer = request.client.host if request.client else ""
+    if peer in ("127.0.0.1", "::1"):
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            first_hop = forwarded_for.split(",")[0].strip()
+            if first_hop:
+                return first_hop
+    return peer or "unknown"
 
 
 def _check_rate_limit(request: Request) -> None:
     """Enforce max 10 attempts per minute per client IP (sliding window).
 
     Single-process asyncio server: a plain dict of timestamps is sufficient.
+    The bucket dict is pruned so it cannot grow unboundedly with distinct IPs.
     """
     now = time.monotonic()
+    if len(_rate_limit_buckets) > 10_000:
+        cutoff = now - _RATE_LIMIT_WINDOW_SECONDS
+        for ip in [ip for ip, ts in _rate_limit_buckets.items() if not ts or ts[-1] < cutoff]:
+            del _rate_limit_buckets[ip]
     ip = _client_ip(request)
     attempts = [
         ts for ts in _rate_limit_buckets.get(ip, []) if now - ts < _RATE_LIMIT_WINDOW_SECONDS

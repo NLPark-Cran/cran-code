@@ -35,8 +35,9 @@ router = APIRouter(prefix="/api/v2/providers", tags=["providers"])
 _PROVIDER_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 _MODEL_KEY_RE = re.compile(r"[^A-Za-z0-9_-]+")
 
-# Serializes load-modify-save cycles on the shared config.toml (L16).
-_config_lock = asyncio.Lock()
+# Serializes load-modify-save cycles on the shared config.toml (shared with
+# the v1 config routes via cran_code.config.config_write_lock).
+from cran_code.config import config_write_lock as _config_lock
 
 
 def _normalize_base_url(url: str) -> str:
@@ -235,7 +236,13 @@ async def _fetch_remote_models(
     url = base_url.rstrip("/") + "/models"
     timeout = aiohttp.ClientTimeout(total=15)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.get(url, headers={"Authorization": f"Bearer {api_key}"}) as resp:
+        # Never follow redirects: a validated https URL must not bounce the
+        # request (with its Authorization header) to an internal/plain host.
+        async with session.get(
+            url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            allow_redirects=False,
+        ) as resp:
             if resp.status != 200:
                 body = (await resp.text())[:300]
                 raise HTTPException(

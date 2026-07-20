@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Literal, Self
@@ -377,6 +378,11 @@ def load_config_from_string(config_string: str) -> Config:
     config.is_from_default_location = False
     config.source_file = None
     return config
+
+
+# Serializes load-modify-save cycles on the shared config.toml across the web
+# API surface (v1 config routes, v2 providers routes).
+config_write_lock = asyncio.Lock()
 
 
 def save_config(config: Config, config_file: Path | None = None):
