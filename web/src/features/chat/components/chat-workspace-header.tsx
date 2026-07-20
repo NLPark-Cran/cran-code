@@ -12,11 +12,20 @@ import { shortenTitle } from "@/lib/utils";
 import {
   ChevronsDownUpIcon,
   ChevronsUpDownIcon,
+  GitForkIcon,
+  MoreVerticalIcon,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   SearchIcon,
+  SparklesIcon,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { SessionInfoPopover } from "./session-info-popover";
 import { OpenInMenu } from "./open-in-menu";
 import { isMacOS } from "@/hooks/utils";
@@ -33,6 +42,8 @@ type ChatWorkspaceHeaderProps = {
   onOpenSearch: () => void;
   onOpenSidebar?: () => void;
   onRenameSession?: (sessionId: string, newTitle: string) => Promise<boolean>;
+  onForkSessionLatest?: () => Promise<void>;
+  onRegenerateTitle?: () => Promise<void>;
 };
 
 export function ChatWorkspaceHeader({
@@ -47,6 +58,8 @@ export function ChatWorkspaceHeader({
   onOpenSearch,
   onOpenSidebar,
   onRenameSession,
+  onForkSessionLatest,
+  onRegenerateTitle,
 }: ChatWorkspaceHeaderProps) {
   const { t } = useTranslation();
   const searchShortcutModifier = isMacOS() ? "Cmd" : "Ctrl";
@@ -223,6 +236,46 @@ export function ChatWorkspaceHeader({
                 {blocksExpanded ? t("chat:foldAllBlocks") : t("chat:unfoldAllBlocks")}
               </TooltipContent>
             </Tooltip>
+
+            {(onForkSessionLatest || onRegenerateTitle) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t("sessions:sessionActions")}
+                    className="inline-flex items-center cursor-pointer justify-center rounded-md p-2 text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground"
+                  >
+                    <MoreVerticalIcon className="size-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {onRegenerateTitle && (
+                    <DropdownMenuItem
+                      onClick={() =>
+                        onRegenerateTitle().catch((error: unknown) => {
+                          console.error("[ChatHeader] regenerate title failed:", error);
+                        })
+                      }
+                    >
+                      <SparklesIcon className="mr-2 h-4 w-4" />
+                      {t("sessions:regenerateTitle")}
+                    </DropdownMenuItem>
+                  )}
+                  {onForkSessionLatest && (
+                    <DropdownMenuItem
+                      onClick={() =>
+                        onForkSessionLatest().catch((error: unknown) => {
+                          console.error("[ChatHeader] fork failed:", error);
+                        })
+                      }
+                    >
+                      <GitForkIcon className="mr-2 h-4 w-4" />
+                      {t("sessions:fork")}
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </>
         )}
       </div>

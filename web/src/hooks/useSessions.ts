@@ -8,6 +8,7 @@ import type {
 import { SessionFromJSON } from "../lib/api/models/Session";
 import { apiClient } from "../lib/apiClient";
 import { getAuthHeader, getAuthToken } from "../lib/auth";
+import i18n from "@/i18n";
 import { formatRelativeTime, getApiBaseUrl } from "./utils";
 
 // Regex patterns for path normalization
@@ -98,8 +99,8 @@ type UseSessionsReturn = {
   bulkUnarchiveSessions: (sessionIds: string[]) => Promise<number>;
   /** Bulk delete sessions */
   bulkDeleteSessions: (sessionIds: string[]) => Promise<number>;
-  /** Fork a session at a specific turn index */
-  forkSession: (sessionId: string, turnIndex: number) => Promise<Session>;
+  /** Fork a session at a specific turn index (omit to fork all turns) */
+  forkSession: (sessionId: string, turnIndex?: number) => Promise<Session>;
 };
 
 const normalizeSessionPath = (value?: string): string => {
@@ -745,7 +746,7 @@ export function useSessions(): UseSessionsReturn {
         return result.title;
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Failed to generate title";
+          err instanceof Error ? err.message : i18n.t("sessions:regenerateTitleFailed");
         console.error("Failed to generate title:", err);
         toast.error(message);
         return null;
@@ -1020,11 +1021,11 @@ export function useSessions(): UseSessionsReturn {
   );
 
   /**
-   * Fork a session at a specific turn index
-   * Creates a new session with history up to the specified turn
+   * Fork a session, optionally at a specific turn index.
+   * Without a turn index, the new session contains the full history.
    */
   const forkSession = useCallback(
-    async (sessionId: string, turnIndex: number): Promise<Session> => {
+    async (sessionId: string, turnIndex?: number): Promise<Session> => {
       try {
         const basePath = getApiBaseUrl();
         const response = await fetch(
@@ -1035,13 +1036,15 @@ export function useSessions(): UseSessionsReturn {
               "Content-Type": "application/json",
               ...getAuthHeader(),
             },
-            body: JSON.stringify({ turn_index: turnIndex }),
+            body: JSON.stringify(
+              turnIndex === undefined ? {} : { turn_index: turnIndex },
+            ),
           },
         );
 
         if (!response.ok) {
           const data = await response.json();
-          throw new Error(data.detail || "Failed to fork session");
+          throw new Error(data.detail || i18n.t("chat:forkFailedFallback"));
         }
 
         const sessionData = await response.json();
@@ -1056,7 +1059,7 @@ export function useSessions(): UseSessionsReturn {
         return session;
       } catch (err) {
         const message =
-          err instanceof Error ? err.message : "Failed to fork session";
+          err instanceof Error ? err.message : i18n.t("chat:forkFailedFallback");
         setError(message);
         throw err;
       }

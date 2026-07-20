@@ -81,6 +81,10 @@ type ChatWorkspaceProps = {
   onOpenSidebar?: () => void;
   /** Rename session */
   onRenameSession?: (sessionId: string, newTitle: string) => Promise<boolean>;
+  /** Fork the session with full history */
+  onForkSessionLatest?: () => Promise<void>;
+  /** Regenerate the session title via AI */
+  onRegenerateTitle?: () => Promise<void>;
   /** Available slash commands */
   slashCommands?: SlashCommandDef[];
   /** Whether plan mode is active */
@@ -119,6 +123,8 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
   onCreateSession,
   onOpenSidebar,
   onRenameSession,
+  onForkSessionLatest,
+  onRegenerateTitle,
   maxContextSize,
   slashCommands = [],
   planMode = false,
@@ -291,6 +297,8 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
           onOpenSearch={() => setIsSearchOpen(true)}
           onOpenSidebar={onOpenSidebar}
           onRenameSession={onRenameSession}
+          onForkSessionLatest={onForkSessionLatest}
+          onRegenerateTitle={onRegenerateTitle}
         />
 
         <div className="relative flex min-h-0 flex-1 overflow-hidden">

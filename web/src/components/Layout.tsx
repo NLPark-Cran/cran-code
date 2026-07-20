@@ -13,7 +13,7 @@ import LanguageSwitcher from "./LanguageSwitcher";
 import TeamSelector from "./TeamSelector";
 import { useAuthStore } from "@/stores/auth";
 import { clearAuthToken } from "@/lib/auth";
-import { Settings, LogOut, User, Server } from "lucide-react";
+import { Settings, LogOut, User, Server, BarChart3 } from "lucide-react";
 import SettingsDialog from "./SettingsDialog";
 
 interface LayoutProps {
@@ -77,6 +77,10 @@ export default function Layout({ children, breadcrumbs }: LayoutProps) {
                 <DropdownMenuItem onClick={() => navigate("/settings/providers")}>
                   <Server className="mr-2 h-4 w-4" />
                   {t("nav:providers")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/settings/usage")}>
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  {t("nav:usage")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">

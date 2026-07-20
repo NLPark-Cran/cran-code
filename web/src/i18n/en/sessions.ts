@@ -49,4 +49,10 @@ export default {
   collapseSidebar: "Collapse sidebar",
   dashboard: "Dashboard",
   sessionError: "Session Error",
+  fork: "Fork",
+  regenerateTitle: "Regenerate title",
+  regenerateTitleSuccess: "Title regenerated",
+  regenerateTitleFailed: "Failed to regenerate title",
+  archivedCount: "Archived ({{count}})",
+  sessionActions: "Session actions",
 } as const;

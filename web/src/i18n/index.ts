@@ -12,6 +12,7 @@ import enSessions from "./en/sessions";
 import enSettings from "./en/settings";
 import enTeams from "./en/teams";
 import enTools from "./en/tools";
+import enUsage from "./en/usage";
 import zhAuth from "./zh/auth";
 import zhChat from "./zh/chat";
 import zhCommon from "./zh/common";
@@ -22,6 +23,7 @@ import zhSessions from "./zh/sessions";
 import zhSettings from "./zh/settings";
 import zhTeams from "./zh/teams";
 import zhTools from "./zh/tools";
+import zhUsage from "./zh/usage";
 
 export const LANG_STORAGE_KEY = "cran_lang";
 
@@ -39,6 +41,7 @@ export const resources = {
     chat: zhChat,
     sessions: zhSessions,
     tools: zhTools,
+    usage: zhUsage,
   },
   en: {
     common: enCommon,
@@ -51,6 +54,7 @@ export const resources = {
     chat: enChat,
     sessions: enSessions,
     tools: enTools,
+    usage: enUsage,
   },
 } as const;
 

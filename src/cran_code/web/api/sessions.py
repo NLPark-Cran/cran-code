@@ -542,7 +542,8 @@ class CreateSessionRequest(BaseModel):
 class ForkSessionRequest(BaseModel):
     """Fork session request."""
 
-    turn_index: int = Field(..., ge=0)  # 0-based, fork includes this turn and all previous turns
+    # 0-based, fork includes this turn and all previous turns; None = copy all turns
+    turn_index: int | None = Field(None, ge=0)
 
 
 class UploadSessionFileResponse(BaseModel):

@@ -225,6 +225,20 @@ export interface UsageSummaryRes {
   remaining_tokens: number | null;
 }
 
+export interface UsageDailyPointRes {
+  date: string;
+  provider_key: string;
+  model: string;
+  source: string;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface AdminUsageDailyPointRes extends UsageDailyPointRes {
+  user_id: string;
+  username: string;
+}
+
 export const v2Api = {
   auth: {
     register: (data: RegisterReq) =>
@@ -264,6 +278,12 @@ export const v2Api = {
         { method: "DELETE" },
       ),
     meUsage: () => _fetch<UsageSummaryRes[]>("/users/me/usage"),
+    meUsageDaily: (days = 30) =>
+      _fetch<UsageDailyPointRes[]>(`/users/me/usage/daily?days=${days}`),
+  },
+  admin: {
+    usage: (days = 30) =>
+      _fetch<AdminUsageDailyPointRes[]>(`/admin/usage?days=${days}`),
   },
   teams: {
     list: () => _fetch<TeamRes[]>("/teams"),

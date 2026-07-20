@@ -10,6 +10,7 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const TeamPage = lazy(() => import("./pages/TeamPage"));
 const ProjectPage = lazy(() => import("./pages/ProjectPage"));
 const ProvidersPage = lazy(() => import("./pages/ProvidersPage"));
+const UsagePage = lazy(() => import("./pages/UsagePage"));
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore();
@@ -74,6 +75,14 @@ export default function RootApp() {
             element={
               <AuthGuard>
                 <ProvidersPage />
+              </AuthGuard>
+            }
+          />
+          <Route
+            path="/settings/usage"
+            element={
+              <AuthGuard>
+                <UsagePage />
               </AuthGuard>
             }
           />

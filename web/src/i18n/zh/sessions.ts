@@ -49,4 +49,10 @@ export default {
   collapseSidebar: "收起侧边栏",
   dashboard: "控制台",
   sessionError: "会话错误",
+  fork: "分叉",
+  regenerateTitle: "重新生成标题",
+  regenerateTitleSuccess: "标题已重新生成",
+  regenerateTitleFailed: "生成标题失败",
+  archivedCount: "已归档（{{count}}）",
+  sessionActions: "会话操作",
 } as const;

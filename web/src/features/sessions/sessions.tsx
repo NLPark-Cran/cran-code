@@ -26,6 +26,7 @@ import {
   Loader2,
   Archive,
   ArchiveRestore,
+  GitFork,
   CheckSquare,
   Square,
   PanelLeftClose,
@@ -81,6 +82,7 @@ type SessionGroup = {
 };
 
 const VIEW_MODE_KEY = "cran-sessions-view-mode";
+const ARCHIVED_EXPANDED_KEY = "cran-sessions-archived-expanded";
 
 /**
  * Shorten a path to fit in limited space
@@ -117,6 +119,7 @@ type SessionsSidebarProps = {
   onSearchQueryChange: (query: string) => void;
   onOpenCreateDialog: () => void;
   onCreateSessionInDir?: (workDir: string) => void;
+  onForkSession?: (sessionId: string) => void;
   onClose?: () => void;
   streamStatus?: "ready" | "streaming" | "submitted" | "error";
 };
@@ -185,6 +188,7 @@ export const SessionsSidebar = memo(function SessionsSidebarComponent({
   onSearchQueryChange,
   onOpenCreateDialog,
   onCreateSessionInDir,
+  onForkSession,
   onClose,
 }: SessionsSidebarProps): ReactElement {
   const { t } = useTranslation();
@@ -219,8 +223,22 @@ export const SessionsSidebar = memo(function SessionsSidebarComponent({
     return stored === "grouped" ? "grouped" : "list";
   });
 
-  // Archived section expanded state
-  const [isArchivedExpanded, setIsArchivedExpanded] = useState(false);
+  // Archived section expanded state (persisted across reloads)
+  const [isArchivedExpanded, setIsArchivedExpanded] = useState(() => {
+    try {
+      return localStorage.getItem(ARCHIVED_EXPANDED_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const handleArchivedExpandedChange = useCallback((expanded: boolean) => {
+    setIsArchivedExpanded(expanded);
+    try {
+      localStorage.setItem(ARCHIVED_EXPANDED_KEY, expanded ? "1" : "0");
+    } catch {
+      // localStorage unavailable — non-persistent expand still works
+    }
+  }, []);
 
   // Track if we're in the context menu of an archived session
   const [contextMenuIsArchived, setContextMenuIsArchived] = useState(false);
@@ -414,7 +432,7 @@ export const SessionsSidebar = memo(function SessionsSidebarComponent({
     setContextMenuIsArchived(isArchived);
   };
 
-  const handleMenuAction = async (action: "delete" | "rename" | "archive" | "unarchive" | "select-multiple") => {
+  const handleMenuAction = async (action: "delete" | "rename" | "archive" | "unarchive" | "select-multiple" | "fork") => {
     if (!contextMenu) {
       return;
     }
@@ -442,6 +460,8 @@ export const SessionsSidebar = memo(function SessionsSidebarComponent({
       setIsMultiSelectMode(true);
       setIsMultiSelectArchived(isArchived);
       setSelectedSessionIds(new Set([sessionId]));
+    } else if (action === "fork") {
+      onForkSession?.(sessionId);
     }
   };
 
@@ -596,6 +616,17 @@ export const SessionsSidebar = memo(function SessionsSidebarComponent({
           >
             <ArchiveRestore className="size-3.5" />
             {t("sessions:unarchive")}
+          </button>
+        )}
+        {/* Show Fork for non-archived sessions */}
+        {onForkSession && !contextMenuIsArchived && (
+          <button
+            className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-accent"
+            onClick={() => handleMenuAction("fork")}
+            type="button"
+          >
+            <GitFork className="size-3.5" />
+            {t("sessions:fork")}
           </button>
         )}
         {/* Show Select Multiple option */}
@@ -1118,13 +1149,13 @@ export const SessionsSidebar = memo(function SessionsSidebarComponent({
             {/* Archived Sessions Section */}
             {(onArchiveSession || onUnarchiveSession) && (
               <div className="mx-2 mb-2 shrink-0 rounded-lg border border-border bg-muted/30">
-                <Collapsible open={isArchivedExpanded} onOpenChange={setIsArchivedExpanded}>
+                <Collapsible open={isArchivedExpanded} onOpenChange={handleArchivedExpandedChange}>
                   <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/50 group">
                     <ChevronDown className="size-3 transition-transform group-data-[state=closed]:-rotate-90" />
                     <Archive className="size-3.5" />
-                    <span className="flex-1 text-left font-medium">{t("sessions:archived")}</span>
-                    <span className="text-[10px] text-muted-foreground/70 bg-muted px-1.5 py-0.5 rounded">
-                      {archivedSessions.length}{hasMoreArchivedSessions ? '+' : ''}
+                    <span className="flex-1 text-left font-medium">
+                      {t("sessions:archivedCount", { count: archivedSessions.length })}
+                      {hasMoreArchivedSessions ? "+" : ""}
                     </span>
                   </CollapsibleTrigger>
                   <CollapsibleContent>

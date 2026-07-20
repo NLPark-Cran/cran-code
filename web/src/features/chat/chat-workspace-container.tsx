@@ -54,6 +54,7 @@ type ChatWorkspaceContainerProps = {
   generateTitle?: (sessionId: string) => Promise<string | null>;
   onRenameSession?: (sessionId: string, newTitle: string) => Promise<boolean>;
   onForkSession?: (sessionId: string, turnIndex: number) => Promise<void>;
+  onForkSessionLatest?: (sessionId: string) => Promise<void>;
 };
 
 export function ChatWorkspaceContainer({
@@ -71,6 +72,7 @@ export function ChatWorkspaceContainer({
   generateTitle,
   onRenameSession,
   onForkSession,
+  onForkSessionLatest,
 }: ChatWorkspaceContainerProps): ReactElement {
   const { t } = useTranslation();
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
@@ -337,6 +339,19 @@ export function ChatWorkspaceContainer({
     [selectedSessionId, onForkSession, t],
   );
 
+  const handleForkSessionLatest = useCallback(async () => {
+    if (!(selectedSessionId && onForkSessionLatest)) return;
+    await onForkSessionLatest(selectedSessionId);
+  }, [selectedSessionId, onForkSessionLatest]);
+
+  const handleRegenerateTitle = useCallback(async () => {
+    if (!(selectedSessionId && generateTitle)) return;
+    const title = await generateTitle(selectedSessionId);
+    if (title) {
+      toast.success(t("sessions:regenerateTitleSuccess"), { description: title });
+    }
+  }, [selectedSessionId, generateTitle, t]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) {
@@ -386,6 +401,8 @@ export function ChatWorkspaceContainer({
       onGetSessionFile={onGetSessionFile}
       onOpenSidebar={onOpenSidebar}
       onRenameSession={onRenameSession}
+      onForkSessionLatest={onForkSessionLatest ? handleForkSessionLatest : undefined}
+      onRegenerateTitle={generateTitle ? handleRegenerateTitle : undefined}
       slashCommands={slashCommands}
       planMode={planMode}
       onPlanModeChange={handlePlanModeChange}

@@ -379,6 +379,21 @@ function App() {
     [forkSession],
   );
 
+  // Fork with full history (sidebar context menu / chat header menu).
+  // useSessions.forkSession already navigates to the new session; failures
+  // surface via the sessionsError -> toast effect.
+  const handleForkSessionLatest = useCallback(
+    async (sessionId: string) => {
+      try {
+        await forkSession(sessionId);
+        toast.success(t("chat:sessionForked"));
+      } catch {
+        // sessionsError effect shows the error toast
+      }
+    },
+    [forkSession, t],
+  );
+
   const renderChatPanel = () => (
     <ChatWorkspaceContainer
       selectedSessionId={selectedSessionId}
@@ -395,6 +410,7 @@ function App() {
       generateTitle={generateTitle}
       onRenameSession={renameSession}
       onForkSession={handleForkSession}
+      onForkSessionLatest={handleForkSessionLatest}
     />
   );
 
@@ -475,6 +491,7 @@ function App() {
                     onLoadMoreArchivedSessions={loadMoreArchivedSessions}
                     onOpenCreateDialog={handleOpenCreateDialog}
                     onCreateSessionInDir={handleCreateSessionInDir}
+                    onForkSession={handleForkSessionLatest}
                     streamStatus={streamStatus}
                     selectedSessionId={selectedSessionId}
                     sessions={sessionSummaries}
@@ -562,6 +579,7 @@ function App() {
                 onLoadMoreArchivedSessions={loadMoreArchivedSessions}
                 onOpenCreateDialog={handleOpenCreateDialog}
                 onCreateSessionInDir={handleCreateSessionInDir}
+                onForkSession={handleForkSessionLatest}
                 onClose={handleCloseMobileSidebar}
                 streamStatus={streamStatus}
                 selectedSessionId={selectedSessionId}

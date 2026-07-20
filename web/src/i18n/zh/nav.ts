@@ -2,6 +2,7 @@ export default {
   chat: "对话",
   settings: "设置",
   providers: "服务提供方",
+  usage: "用量统计",
   logout: "退出登录",
   dashboard: "控制台",
   selectTeam: "选择团队",
