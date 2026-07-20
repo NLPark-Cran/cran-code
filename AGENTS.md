@@ -559,7 +559,28 @@ A broader `pytest tests/core` run shows failures in branding/path-sensitive test
   - Tests that monkeypatch `kimi_cli` modules.
 - Do **not** change the main package name from `cran-code`; keep upstream version numbers in sync.
 
-## Current Work (as of 2026-07-20)
+## Current Work (as of 2026-07-21)
+
+### Deployed: frontend evolution (i18n + UX + performance) — bundle `index-IMnJSDJW.js`
+
+**Replay compaction bug (fixed)**: `wire.annotated.jsonl` never recorded CompactionBegin/End → reconnect replayed full pre-compaction history incl. base64 images. Now markers are recorded and `_read_wire_lines` tombstones media before the last marker (retroactive) + regex-strips inline media on >2MB lines. Tombstoned media renders as「已压缩」chips.
+
+**i18n**: react-i18next, 11 namespaces / ~570 keys per locale, zh default + English toggle (localStorage `cran_lang` → navigator → zh), LanguageSwitcher in Layout dropdown + LoginPage, zh/en key-parity vitest (23 tests). Non-React modules use `i18n.t()` at point of use only. Prompt-gate JSONRPC `-2` errors map to localized guidance.
+
+**UX**: SmartTool cards (running=expanded / finished=one-line summary via per-tool registry, consecutive tools grouped), ContextRing + StatusPanel in composer (ToolbarContextIndicator removed), compaction divider + timeline, EmptyState unification, design tokens (--surface/--border-subtle), CJK typography, 猹询码 branding.
+
+**Performance**: shiki trimmed to 31 langs via `web/src/lib/shiki-trimmed.ts` alias (streamdown pulls the full registry otherwise), refractor 300→22 grammars, manualChunks monaco/mermaid/vendor → dist 20MB→12MB, 358→52 chunks.
+
+**Features**: `/settings/usage` dashboard (daily stacked chart by key source, quota bars, admin team view; backend `users/me/usage/daily` + `admin/usage`); session fork (turn_index optional = all turns) from sidebar + chat header; regenerate-title; archived count/persistence. ReadMediaFile compresses images (>2000px / >4MB, format-preserving) before inlining — originals stay on disk.
+
+**Video modality (verified)**: upload (100MB cap) → `<video path=...>` tag → agent ReadMediaFile → provider `files.upload_video` (Kimi) or data URL; capability-gated by `video_in` (k3/td-kimi-k3 have it). Works end-to-end; only a nicer preview card is missing.
+
+### Deferred (next milestone)
+- **Goal mode**: no backend exists in the old Python soul (new kimi-code TS only) — needs lifecycle + GoalStrip UI port, its own focused session.
+- **Blob-ref media offload**: wire/context records carry `blobref:` instead of inline base64, rehydrate on restore — big record-layer design; replay tombstoning (done) covers the worst symptoms meanwhile.
+- Public share links (no endpoint exists).
+
+## Merge Log (2026-07-20): roles, keys, key proxy, security sweep
 
 ### Deployed: roles, per-user/team keys + key proxy, security hardening (bundle `index-DJAXV9iD.js`)
 
