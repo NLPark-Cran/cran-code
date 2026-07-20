@@ -159,6 +159,11 @@ def create_app(
         # Initialize collaboration database
         await init_db()
 
+        # Guarantee at least one global admin exists
+        from cran_code.web.auth_v2.jwt import ensure_admin_bootstrap
+
+        await ensure_admin_bootstrap()
+
         # Start KimiCLI runner
         runner = KimiCLIRunner()
         app.state.runner = runner
@@ -209,6 +214,12 @@ def create_app(
     application.include_router(sessions_router)
     application.include_router(work_dirs_router)
     application.include_router(v2_router)
+
+    # Key proxy: workers with team/shared credentials call back into this
+    # router (loopback only) instead of seeing the real API keys.
+    from cran_code.web.api_v2.keyproxy import router as keyproxy_router
+
+    application.include_router(keyproxy_router)
     if not restrict_sensitive_apis:
         application.include_router(open_in_router)
 
@@ -301,6 +312,9 @@ def run_web_server(
 
     # Find available port first (needed for auto-populating origins)
     actual_port = find_available_port(host, port)
+    # Workers using team/shared provider keys call back into the key proxy on
+    # loopback; let the runner know where to point them.
+    os.environ["CRAN_KEY_PROXY_PORT"] = str(actual_port)
     if actual_port != port:
         print(f"Port {port} is in use, using port {actual_port} instead")
 

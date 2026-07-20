@@ -179,6 +179,8 @@ async def git_log(
     current_user: JWTUser = Depends(require_user),
 ) -> list[GitCommitResponse]:
     cwd = await _require_project_dir(project_id, current_user.id)
+    # Clamp the limit to a sane range to avoid unbounded log output.
+    limit = min(max(limit, 1), 1000)
     rc, out, err = await _run_git(
         cwd, "log", f"--max-count={limit}", "--pretty=format:%H|%h|%s|%an|%ai"
     )

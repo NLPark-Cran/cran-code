@@ -39,7 +39,7 @@ async def collab_websocket(
             async with AsyncSessionLocal() as session:
                 result = await session.execute(select(User).where(User.id == payload.sub))
                 user = result.scalar_one_or_none()
-                if user:
+                if user is not None and user.is_active:
                     current_user = JWTUser(
                         id=user.id,
                         email=user.email,
@@ -84,6 +84,8 @@ async def collab_websocket(
     try:
         while True:
             message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                break
             if "bytes" in message:
                 data = message["bytes"]
                 # Try to detect if it's an awareness JSON message
@@ -92,36 +94,33 @@ async def collab_websocket(
                     msg = json.loads(text)
                     if isinstance(msg, dict) and msg.get("type") == "awareness":
                         async with lock:
-                            room = _rooms.get(room_id, set())
-                            for client in room:
-                                if client is not websocket:
-                                    try:
-                                        await client.send_bytes(data)
-                                    except Exception:
-                                        pass
+                            peers = [c for c in _rooms.get(room_id, set()) if c is not websocket]
+                        for client in peers:
+                            try:
+                                await client.send_bytes(data)
+                            except Exception:
+                                pass
                         continue
                 except (UnicodeDecodeError, json.JSONDecodeError):
                     pass
                 # Yjs binary update
                 async with lock:
-                    room = _rooms.get(room_id, set())
-                    for client in room:
-                        if client is not websocket:
-                            try:
-                                await client.send_bytes(data)
-                            except Exception:
-                                pass
+                    peers = [c for c in _rooms.get(room_id, set()) if c is not websocket]
+                for client in peers:
+                    try:
+                        await client.send_bytes(data)
+                    except Exception:
+                        pass
             elif "text" in message:
                 data = message["text"]
                 # Awareness or other JSON messages
                 async with lock:
-                    room = _rooms.get(room_id, set())
-                    for client in room:
-                        if client is not websocket:
-                            try:
-                                await client.send_text(data)
-                            except Exception:
-                                pass
+                    peers = [c for c in _rooms.get(room_id, set()) if c is not websocket]
+                for client in peers:
+                    try:
+                        await client.send_text(data)
+                    except Exception:
+                        pass
     except WebSocketDisconnect:
         pass
     finally:

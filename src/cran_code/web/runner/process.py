@@ -8,6 +8,7 @@ import contextlib
 import io
 import json
 import mimetypes
+import os
 import sys
 import time
 from collections.abc import AsyncGenerator
@@ -16,6 +17,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
+from kosong.chat_provider import TokenUsage
 from kosong.message import ContentPart, ImageURLPart, TextPart
 from PIL import Image
 from PIL.Image import Image as PILImage
@@ -40,6 +42,7 @@ from cran_code.wire.types import (
     CompactionEnd,
     CompactionSummary,
     ContentPart as WireContentPart,
+    StatusUpdate,
     TurnBegin,
 )
 from cran_code.wire.jsonrpc import (
@@ -49,6 +52,7 @@ from cran_code.wire.jsonrpc import (
     JSONRPCEventMessage,
     JSONRPCInMessage,
     JSONRPCInMessageAdapter,
+    JSONRPCInitializeMessage,
     JSONRPCOutMessage,
     JSONRPCPromptMessage,
     JSONRPCRequestMessage,
@@ -57,6 +61,40 @@ from cran_code.wire.jsonrpc import (
 from cran_code.wire.serde import deserialize_wire_message
 
 JSONRPCOutMessageAdapter = TypeAdapter[JSONRPCOutMessage](JSONRPCOutMessage)
+
+# Env vars that must never leak into worker processes: workers run the
+# agent's Shell tool with their full environment, so web-server secrets
+# (JWT signing key, session token, database URL) must be stripped here.
+_BLOCKED_WORKER_ENV_VARS = {
+    "CRAN_JWT_SECRET",
+    "CRAN_WEB_SESSION_TOKEN",
+    "CRAN_DATABASE_URL",
+}
+
+
+def _sanitize_worker_env(env: dict[str, str]) -> dict[str, str]:
+    """Remove web-server secrets from the environment passed to workers."""
+    return {
+        k: v
+        for k, v in env.items()
+        if k not in _BLOCKED_WORKER_ENV_VARS
+        and not (k.startswith("CRAN_") and k.endswith(("_SECRET", "_SECRET_KEY")))
+    }
+
+
+@dataclass
+class _SessionKeyInfo:
+    """Key resolution snapshot for a session's current default model."""
+
+    owner_id: str
+    provider_key: str
+    provider_type: str
+    model: str
+    has_global_key: bool
+    api_key: str = ""
+    """Resolved key material; empty when no key is usable for this user."""
+    source: str = ""
+    """""personal" | "team" | "shared"; empty when unresolved."""
 
 
 class SessionProcess:
@@ -110,6 +148,18 @@ class SessionProcess:
         self._annotated_wire_file: WireFile | None = None
         self._in_compaction: bool = False
         self._compaction_buffer: list[tuple[WireMessage, float]] = []
+        # Latest initialize message received from a client, cached so it can be
+        # replayed to a freshly spawned worker. Worker restarts keep client
+        # WebSockets alive, so the client never re-sends initialize and the new
+        # wire server would otherwise lose client capabilities (e.g.
+        # supports_question) — leaving AskUserQuestion visible but unusable.
+        self._cached_initialize_message: str | None = None
+        # The initialize message most recently replayed by start(), used to
+        # avoid writing the same message twice when it triggered the spawn.
+        self._replayed_initialize_message: str | None = None
+        # Latest key-resolution snapshot (per worker spawn), used for usage
+        # metering of direct-injected personal keys.
+        self._key_info: _SessionKeyInfo | None = None
 
     def _get_annotated_wire_file(self) -> WireFile | None:
         """Lazy-load the annotated wire file for this session."""
@@ -197,6 +247,80 @@ class SessionProcess:
             return
         await self._broadcast(new_session_status_message(status).model_dump_json())
 
+    async def _resolve_session_key(self) -> _SessionKeyInfo | None:
+        """Resolve the provider key for this session's owner and default model.
+
+        Returns ``None`` for legacy/anonymous sessions (no owner), and an info
+        object with empty ``api_key``/``source`` when the owner has no usable
+        key for the provider.
+        """
+        session = load_session_by_id(self.session_id)
+        owner_id = session.cran_code_session.state.owner_id if session else None
+        if not owner_id or owner_id in ("local", "v1_anonymous"):
+            return None
+        config = load_config()
+        model = config.models.get(config.default_model)
+        if model is None:
+            return None
+        provider = config.providers.get(model.provider)
+        if provider is None:
+            return None
+
+        from cran_code.web.api_v2.keyproxy import _user_team_ids
+        from cran_code.web.db.keys import resolve_provider_key
+
+        team_ids = await _user_team_ids(owner_id)
+        resolved = await resolve_provider_key(owner_id, model.provider, team_ids)
+        info = _SessionKeyInfo(
+            owner_id=owner_id,
+            provider_key=model.provider,
+            provider_type=provider.type,
+            model=model.model,
+            has_global_key=bool(provider.api_key.get_secret_value()),
+        )
+        if resolved is not None:
+            info.api_key, info.source = resolved
+        return info
+
+    async def _build_worker_env(self) -> dict[str, str]:
+        """Build the environment for a new worker subprocess.
+
+        Starts from the sanitized server env (web secrets stripped), then
+        injects the session owner's provider credentials:
+
+        - personal keys are injected directly (the user owns them anyway);
+        - team/shared keys for OpenAI-compatible providers are routed through
+          the local key proxy (``/px/v1``) with a signed ``cwk_`` token so the
+          worker never sees the real key;
+        - kimi providers keep the config.toml/OAuth flow for non-personal
+          sources.
+        """
+        env = _sanitize_worker_env(get_clean_env())
+        try:
+            info = await self._resolve_session_key()
+        except Exception as e:
+            logger.warning(f"Key resolution failed for session {self.session_id}: {e}")
+            return env
+        self._key_info = info
+        if info is None or not info.api_key:
+            return env
+        if info.provider_type == "kimi":
+            if info.source == "personal":
+                env["CRAN_API_KEY"] = info.api_key
+        elif info.provider_type in ("openai_legacy", "openai_responses"):
+            if info.source == "personal":
+                env["OPENAI_API_KEY"] = info.api_key
+            else:
+                port = os.environ.get("CRAN_KEY_PROXY_PORT")
+                if port:
+                    from cran_code.web.api_v2.keyproxy import mint_proxy_token
+
+                    env["OPENAI_BASE_URL"] = f"http://127.0.0.1:{port}/px/v1"
+                    env["OPENAI_API_KEY"] = mint_proxy_token(
+                        info.owner_id, info.provider_key, info.source
+                    )
+        return env
+
     async def start(
         self,
         *,
@@ -206,45 +330,70 @@ class SessionProcess:
     ) -> None:
         """Start the KimiCLI subprocess."""
         async with self._lock:
-            if self.is_alive:
-                if self._read_task is None or self._read_task.done():
-                    self._read_task = asyncio.create_task(self._read_loop())
-                return
-
-            self._in_flight_prompt_ids.clear()
-            self._expecting_exit = False
-            self._worker_id = str(uuid4())
-
-            # 16MB buffer for large messages (e.g., base64-encoded images)
-            STREAM_LIMIT = 16 * 1024 * 1024
-
-            if getattr(sys, "frozen", False):
-                worker_cmd = [sys.executable, "__web-worker", str(self.session_id)]
-            else:
-                worker_cmd = [
-                    sys.executable,
-                    "-m",
-                    "cran_code.web.runner.worker",
-                    str(self.session_id),
-                ]
-
-            self._process = await asyncio.create_subprocess_exec(
-                *worker_cmd,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                limit=STREAM_LIMIT,
-                env=get_clean_env(),
+            await self._start_locked(
+                reason=reason, detail=detail, restart_started_at=restart_started_at
             )
 
-            self._read_task = asyncio.create_task(self._read_loop())
-            if restart_started_at is not None:
-                elapsed_ms = int((time.perf_counter() - restart_started_at) * 1000)
-                detail = f"restart_ms={elapsed_ms}"
-                await self._emit_status("idle", reason=reason or "start", detail=detail)
-                await self._emit_restart_notice(reason=reason, restart_ms=elapsed_ms)
-            else:
-                await self._emit_status("idle", reason=reason or "start", detail=None)
+    async def _start_locked(
+        self,
+        *,
+        reason: str | None = None,
+        detail: str | None = None,
+        restart_started_at: float | None = None,
+    ) -> None:
+        """Start the worker subprocess. Caller must hold ``self._lock``."""
+        if self.is_alive:
+            if self._read_task is None or self._read_task.done():
+                self._read_task = asyncio.create_task(self._read_loop())
+            return
+
+        self._in_flight_prompt_ids.clear()
+        self._expecting_exit = False
+        self._worker_id = str(uuid4())
+
+        # 16MB buffer for large messages (e.g., base64-encoded images)
+        STREAM_LIMIT = 16 * 1024 * 1024
+
+        if getattr(sys, "frozen", False):
+            worker_cmd = [sys.executable, "__web-worker", str(self.session_id)]
+        else:
+            worker_cmd = [
+                sys.executable,
+                "-m",
+                "cran_code.web.runner.worker",
+                str(self.session_id),
+            ]
+
+        self._process = await asyncio.create_subprocess_exec(
+            *worker_cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            limit=STREAM_LIMIT,
+            env=await self._build_worker_env(),
+        )
+
+        self._read_task = asyncio.create_task(self._read_loop())
+
+        # Replay the client's cached initialize message so the fresh wire
+        # server restores client capabilities (supports_question,
+        # supports_plan_mode), client info, external tools and hooks.
+        self._replayed_initialize_message = None
+        if self._cached_initialize_message is not None:
+            assert self._process.stdin is not None
+            self._process.stdin.write(
+                (self._cached_initialize_message + "\n").encode("utf-8")
+            )
+            await self._process.stdin.drain()
+            self._replayed_initialize_message = self._cached_initialize_message
+
+        if restart_started_at is not None:
+            elapsed_ms = int((time.perf_counter() - restart_started_at) * 1000)
+            detail = f"restart_ms={elapsed_ms}"
+            await self._emit_status("idle", reason=reason or "start", detail=detail)
+            await self._emit_restart_notice(reason=reason, restart_ms=elapsed_ms)
+        else:
+            await self._emit_status("idle", reason=reason or "start", detail=None)
 
     async def stop(self) -> None:
         """Stop the session: terminate worker and close all WebSockets."""
@@ -259,35 +408,54 @@ class SessionProcess:
     ) -> None:
         """Stop only the worker subprocess, keeping WebSockets connected."""
         async with self._lock:
-            self._expecting_exit = True
-            if self._process is not None:
-                if self._process.returncode is None:
-                    self._process.terminate()
-                try:
-                    await asyncio.wait_for(self._process.wait(), timeout=10.0)
-                except TimeoutError:
-                    self._process.kill()
-                    await self._process.wait()
-                self._process = None
+            await self._stop_worker_locked(reason=reason, emit_status=emit_status)
 
-            if self._read_task is not None:
-                self._read_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await self._read_task
-                self._read_task = None
+    async def _stop_worker_locked(
+        self,
+        *,
+        reason: str | None = None,
+        emit_status: bool = True,
+    ) -> None:
+        """Stop the worker subprocess. Caller must hold ``self._lock``."""
+        self._expecting_exit = True
+        if self._process is not None:
+            if self._process.returncode is None:
+                self._process.terminate()
+            try:
+                await asyncio.wait_for(self._process.wait(), timeout=10.0)
+            except TimeoutError:
+                self._process.kill()
+                await self._process.wait()
+            self._process = None
 
-            self._in_flight_prompt_ids.clear()
-            self._worker_id = None
-            self._expecting_exit = False
-            if emit_status:
-                await self._emit_status("stopped", reason=reason or "stop")
+        if self._read_task is not None:
+            self._read_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._read_task
+            self._read_task = None
 
-    async def restart_worker(self, *, reason: str | None = None) -> None:
-        """Restart the worker subprocess without disconnecting WebSockets."""
-        started_at = time.perf_counter()
-        await self._emit_status("restarting", reason=reason or "restart")
-        await self.stop_worker(reason="restart", emit_status=False)
-        await self.start(reason=reason or "restart", restart_started_at=started_at)
+        self._in_flight_prompt_ids.clear()
+        self._worker_id = None
+        self._expecting_exit = False
+        if emit_status:
+            await self._emit_status("stopped", reason=reason or "stop")
+
+    async def restart_worker(self, *, reason: str | None = None, force: bool = False) -> bool:
+        """Restart the worker subprocess without disconnecting WebSockets.
+
+        Returns True when the worker was restarted, False when skipped because
+        the session is busy and ``force`` is not set. The busy check and the
+        stop/start sequence happen under the session lock so prompts cannot
+        interleave mid-restart.
+        """
+        async with self._lock:
+            if self.is_busy and not force:
+                return False
+            started_at = time.perf_counter()
+            await self._emit_status("restarting", reason=reason or "restart")
+            await self._stop_worker_locked(reason="restart", emit_status=False)
+            await self._start_locked(reason=reason or "restart", restart_started_at=started_at)
+            return True
 
     async def _emit_restart_notice(self, *, reason: str | None, restart_ms: int) -> None:
         """Emit a restart notice to all WebSockets."""
@@ -402,6 +570,10 @@ class SessionProcess:
                             wire_msg = deserialize_wire_message(msg["params"])
                             msg["params"] = wire_msg
                             await self._handle_out_message(JSONRPCEventMessage.model_validate(msg))
+                            # Usage metering for direct-injected personal keys
+                            # (team/shared usage is recorded by the key proxy).
+                            if isinstance(wire_msg, StatusUpdate) and wire_msg.token_usage is not None:
+                                await self._record_wire_usage(wire_msg.token_usage)
                             # Compaction tracking
                             if isinstance(wire_msg, CompactionBegin):
                                 self._in_compaction = True
@@ -482,6 +654,34 @@ class SessionProcess:
             logger.warning(f"Unexpected error in read loop: {e.__class__.__name__} {e}")
             self._in_flight_prompt_ids.clear()
             await self._emit_status("error", reason="read_loop_error", detail=str(e))
+
+    async def _record_wire_usage(self, token_usage: TokenUsage) -> None:
+        """Record one StatusUpdate token_usage event as a UsageRecord.
+
+        Only personal keys are metered here: team/shared traffic goes through
+        the key proxy, which records usage itself (recording both would
+        double-count).
+        """
+        info = self._key_info
+        if info is None or info.source != "personal":
+            return
+        try:
+            from cran_code.web.api_v2.keyproxy import record_usage
+
+            await record_usage(
+                user_id=info.owner_id,
+                provider_key=info.provider_key,
+                model=info.model,
+                source=info.source,
+                input_tokens=(
+                    int(token_usage.input_other)
+                    + int(token_usage.input_cache_read)
+                    + int(token_usage.input_cache_creation)
+                ),
+                output_tokens=int(token_usage.output),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to meter wire usage: {e}")
 
     async def _handle_out_message(self, message: JSONRPCOutMessage) -> None:
         """Handle outbound message from worker."""
@@ -567,7 +767,9 @@ class SessionProcess:
         config = load_config()
         capabilities: set[ModelCapability] = set()
         if config.default_model:
-            capabilities = config.models[config.default_model].capabilities or set()
+            default = config.models.get(config.default_model)
+            if default is not None:
+                capabilities = default.capabilities or set()
         is_vision = "image_in" in capabilities
         is_video_in = "video_in" in capabilities
 
@@ -583,14 +785,23 @@ class SessionProcess:
                         pil_img: PILImage = img
                         width, height = pil_img.size
                         max_side = max(width, height)
-                        if max_side > 4096:
-                            scale = 4096 / max_side
+                        # Downscale large images (API limit + prompt bloat) but
+                        # preserve the source format: re-encoding a JPEG photo
+                        # as PNG inflates it several-fold.
+                        if max_side > 2000:
+                            scale = 2000 / max_side
                             new_size = (int(width * scale), int(height * scale))
                             pil_img = pil_img.resize(  # pyright: ignore[reportUnknownMemberType]
                                 new_size
                             )
+                        save_format = "JPEG" if pil_img.format == "JPEG" else "PNG"
+                        if save_format == "JPEG" and pil_img.mode not in ("RGB", "L"):
+                            pil_img = pil_img.convert("RGB")
                         buffer = io.BytesIO()
-                        pil_img.save(buffer, format="PNG")
+                        if save_format == "JPEG":
+                            pil_img.save(buffer, format="JPEG", quality=85)
+                        else:
+                            pil_img.save(buffer, format="PNG", optimize=True)
                         encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
                         tag = f'<image path="{file_path}" content_type="{mime_type}">'
                         yield TextPart(text=tag)
@@ -598,6 +809,7 @@ class SessionProcess:
                             image_url=ImageURLPart.ImageURL(url=f"data:image/png;base64,{encoded}")
                         )
                         yield TextPart(text="</image>\n\n")
+                        self._sent_files.add(file.name)
                 except Exception:
                     # Skip files that fail to encode - don't block the upload
                     pass
@@ -607,6 +819,7 @@ class SessionProcess:
                 # properly.
                 yield TextPart(text=f'<video path="{file_path}" content_type="{mime_type}">')
                 yield TextPart(text="</video>\n\n")
+                self._sent_files.add(file.name)
             elif ext in text_extensions or mime_type.startswith("text/"):
                 try:
                     content = file.read_bytes()
@@ -614,13 +827,12 @@ class SessionProcess:
                     yield TextPart(text=f'<document path="{file_path}" content_type="{mime_type}">')
                     yield TextPart(text=text_content)
                     yield TextPart(text="</document>\n\n")
+                    self._sent_files.add(file.name)
                 except Exception:
                     # Skip files that fail to decode - don't block the upload
                     pass
-
-        # Mark files as sent
-        for file in files:
-            self._sent_files.add(file.name)
+        # Note: files that produced no parts are intentionally NOT marked as
+        # sent so a failed upload is retried on the next prompt.
 
     async def _handle_in_message(self, message: JSONRPCInMessage) -> str | None:
         """Handle inbound message to worker, encoding uploaded files."""
@@ -666,7 +878,7 @@ class SessionProcess:
 
         for ws in to_send:
             try:
-                if ws.client_state == WebSocketState.CONNECTED:
+                if ws.application_state == WebSocketState.CONNECTED:
                     await ws.send_text(message)
                 else:
                     disconnected.add(ws)
@@ -707,7 +919,7 @@ class SessionProcess:
                 chunk = buffer.copy()
                 buffer.clear()
 
-            if ws.client_state != WebSocketState.CONNECTED:
+            if ws.application_state != WebSocketState.CONNECTED:
                 logger.warning("end_replay: ws not connected, cleaning up replay buffer")
                 async with self._ws_lock:
                     self._replay_buffers.pop(ws, None)
@@ -735,7 +947,7 @@ class SessionProcess:
 
         for ws in websockets:
             try:
-                if ws.client_state == WebSocketState.CONNECTED:
+                if ws.application_state == WebSocketState.CONNECTED:
                     await ws.close(code=1001, reason="Session process exited")
             except Exception:
                 # Ignore errors closing already-disconnected WebSockets
@@ -750,18 +962,97 @@ class SessionProcess:
                 logger.debug(f"WebSocket removed, count={self._websocket_count}")
             self._replay_buffers.pop(ws, None)
 
-    async def send_message(self, message: str) -> None:
-        """Send a message to the subprocess stdin."""
-        await self.start()
-        process = self._process
-        assert process is not None
-        assert process.stdin is not None
+    async def _prompt_gate_error(self) -> str | None:
+        """Return an error message when the session owner cannot prompt now.
 
-        # Handle in message
+        Gates on key availability and shared-key quota so users get immediate,
+        actionable feedback instead of an opaque provider failure deep inside
+        the worker.
+        """
+        try:
+            info = await self._resolve_session_key()
+        except Exception as e:
+            logger.warning(f"Prompt gate resolution failed: {e}")
+            return None
+        if info is None:
+            return None  # legacy/local session: no gating
+        if not info.api_key:
+            if info.provider_type == "kimi" and not info.has_global_key:
+                # Managed/OAuth kimi providers authenticate out of band.
+                return None
+            if info.has_global_key:
+                return (
+                    f"You do not have access to the shared key for provider "
+                    f"'{info.provider_key}'. Ask an administrator for a grant, "
+                    f"or configure your own key under Settings → Providers."
+                )
+            return (
+                f"No API key configured for provider '{info.provider_key}'. "
+                f"Add your own key under Settings → Providers, or ask an "
+                f"administrator to share one."
+            )
+        if info.source == "shared":
+            from cran_code.web.api_v2.keyproxy import _user_team_ids
+            from cran_code.web.db.keys import remaining_quota
+
+            team_ids = await _user_team_ids(info.owner_id)
+            remaining = await remaining_quota(info.owner_id, info.provider_key, team_ids)
+            if remaining is not None and remaining <= 0:
+                return (
+                    f"Your shared-key quota for provider '{info.provider_key}' is "
+                    f"exhausted. Ask an administrator for more quota, or configure "
+                    f"your own key under Settings → Providers."
+                )
+        return None
+
+    async def send_message(self, message: str) -> None:
+        """Send a message to the subprocess stdin.
+
+        The session lock is held across (re)start and the stdin write so a
+        concurrent ``restart_worker`` cannot terminate the process between
+        the liveness check and the write.
+        """
+        # Validate before (re)start so that a fresh worker can replay the
+        # client's cached initialize message.
         try:
             in_message = JSONRPCInMessageAdapter.validate_json(message)
+        except ValueError as e:
+            logger.error(f"{e.__class__.__name__} {e}: Invalid JSONRPC in message: {message}")
+            return
+
+        async with self._lock:
+            if isinstance(in_message, JSONRPCInitializeMessage):
+                # Cache the latest initialize so it survives worker restarts.
+                self._cached_initialize_message = message
+
             if isinstance(in_message, JSONRPCPromptMessage):
-                was_busy = self.is_busy
+                # Key/quota gate: answer immediately with an actionable error
+                # instead of spawning a worker doomed to fail.
+                gate_error = await self._prompt_gate_error()
+                if gate_error is not None:
+                    await self._broadcast(
+                        JSONRPCErrorResponse(
+                            id=in_message.id,
+                            error=JSONRPCErrorObject(code=-2, message=gate_error),
+                        ).model_dump_json()
+                    )
+                    return
+
+            await self._start_locked()
+            process = self._process
+            assert process is not None
+            assert process.stdin is not None
+
+            if (
+                isinstance(in_message, JSONRPCInitializeMessage)
+                and message == self._replayed_initialize_message
+            ):
+                # start() already replayed this exact initialize to the fresh worker.
+                return
+
+            # Handle in message
+            was_busy = self.is_busy
+            if isinstance(in_message, JSONRPCPromptMessage):
                 self._in_flight_prompt_ids.add(in_message.id)
                 if not was_busy:
                     await self._emit_status("busy", reason="prompt")
@@ -775,12 +1066,30 @@ class SessionProcess:
             new_message = await self._handle_in_message(in_message)
             if new_message is not None:
                 message = new_message
-        except ValueError as e:
-            logger.error(f"{e.__class__.__name__} {e}: Invalid JSONRPC in message: {message}")
-            return
 
-        process.stdin.write((message + "\n").encode("utf-8"))
-        await process.stdin.drain()
+            try:
+                process.stdin.write((message + "\n").encode("utf-8"))
+                await process.stdin.drain()
+            except (BrokenPipeError, ConnectionResetError) as e:
+                # Worker died between the liveness check and the write.
+                # Roll back bookkeeping and tell the client (with the
+                # message's own id) so it can retry instead of hanging.
+                logger.warning(f"Worker write failed, rolling back: {e}")
+                if isinstance(in_message, JSONRPCPromptMessage):
+                    self._in_flight_prompt_ids.discard(in_message.id)
+                    if was_busy and not self.is_busy:
+                        await self._emit_status("idle", reason="prompt_error")
+                msg_id = getattr(in_message, "id", None) or str(uuid4())
+                await self._broadcast(
+                    JSONRPCErrorResponse(
+                        id=msg_id,
+                        error=JSONRPCErrorObject(
+                            code=-1,
+                            message="Session worker is unavailable; please retry.",
+                        ),
+                    ).model_dump_json()
+                )
+                return
 
 
 class KimiCLIRunner:
@@ -846,17 +1155,20 @@ class KimiCLIRunner:
 
         restarted: list[UUID] = []
         skipped_busy: list[UUID] = []
-        tasks: list[asyncio.Task[None]] = []
 
-        for session_id, proc in running:
-            if proc.is_busy and not force:
+        # restart_worker performs the busy check under the session lock, so a
+        # prompt cannot slip in between the check and the restart.
+        results = await asyncio.gather(
+            *(proc.restart_worker(reason=reason, force=force) for _, proc in running),
+            return_exceptions=True,
+        )
+        for (session_id, _), result in zip(running, results, strict=True):
+            if result is True:
+                restarted.append(session_id)
+            elif result is False:
                 skipped_busy.append(session_id)
-                continue
-            restarted.append(session_id)
-            tasks.append(asyncio.create_task(proc.restart_worker(reason=reason)))
-
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            else:
+                logger.warning(f"Failed to restart worker for session {session_id}: {result}")
 
         return RestartWorkersSummary(
             restarted_session_ids=restarted,

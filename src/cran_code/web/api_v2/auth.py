@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+import time
+
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -11,6 +13,41 @@ from cran_code.web.auth_v2 import create_access_token, hash_password, verify_pas
 from cran_code.web.db import AsyncSessionLocal, User
 
 router = APIRouter(prefix="/api/v2/auth", tags=["auth"])
+
+# Sliding-window rate limit for credential endpoints (in-memory, per client IP).
+_RATE_LIMIT_ATTEMPTS = 10
+_RATE_LIMIT_WINDOW_SECONDS = 60.0
+_rate_limit_buckets: dict[str, list[float]] = {}
+
+
+def _client_ip(request: Request) -> str:
+    """Resolve the client IP, honoring the first X-Forwarded-For hop (Nginx)."""
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        first_hop = forwarded_for.split(",")[0].strip()
+        if first_hop:
+            return first_hop
+    return request.client.host if request.client else "unknown"
+
+
+def _check_rate_limit(request: Request) -> None:
+    """Enforce max 10 attempts per minute per client IP (sliding window).
+
+    Single-process asyncio server: a plain dict of timestamps is sufficient.
+    """
+    now = time.monotonic()
+    ip = _client_ip(request)
+    attempts = [
+        ts for ts in _rate_limit_buckets.get(ip, []) if now - ts < _RATE_LIMIT_WINDOW_SECONDS
+    ]
+    if len(attempts) >= _RATE_LIMIT_ATTEMPTS:
+        _rate_limit_buckets[ip] = attempts
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many attempts. Please try again later.",
+        )
+    attempts.append(now)
+    _rate_limit_buckets[ip] = attempts
 
 
 class RegisterRequest(BaseModel):
@@ -45,7 +82,8 @@ class TokenResponse(BaseModel):
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(req: RegisterRequest) -> TokenResponse:
+async def register(req: RegisterRequest, request: Request) -> TokenResponse:
+    _check_rate_limit(request)
     async with AsyncSessionLocal() as session:
         # Check if email or username already exists
         existing = await session.execute(
@@ -90,7 +128,8 @@ async def register(req: RegisterRequest) -> TokenResponse:
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(req: LoginRequest) -> TokenResponse:
+async def login(req: LoginRequest, request: Request) -> TokenResponse:
+    _check_rate_limit(request)
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.email == req.email))
         user = result.scalar_one_or_none()

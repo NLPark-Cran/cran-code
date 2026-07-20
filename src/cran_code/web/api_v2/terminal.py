@@ -38,7 +38,7 @@ async def terminal_websocket(
             async with AsyncSessionLocal() as session:
                 result = await session.execute(select(User).where(User.id == payload.sub))
                 user = result.scalar_one_or_none()
-                if user:
+                if user is not None and user.is_active:
                     current_user = JWTUser(
                         id=user.id,
                         email=user.email,

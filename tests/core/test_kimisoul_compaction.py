@@ -156,3 +156,49 @@ async def test_compact_context_raises_when_summary_exceeds_safe_target(
 
     # Original context must be preserved on failure.
     assert len(soul.context.history) == 4
+
+
+@pytest.mark.asyncio
+async def test_compact_context_falls_back_when_main_pass_not_reducing(
+    runtime: Runtime, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the main pass fails the 85% reduction check, the preserve-nothing
+    fallback must be attempted before raising."""
+    soul = _make_soul(runtime, tmp_path)
+    # ~65k tokens total: two ~22.5k-token old messages plus a ~20k-token tail
+    # that fits (partially) within the preserved budget.
+    for msg in [
+        Message(role="user", content=[TextPart(text="o " * 45_000)]),
+        Message(role="assistant", content=[TextPart(text="o " * 45_000)]),
+        Message(role="user", content=[TextPart(text="t" * 40_000)]),
+        Message(role="assistant", content=[TextPart(text="t" * 40_000)]),
+    ]:
+        await soul.context.append_message(msg)
+    await soul.context.update_token_count(soul.context.token_count_with_pending)
+
+    step_calls = 0
+
+    async def fake_kosong_step(chat_provider, system_prompt, toolset, history, **kwargs):
+        nonlocal step_calls
+        step_calls += 1
+        # ~48k-token summary: main pass (summary + ~10k preserved tail) fails
+        # the 85% check, but the preserve-zero fallback gets under it.
+        return StepResult(
+            id="cmp",
+            message=Message(role="assistant", content=[TextPart(text="s " * 96_000)]),
+            usage=None,
+            tool_calls=[],
+            _tool_result_futures={},
+        )
+
+    monkeypatch.setattr(compaction_module.kosong, "step", fake_kosong_step)
+    monkeypatch.setattr(kimisoul_module, "wire_send", lambda _msg: None)
+    monkeypatch.setattr(soul, "_notify_injection_providers_compacted", _noop)
+
+    before = soul.context.token_count
+    await soul.compact_context()
+
+    # Main attempt + preserve-zero fallback.
+    assert step_calls == 2
+    assert soul.context.token_count < before * 0.85
+    assert soul.context.token_count <= 50_000

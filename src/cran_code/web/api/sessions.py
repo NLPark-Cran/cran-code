@@ -154,6 +154,21 @@ def can_access_session(
     return False
 
 
+async def get_user_team_ids(user: CurrentUser | None) -> set[str]:
+    """Fetch the set of team IDs a user belongs to (empty set for anonymous)."""
+    if user is None or user.id == "v1_anonymous":
+        return set()
+    from sqlalchemy import select
+
+    from cran_code.web.db import AsyncSessionLocal, TeamMember
+
+    async with AsyncSessionLocal() as db_session:
+        result = await db_session.execute(
+            select(TeamMember.team_id).where(TeamMember.user_id == user.id)
+        )
+        return {row[0] for row in result.all()}
+
+
 def get_session_or_404(session_id: UUID) -> JointSession:
     """Load a session by ID or raise 404."""
     session = load_session_by_id(session_id)
@@ -337,16 +352,7 @@ async def list_sessions(
     sessions = load_sessions_page(limit=limit, offset=offset, query=q, archived=archived)
 
     # Batch-fetch user's team memberships to avoid N+1 queries
-    user_team_ids: set[str] = set()
-    if current_user is not None and current_user.id != "v1_anonymous":
-        from cran_code.web.db import AsyncSessionLocal, TeamMember
-        from sqlalchemy import select
-
-        async with AsyncSessionLocal() as db_session:
-            result = await db_session.execute(
-                select(TeamMember.team_id).where(TeamMember.user_id == current_user.id)
-            )
-            user_team_ids = {row[0] for row in result.all()}
+    user_team_ids = await get_user_team_ids(current_user)
 
     filtered: list[JointSession] = []
     for session in sessions:
@@ -367,7 +373,9 @@ async def get_session(
 ) -> Session | None:
     """Get a session by ID."""
     session = get_session_or_404(session_id)
-    if not can_access_session(session.cran_code_session.state, current_user):
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: you do not have permission to view this session",
@@ -500,7 +508,9 @@ async def upload_session_file(
 ) -> UploadSessionFileResponse:
     """Upload a file to a session."""
     session = get_session_or_404(session_id)
-    if not can_access_session(session.cran_code_session.state, current_user):
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied",
@@ -546,7 +556,9 @@ async def get_session_upload_file(
 ) -> Response:
     """Get a file from a session's uploads directory."""
     session = get_session_or_404(session_id)
-    if not can_access_session(session.cran_code_session.state, current_user):
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied",
@@ -595,7 +607,9 @@ async def get_session_file(
 ) -> Response:
     """Get a file or list directory from session work directory."""
     session = get_session_or_404(session_id)
-    if not can_access_session(session.cran_code_session.state, current_user):
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied",
@@ -694,7 +708,9 @@ async def delete_session(
 ) -> None:
     """Delete a session."""
     session = get_session_or_404(session_id)
-    if not can_access_session(session.cran_code_session.state, current_user):
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied",
@@ -734,7 +750,9 @@ async def update_session(
     from cran_code.session_state import load_session_state, save_session_state
 
     session = get_session_or_404(session_id)
-    if not can_access_session(session.cran_code_session.state, current_user):
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied",
@@ -862,7 +880,9 @@ async def fork_session_endpoint(
     from cran_code.session_fork import fork_session as do_fork
 
     source_session = get_session_or_404(session_id)
-    if not can_access_session(source_session.cran_code_session.state, current_user):
+    if not can_access_session(
+        source_session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied",
@@ -944,7 +964,9 @@ async def generate_session_title(
     automatically read the first turn from wire.jsonl.
     """
     session = get_editable_session(session_id, runner)
-    if not can_access_session(session.cran_code_session.state, current_user):
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     session_dir = session.cran_code_session.dir
 
@@ -1147,7 +1169,9 @@ async def session_stream(
     if session is None:
         await websocket.close(code=4004, reason="Session not found")
         return
-    if not can_access_session(session.cran_code_session.state, current_user):
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
         await websocket.close(code=4403, reason="Access denied: you do not have permission to access this session")
         return
 
@@ -1356,7 +1380,9 @@ async def get_session_git_diff(
 ) -> GitDiffStats:
     """get git diff stats for the session's work directory"""
     session = get_session_or_404(session_id)
-    if not can_access_session(session.cran_code_session.state, current_user):
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied",

@@ -1226,7 +1226,7 @@ class KimiSoul:
         @tenacity.retry(
             retry=retry_if_exception(self._is_retryable_error),
             before_sleep=_before_step_retry_sleep,
-            wait=wait_exponential_jitter(initial=0.3, max=5, jitter=0.5),
+            wait=wait_exponential_jitter(initial=0.5, max=32, jitter=2),
             stop=stop_after_attempt(max_attempts),
             reraise=True,
         )
@@ -1458,8 +1458,10 @@ class KimiSoul:
         fallback_compaction: SimpleCompaction | None = None
         if isinstance(self._compaction, SimpleCompaction):
             main_compaction = self._compaction
-            if preserved_budget is not None:
-                main_compaction.max_preserved_tokens = preserved_budget
+            # Apply the computed budget, resetting it to None when disabled
+            # (safe_target == 0) so a stale budget from a previous model
+            # context is not applied.
+            main_compaction.max_preserved_tokens = preserved_budget
             # A token budget of zero forces SimpleCompaction to summarize the entire
             # history and preserve none of the original messages.
             fallback_compaction = SimpleCompaction(
@@ -1619,36 +1621,27 @@ class KimiSoul:
             raise
         from cran_code.telemetry import track
 
-        # Safety check: compaction must actually reduce the context size. If the
-        # compacted estimate is not significantly smaller than the original, the
-        # compaction output is likely unusable (e.g. model echoed input or the
-        # preserved tail is already huge). Refuse to replace the live context.
         estimated_token_count = compaction_result.estimated_token_count
-        if before_tokens > 0 and estimated_token_count >= before_tokens * 0.85:
-            track(
-                "compaction_failed",
-                source="auto" if trigger_reason == "auto" else "manual",
-                tokens_before=before_tokens,
-                duration_ms=int((time.monotonic() - start_time) * 1000),
-                round=1,
-                retry_count=retry_count,
-                thinking_effort=(llm.chat_provider.thinking_effort or "unknown"),
-                error_type="CompactionNotReducing",
-            )
-            raise ChatProviderError(
-                f"Compaction did not reduce context size "
-                f"(before: {before_tokens}, after: {estimated_token_count}). "
-                f"The original context has been preserved."
-            )
 
-        # Extra safety: the compacted context must fit comfortably within the
-        # model's context window. If the preserved tail is still too large,
-        # fall back to summarizing everything (including the recent messages).
-        if safe_target > 0 and fallback_compaction is not None and estimated_token_count > safe_target:
+        def _is_not_reducing(estimate: int) -> bool:
+            """Whether the compacted estimate failed to shrink the context."""
+            return before_tokens > 0 and estimate >= before_tokens * 0.85
+
+        # Safety checks: compaction must actually reduce the context size, and
+        # the compacted context must fit comfortably within the model's
+        # context window. If either check fails on the main pass, fall back to
+        # summarizing everything (including the recent messages) before giving
+        # up; only raise if the fallback also fails the checks.
+        main_pass_failed = _is_not_reducing(estimated_token_count) or (
+            safe_target > 0 and estimated_token_count > safe_target
+        )
+        if main_pass_failed and fallback_compaction is not None:
             logger.warning(
-                "Compacted context ({after}) still exceeds safe target ({target}); "
+                "Compacted context ({after}) failed the post-compaction checks "
+                "(before: {before}, target: {target}); "
                 "recompacting without preserved tail",
                 after=estimated_token_count,
+                before=before_tokens,
                 target=safe_target,
             )
             try:
@@ -1671,6 +1664,26 @@ class KimiSoul:
             if fallback_estimate < estimated_token_count:
                 compaction_result = fallback_result
                 estimated_token_count = fallback_estimate
+
+        # If the compacted estimate is still not significantly smaller than the
+        # original, the compaction output is likely unusable (e.g. model echoed
+        # input). Refuse to replace the live context.
+        if _is_not_reducing(estimated_token_count):
+            track(
+                "compaction_failed",
+                source="auto" if trigger_reason == "auto" else "manual",
+                tokens_before=before_tokens,
+                duration_ms=int((time.monotonic() - start_time) * 1000),
+                round=1,
+                retry_count=retry_count,
+                thinking_effort=(llm.chat_provider.thinking_effort or "unknown"),
+                error_type="CompactionNotReducing",
+            )
+            raise ChatProviderError(
+                f"Compaction did not reduce context size "
+                f"(before: {before_tokens}, after: {estimated_token_count}). "
+                f"The original context has been preserved."
+            )
 
         if safe_target > 0 and estimated_token_count > safe_target:
             track(
@@ -1723,6 +1736,18 @@ class KimiSoul:
         await self._notify_injection_providers_compacted()
 
         wire_send(CompactionEnd())
+
+        # The context shrank: push a fresh status snapshot so connected clients
+        # reset their context-usage meter immediately instead of showing the
+        # stale pre-compaction peak until the next step's StatusUpdate.
+        snap = self.status
+        wire_send(
+            StatusUpdate(
+                context_usage=snap.context_usage,
+                context_tokens=snap.context_tokens,
+                max_context_tokens=snap.max_context_tokens,
+            )
+        )
 
         from cran_code.telemetry import track
 

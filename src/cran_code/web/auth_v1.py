@@ -39,6 +39,13 @@ def extract_token(req_or_ws: Request | WebSocket) -> str | None:
 async def resolve_user(token: str | None, app) -> CurrentUser | None:
     """Resolve a token into a CurrentUser."""
     if not token:
+        # H5: local single-user mode (no session token, sensitive APIs not
+        # restricted) has no credential at all — treat the caller as a trusted
+        # local user so ownership/team features keep working offline.
+        expected = getattr(app.state, "session_token", None)
+        restrict = getattr(app.state, "restrict_sensitive_apis", False)
+        if expected is None and not restrict:
+            return CurrentUser(id="local", username="local")
         return None
     # v1 session token (anonymous)
     expected = getattr(app.state, "session_token", None)
@@ -57,6 +64,10 @@ async def resolve_user(token: str | None, app) -> CurrentUser | None:
                     result = await session.execute(select(User).where(User.id == payload.sub))
                     user = result.scalar_one_or_none()
                     if user:
+                        # M10: deactivated users must not resolve, even with a
+                        # still-valid JWT.
+                        if not user.is_active:
+                            return None
                         return CurrentUser(
                             id=user.id,
                             username=user.username,

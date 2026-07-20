@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import tomlkit
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
+from tomlkit.exceptions import TOMLKitError
 
 from cran_code import logger
 from cran_code.config import LLMModel, get_config_file, load_config, save_config
@@ -58,6 +60,9 @@ class ConfigToml(BaseModel):
 
     content: str = Field(description="Raw TOML content")
     path: str = Field(description="Path to config file")
+    redacted: bool = Field(
+        default=False, description="Whether provider API keys were redacted"
+    )
 
 
 class UpdateConfigTomlRequest(BaseModel):
@@ -71,6 +76,12 @@ class UpdateConfigTomlResponse(BaseModel):
 
     success: bool = Field(description="Whether the update was successful")
     error: str | None = Field(default=None, description="Error message if failed")
+    restarted_session_ids: list[str] | None = Field(
+        default=None, description="IDs of restarted sessions"
+    )
+    skipped_busy_session_ids: list[str] | None = Field(
+        default=None, description="IDs of busy sessions that were skipped"
+    )
 
 
 def _build_global_config() -> GlobalConfig:
@@ -119,6 +130,64 @@ def _ensure_sensitive_apis_allowed(request: Request) -> None:
         )
 
 
+def _redact_toml_api_keys(content: str) -> str:
+    """Redact every ``api_key`` value under any ``[providers.*]`` table."""
+    try:
+        doc = tomlkit.loads(content)
+    except TOMLKitError:
+        # Unparseable content is returned as-is; the PUT endpoint validates
+        # TOML separately, so this only affects hand-edited broken files.
+        return content
+    providers = doc.get("providers")
+    if isinstance(providers, dict):
+        for provider in providers.values():
+            if isinstance(provider, dict) and "api_key" in provider:
+                provider["api_key"] = "***redacted***"
+    return tomlkit.dumps(doc)
+
+
+async def _has_v2_user(request: Request) -> bool:
+    """Return True if the request carries a valid v2 user JWT.
+
+    Used to let authenticated v2 users perform model switching even on
+    public deployments where anonymous/v1-token callers are blocked.
+    """
+    auth = request.headers.get("authorization", "")
+    scheme, _, token = auth.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        return False
+    try:
+        from cran_code.web.auth_v2.jwt import get_current_user
+
+        user = await get_current_user(token.strip())
+    except Exception:
+        return False
+    return user is not None
+
+
+async def _has_v2_admin(request: Request) -> bool:
+    """Return True if the request carries a valid v2 admin JWT.
+
+    Used to let v2 administrators read/write the raw config.toml even on
+    public deployments where sensitive APIs are otherwise blocked.
+    """
+    auth = request.headers.get("authorization", "")
+    scheme, _, token = auth.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        return False
+    try:
+        from cran_code.web.auth_v2.jwt import get_current_user
+
+        user = await get_current_user(token.strip())
+    except Exception:
+        return False
+    if user is None:
+        return False
+    from cran_code.web.db.models import UserRole
+
+    return bool(getattr(user, "role", None) == UserRole.admin)
+
+
 @router.get("/", summary="Get global (cran-code) config snapshot")
 async def get_global_config() -> GlobalConfig:
     """Get global (cran-code) config snapshot."""
@@ -132,7 +201,10 @@ async def update_global_config(
     runner: KimiCLIRunner = Depends(_get_runner),
 ) -> UpdateGlobalConfigResponse:
     """Update global (cran-code) default model/thinking."""
-    _ensure_sensitive_apis_allowed(http_request)
+    # Public deployments block this endpoint for anonymous/v1-token callers,
+    # but a valid v2 user JWT is allowed through (model switching).
+    if not await _has_v2_user(http_request):
+        _ensure_sensitive_apis_allowed(http_request)
     config = load_config()
 
     # Validate and update default_model
@@ -176,23 +248,31 @@ async def update_global_config(
 
 @router.get("/toml", summary="Get cran-code config.toml")
 async def get_config_toml(http_request: Request) -> ConfigToml:
-    """Get cran-code config.toml."""
-    _ensure_sensitive_apis_allowed(http_request)
+    """Get cran-code config.toml (provider API keys redacted)."""
+    if not await _has_v2_admin(http_request):
+        _ensure_sensitive_apis_allowed(http_request)
     config_file = get_config_file()
     if not config_file.exists():
         return ConfigToml(content="", path=str(config_file))
-    return ConfigToml(content=config_file.read_text(encoding="utf-8"), path=str(config_file))
+    content = config_file.read_text(encoding="utf-8")
+    return ConfigToml(
+        content=_redact_toml_api_keys(content),
+        path=str(config_file),
+        redacted=True,
+    )
 
 
 @router.put("/toml", summary="Update cran-code config.toml")
 async def update_config_toml(
     request: UpdateConfigTomlRequest,
     http_request: Request,
+    runner: KimiCLIRunner = Depends(_get_runner),
 ) -> UpdateConfigTomlResponse:
     """Update cran-code config.toml."""
     from cran_code.config import load_config_from_string
 
-    _ensure_sensitive_apis_allowed(http_request)
+    if not await _has_v2_admin(http_request):
+        _ensure_sensitive_apis_allowed(http_request)
     try:
         # Validate the config first
         load_config_from_string(request.content)
@@ -201,8 +281,19 @@ async def update_config_toml(
         config_file = get_config_file()
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text(request.content, encoding="utf-8")
-
-        return UpdateConfigTomlResponse(success=True)
     except Exception as e:
         logger.warning(f"Failed to update config.toml: {e}")
         return UpdateConfigTomlResponse(success=False, error=str(e))
+
+    # Restart running workers to apply config changes
+    restarted: list[str] = []
+    skipped_busy: list[str] = []
+    summary = await runner.restart_running_workers(reason="config_update", force=False)
+    restarted = [str(sid) for sid in summary.restarted_session_ids]
+    skipped_busy = [str(sid) for sid in summary.skipped_busy_session_ids]
+
+    return UpdateConfigTomlResponse(
+        success=True,
+        restarted_session_ids=restarted if restarted else None,
+        skipped_busy_session_ids=skipped_busy if skipped_busy else None,
+    )

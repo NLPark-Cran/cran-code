@@ -12,6 +12,7 @@ from cran_code.llm import (
     clone_llm_with_model_alias,
     compute_max_completion_tokens,
     create_llm,
+    derive_model_capabilities,
 )
 
 
@@ -667,3 +668,36 @@ def test_clone_llm_with_model_alias_preserves_kimi_thinking_off():
     assert cloned.chat_provider.thinking_effort == "off"
     assert cloned.chat_provider.model_parameters["extra_body"] == {"thinking": {"type": "disabled"}}
     assert "reasoning_effort" not in cloned.chat_provider.model_parameters
+
+
+def test_derive_model_capabilities_k3_supports_media_and_toggleable_thinking():
+    model = LLMModel(provider="kimi", model="k3", max_context_size=1048576)
+    capabilities = derive_model_capabilities(model)
+    assert capabilities == {"thinking", "image_in", "video_in"}
+    # k3 thinking is toggleable (low/high/max effort), never forced on.
+    assert "always_thinking" not in capabilities
+
+
+def test_derive_model_capabilities_highspeed_always_thinks_and_supports_media():
+    model = LLMModel(provider="kimi", model="kimi-for-coding-highspeed", max_context_size=262144)
+    capabilities = derive_model_capabilities(model)
+    assert capabilities == {"thinking", "always_thinking", "image_in", "video_in"}
+
+
+def test_create_llm_highspeed_thinking_cannot_be_toggled_off():
+    provider = LLMProvider(
+        type="kimi",
+        base_url="https://api.test/v1",
+        api_key=SecretStr("test-key"),
+    )
+    model = LLMModel(
+        provider="kimi",
+        model="kimi-for-coding-highspeed",
+        max_context_size=262144,
+        capabilities=None,
+    )
+    llm = create_llm(provider, model, thinking=False)
+    assert llm is not None
+    assert isinstance(llm.chat_provider, Kimi)
+    # always_thinking wins over the explicit thinking=False request.
+    assert llm.chat_provider.thinking_effort == "high"

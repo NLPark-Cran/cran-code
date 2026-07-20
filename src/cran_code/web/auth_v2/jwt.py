@@ -100,3 +100,41 @@ async def require_user(token: str | None = Depends(oauth2_scheme)) -> User:
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+async def require_admin(user: User = Depends(require_user)) -> User:
+    """Require a global administrator (User.role == admin)."""
+    from cran_code.web.db.models import UserRole
+
+    if user.role != UserRole.admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator role required",
+        )
+    return user
+
+
+async def ensure_admin_bootstrap() -> None:
+    """Promote the oldest user to admin when no admin exists.
+
+    Runs at web startup: guarantees the deployment is administrable while
+    keeping new registrations at the default ``user`` role.
+    """
+    from cran_code.web.db.models import UserRole
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(User).where(User.role == UserRole.admin).limit(1)
+        )
+        if result.scalar_one_or_none() is not None:
+            return
+        oldest = await session.execute(select(User).order_by(User.created_at).limit(1))
+        user = oldest.scalar_one_or_none()
+        if user is not None:
+            user.role = UserRole.admin
+            await session.commit()
+            import logging
+
+            logging.getLogger("cran_code.auth").info(
+                "Promoted user %s to admin (bootstrap: no admin existed)", user.username
+            )

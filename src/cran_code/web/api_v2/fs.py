@@ -6,7 +6,7 @@ import os
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
@@ -22,6 +22,31 @@ _PROJECT_ROOT = Path(
 
 
 _MAX_FILE_SIZE = int(os.environ.get("CRAN_MAX_FILE_SIZE", "10485760"))  # 10 MB
+
+# Sensitive path components that must never be readable/downloadable via the fs API.
+_SENSITIVE_COMPONENTS = frozenset({".env", ".git", ".ssh", ".aws"})
+_SENSITIVE_CONFIG_DIRS = frozenset({".cran", ".kimi", ".config"})
+_SENSITIVE_CONFIG_FILES = frozenset({"server.env", "config.toml"})
+
+
+def _is_sensitive_path(rel_path: Path) -> bool:
+    """Whether a path (relative to the project dir) touches sensitive files."""
+    parts = rel_path.parts
+    if any(part in _SENSITIVE_COMPONENTS for part in parts):
+        return True
+    # server.env / config.toml anywhere under a .cran/.kimi/.config directory.
+    return bool(parts) and parts[-1] in _SENSITIVE_CONFIG_FILES and any(
+        part in _SENSITIVE_CONFIG_DIRS for part in parts[:-1]
+    )
+
+
+def _ensure_not_sensitive(target: Path, work_dir: Path) -> None:
+    """Reject reads/downloads of sensitive files (env, git, ssh, credentials)."""
+    if _is_sensitive_path(target.relative_to(work_dir)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to sensitive paths is not allowed",
+        )
 
 
 class FsEntry(BaseModel):
@@ -130,6 +155,7 @@ async def read_fs(
 ) -> FsListResponse | FsReadResponse:
     work_dir = await _resolve_project_dir(project_id, current_user.id)
     target = _resolve_path(work_dir, path)
+    _ensure_not_sensitive(target, work_dir)
 
     if not target.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Path not found")
@@ -159,6 +185,11 @@ async def read_fs(
 
     # File
     try:
+        if target.stat().st_size > _MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File too large to read (max {_MAX_FILE_SIZE} bytes)",
+            )
         content = target.read_text(encoding="utf-8", errors="replace")
     except OSError as e:
         raise HTTPException(
@@ -266,6 +297,7 @@ async def download_fs(
 
     work_dir = await _resolve_project_dir(project_id, current_user.id)
     target = _resolve_path(work_dir, path)
+    _ensure_not_sensitive(target, work_dir)
 
     if not target.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")

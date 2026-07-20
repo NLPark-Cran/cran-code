@@ -476,7 +476,7 @@ def create_llm(
         thinking is True and "thinking" in capabilities
     )
     if thinking_on:
-        chat_provider = chat_provider.with_thinking("high")
+        chat_provider = chat_provider.with_thinking(_resolve_thinking_effort(model))
     elif thinking is False:
         chat_provider = chat_provider.with_thinking("off")
     # If thinking is None and model doesn't always think, leave as-is (default behavior)
@@ -499,6 +499,22 @@ def create_llm(
         model_config=model,
         provider_config=provider,
     )
+
+
+def _resolve_thinking_effort(model: LLMModel) -> ThinkingEffort:
+    """Resolve the thinking effort for a model.
+
+    Priority: ``CRAN_MODEL_THINKING_EFFORT`` env override → model default.
+    K3 supports low/high/max and defaults to ``max`` (higher efforts unlock
+    better reasoning on the subscription tiers that allow them); other models
+    keep ``high``.
+    """
+    override = os.getenv("CRAN_MODEL_THINKING_EFFORT", "").strip().lower()
+    if override in ("low", "medium", "high", "xhigh", "max"):
+        return cast(ThinkingEffort, override)
+    if model.model == "k3":
+        return "max"
+    return "high"
 
 
 def clone_llm_with_model_alias(
@@ -537,12 +553,16 @@ def derive_model_capabilities(model: LLMModel) -> set[ModelCapability]:
     # These models support thinking but can be toggled on/off
     elif model.model in {"kimi-for-coding", "kimi-code"}:
         capabilities.update(("thinking", "image_in", "video_in"))
-    elif model.model in {"kimi-for-coding-highspeed", "k3"}:
-        # kimi-for-coding-highspeed: K2.7 Code high-speed variant, same coding
-        # ability as the standard version (Thinking: ON).
-        # k3: Kimi K3 flagship; thinking effort currently only supports the
-        # server-side default (max), so kosong must not send an explicit effort.
-        capabilities.add("thinking")
+    elif model.model == "kimi-for-coding-highspeed":
+        # kimi-for-coding-highspeed: K2.7 Code high-speed variant. The
+        # official Kimi Code API reports supports_image_in/supports_video_in,
+        # and Thinking is always ON (cannot be toggled off).
+        capabilities.update(("thinking", "always_thinking", "image_in", "video_in"))
+    elif model.model == "k3":
+        # k3: Kimi K3 flagship. Thinking is supported and toggleable
+        # (low/high/max effort); the official Kimi Code API reports
+        # supports_image_in/supports_video_in.
+        capabilities.update(("thinking", "image_in", "video_in"))
     return capabilities
 
 
