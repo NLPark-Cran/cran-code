@@ -5,10 +5,20 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from cran_code.web.auth_v2.jwt import User as JWTUser, require_user
-from cran_code.web.db import AsyncSessionLocal, Team, TeamMember, TeamMemberRole, User
+from cran_code.config import load_config
+from cran_code.web.auth_v2.jwt import User as JWTUser
+from cran_code.web.auth_v2.jwt import require_user
+from cran_code.web.db import (
+    AsyncSessionLocal,
+    Team,
+    TeamMember,
+    TeamMemberRole,
+    TeamProviderKey,
+    User,
+)
 
 router = APIRouter(prefix="/api/v2/teams", tags=["teams"])
 
@@ -378,7 +388,8 @@ async def remove_team_member(
                     & (TeamMember.role == TeamMemberRole.owner)
                 )
             )
-            if owner_count_result.scalar() <= 1:
+            owner_count = owner_count_result.scalar()
+            if owner_count is None or owner_count <= 1:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Cannot remove the last owner",
@@ -387,3 +398,116 @@ async def remove_team_member(
         await session.delete(target)
         await session.commit()
         return {"detail": "Member removed"}
+
+
+class TeamProviderKeyUpsertRequest(BaseModel):
+    api_key: str = Field(..., min_length=1, max_length=500)
+
+
+class TeamProviderKeyResponse(BaseModel):
+    provider_key: str
+    has_api_key: bool
+    # NEVER include key material in responses.
+
+
+async def _require_team_admin(
+    session: AsyncSession, team_id: str, user_id: str
+) -> TeamMember:
+    """Resolve the caller's membership, requiring team owner/admin role."""
+    team = await session.get(Team, team_id)
+    if team is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
+    member_result = await session.execute(
+        select(TeamMember).where(
+            (TeamMember.team_id == team_id) & (TeamMember.user_id == user_id)
+        )
+    )
+    membership = member_result.scalar_one_or_none()
+    if membership is None or membership.role not in (
+        TeamMemberRole.owner,
+        TeamMemberRole.admin,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions"
+        )
+    return membership
+
+
+@router.get("/{team_id}/provider-keys", response_model=list[TeamProviderKeyResponse])
+async def list_team_provider_keys(
+    team_id: str,
+    current_user: JWTUser = Depends(require_user),
+) -> list[TeamProviderKeyResponse]:
+    """List a team's stored provider keys (masked). Team owner/admin only."""
+    async with AsyncSessionLocal() as session:
+        await _require_team_admin(session, team_id, current_user.id)
+        result = await session.execute(
+            select(TeamProviderKey).where(TeamProviderKey.team_id == team_id)
+        )
+        keys = result.scalars().all()
+        return [
+            TeamProviderKeyResponse(provider_key=k.provider_key, has_api_key=True)
+            for k in keys
+        ]
+
+
+@router.put("/{team_id}/provider-keys/{provider_key}", response_model=TeamProviderKeyResponse)
+async def upsert_team_provider_key(
+    team_id: str,
+    provider_key: str,
+    req: TeamProviderKeyUpsertRequest,
+    current_user: JWTUser = Depends(require_user),
+) -> TeamProviderKeyResponse:
+    """Create or replace a team's API key for a provider. Team owner/admin only."""
+    if provider_key not in load_config().providers:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Provider '{provider_key}' not found",
+        )
+    async with AsyncSessionLocal() as session:
+        await _require_team_admin(session, team_id, current_user.id)
+        result = await session.execute(
+            select(TeamProviderKey).where(
+                TeamProviderKey.team_id == team_id,
+                TeamProviderKey.provider_key == provider_key,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing is not None:
+            existing.api_key = req.api_key
+        else:
+            session.add(
+                TeamProviderKey(
+                    team_id=team_id,
+                    provider_key=provider_key,
+                    api_key=req.api_key,
+                )
+            )
+        await session.commit()
+        return TeamProviderKeyResponse(provider_key=provider_key, has_api_key=True)
+
+
+@router.delete("/{team_id}/provider-keys/{provider_key}")
+async def delete_team_provider_key(
+    team_id: str,
+    provider_key: str,
+    current_user: JWTUser = Depends(require_user),
+) -> dict[str, str]:
+    """Delete a team's API key for a provider. Team owner/admin only."""
+    async with AsyncSessionLocal() as session:
+        await _require_team_admin(session, team_id, current_user.id)
+        result = await session.execute(
+            select(TeamProviderKey).where(
+                TeamProviderKey.team_id == team_id,
+                TeamProviderKey.provider_key == provider_key,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Provider key not found",
+            )
+        await session.delete(existing)
+        await session.commit()
+        return {"detail": "Provider key deleted"}

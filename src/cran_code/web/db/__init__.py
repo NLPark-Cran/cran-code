@@ -9,10 +9,15 @@ from cran_code.web.db.models import (
     Project,
     ProjectMember,
     ProjectMemberRole,
+    ProviderGrant,
+    ProviderPolicy,
     Team,
     TeamMember,
     TeamMemberRole,
+    TeamProviderKey,
+    UsageRecord,
     User,
+    UserProviderKey,
     UserRole,
 )
 
@@ -27,4 +32,9 @@ __all__ = [
     "Project",
     "ProjectMember",
     "Activity",
+    "UserProviderKey",
+    "TeamProviderKey",
+    "ProviderPolicy",
+    "ProviderGrant",
+    "UsageRecord",
 ]

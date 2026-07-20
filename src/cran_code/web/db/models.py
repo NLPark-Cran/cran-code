@@ -260,3 +260,119 @@ class Activity(Base):
 
     project: Mapped["Project"] = relationship("Project", back_populates="activities")
     user: Mapped["User | None"] = relationship("User", back_populates="activities")
+
+
+class UserProviderKey(Base):
+    """Per-user API key for an LLM provider (highest resolution priority)."""
+
+    __tablename__ = "user_provider_keys"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider_key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    api_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utc_now, onupdate=_utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "provider_key", name="uq_user_provider_key"),
+    )
+
+
+class TeamProviderKey(Base):
+    """Per-team API key for an LLM provider (shared by team members)."""
+
+    __tablename__ = "team_provider_keys"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    team_id: Mapped[str] = mapped_column(
+        ForeignKey("teams.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    provider_key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    api_key: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utc_now, onupdate=_utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("team_id", "provider_key", name="uq_team_provider_key"),
+    )
+
+
+class ProviderPolicy(Base):
+    """Sharing policy for a provider's global (config.toml) API key.
+
+    ``shared_mode`` is ``"all"`` (any authenticated user may use the global
+    key) or ``"restricted"`` (only global admins or users/teams with a
+    :class:`ProviderGrant`). A missing row means ``"all"``.
+    """
+
+    __tablename__ = "provider_policies"
+
+    provider_key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    shared_mode: Mapped[str] = mapped_column(String(20), default="all", nullable=False)
+
+
+class ProviderGrant(Base):
+    """Access grant (with optional token quota) for a restricted provider."""
+
+    __tablename__ = "provider_grants"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    provider_key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    subject_type: Mapped[str] = mapped_column(String(10), nullable=False)  # "user" | "team"
+    subject_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    quota_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """Token quota for ``source='shared'`` usage; ``None`` means unlimited."""
+    granted_by: Mapped[str] = mapped_column(String(36), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "provider_key", "subject_type", "subject_id", name="uq_provider_grant"
+        ),
+    )
+
+
+class UsageRecord(Base):
+    """Token usage record for a single model call."""
+
+    __tablename__ = "usage_records"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    provider_key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    model: Mapped[str] = mapped_column(String(200), nullable=False)
+    source: Mapped[str] = mapped_column(String(10), nullable=False)  # personal|team|shared
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utc_now, nullable=False, index=True
+    )
