@@ -38,6 +38,51 @@ def _extract_image_size(data: bytes) -> tuple[int, int] | None:
         return None
 
 
+_MAX_INLINE_PIXELS = 2000
+_MAX_INLINE_BYTES = 4 * 1024 * 1024
+
+
+def _compress_image_bytes(
+    data: bytes, mime_type: str
+) -> tuple[bytes, tuple[int, int] | None, int | None, bool]:
+    """Return ``(data, original_size, resized_max_side_or_None, reencoded)``.
+
+    Downscales images beyond ``_MAX_INLINE_PIXELS`` (or recompresses anything
+    over ``_MAX_INLINE_BYTES``) while preserving the source format (JPEG
+    stays JPEG — re-encoding a photo as PNG would inflate it several-fold).
+    Any failure falls back to the original bytes.
+    """
+    original_size = _extract_image_size(data)
+    if original_size is None:
+        return data, None, None, False
+    width, height = original_size
+    if max(width, height) <= _MAX_INLINE_PIXELS and len(data) <= _MAX_INLINE_BYTES:
+        return data, original_size, None, False
+    try:
+        from PIL import Image
+
+        # Decide the target format from the SOURCE mime: Image.resize drops
+        # the format attribute, so it must be captured before resizing.
+        save_format = "JPEG" if mime_type == "image/jpeg" else "PNG"
+        with Image.open(BytesIO(data)) as image:
+            image.load()
+            resized_to: int | None = None
+            if max(width, height) > _MAX_INLINE_PIXELS:
+                scale = _MAX_INLINE_PIXELS / max(width, height)
+                image = image.resize((int(width * scale), int(height * scale)))
+                resized_to = _MAX_INLINE_PIXELS
+            if save_format == "JPEG" and image.mode not in ("RGB", "L"):
+                image = image.convert("RGB")
+            buffer = BytesIO()
+            if save_format == "JPEG":
+                image.save(buffer, format="JPEG", quality=85)
+            else:
+                image.save(buffer, format="PNG", optimize=True)
+            return buffer.getvalue(), original_size, resized_to, True
+    except Exception:
+        return data, original_size, None, False
+
+
 class Params(BaseModel):
     path: str = Field(
         description=(
@@ -109,13 +154,27 @@ class ReadMediaFile(CallableTool2[Params]):
                 brief="File too large",
             )
 
+        image_size: tuple[int, int] | None = None
+        resized_to: int | None = None
         match file_type.kind:
             case "image":
                 data = await path.read_bytes()
-                data_url = _to_data_url(file_type.mime_type, data)
+                # Downscale/recompress large images before inlining: a 100MB
+                # photo would otherwise flood the context and the wire log
+                # with ~133MB of base64. The original file stays untouched on
+                # disk (its path is in the media tag) for zoom-in re-reads.
+                data, image_size, resized_to, reencoded = _compress_image_bytes(
+                    data, file_type.mime_type
+                )
+                # mime stays accurate when untouched or format-preserving; an
+                # exotic source re-encoded as PNG must be relabeled.
+                if reencoded and file_type.mime_type not in ("image/jpeg", "image/png"):
+                    file_type_mime = "image/png"
+                else:
+                    file_type_mime = file_type.mime_type
+                data_url = _to_data_url(file_type_mime, data)
                 part = ImageURLPart(image_url=ImageURLPart.ImageURL(url=data_url))
                 wrapped = wrap_media_part(part, tag="image", attrs={"path": media_path})
-                image_size = _extract_image_size(data)
             case "video":
                 data = await path.read_bytes()
                 if (llm := self._runtime.llm) and isinstance(llm.chat_provider, Kimi):
@@ -133,6 +192,11 @@ class ReadMediaFile(CallableTool2[Params]):
         size_hint = ""
         if image_size:
             size_hint = f", original size {image_size[0]}x{image_size[1]}px"
+            if resized_to is not None:
+                size_hint += (
+                    f", downscaled to max {resized_to}px for display — multiply "
+                    "relative coordinates by the original size, not the displayed size"
+                )
         note = (
             " If you need to output coordinates, output relative coordinates first and "
             "compute absolute coordinates using the original image size; if you generate or "

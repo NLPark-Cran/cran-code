@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from cran_code.web.api_v2 import auth, collab, fs, git, projects, providers, teams, terminal, users
+from cran_code.web.api_v2 import admin, auth, collab, fs, git, projects, providers, teams, terminal, users
 
 v2_router = APIRouter()
 v2_router.include_router(auth.router)
 v2_router.include_router(users.router)
+v2_router.include_router(admin.router)
 v2_router.include_router(teams.router)
 v2_router.include_router(projects.router)
 v2_router.include_router(fs.router)

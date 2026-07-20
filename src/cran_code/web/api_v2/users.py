@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
@@ -300,3 +302,64 @@ async def get_my_usage(
             )
         )
     return summaries
+
+
+class UsageDailyPoint(BaseModel):
+    """One day of aggregated usage for a (provider, model, source) bucket."""
+
+    date: str  # YYYY-MM-DD (UTC)
+    provider_key: str
+    model: str
+    source: str
+    input_tokens: int
+    output_tokens: int
+
+
+@router.get("/me/usage/daily", response_model=list[UsageDailyPoint])
+async def get_my_usage_daily(
+    days: int = 30,
+    current_user: JWTUser = Depends(require_user),
+) -> list[UsageDailyPoint]:
+    """Per-day token usage for the current user over the last ``days`` days.
+
+    Rows are grouped by ``(date, provider_key, model, source)`` and ordered
+    chronologically. Days are UTC calendar days. ``days`` is clamped to
+    [1, 90].
+    """
+    days = min(max(days, 1), 90)
+    since = datetime.now(UTC) - timedelta(days=days)
+    day_col = func.date(UsageRecord.created_at)
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(
+                day_col,
+                UsageRecord.provider_key,
+                UsageRecord.model,
+                UsageRecord.source,
+                func.coalesce(func.sum(UsageRecord.input_tokens), 0),
+                func.coalesce(func.sum(UsageRecord.output_tokens), 0),
+            )
+            .where(
+                UsageRecord.user_id == current_user.id,
+                UsageRecord.created_at >= since,
+            )
+            .group_by(
+                day_col,
+                UsageRecord.provider_key,
+                UsageRecord.model,
+                UsageRecord.source,
+            )
+            .order_by(day_col)
+        )
+        rows = result.all()
+    return [
+        UsageDailyPoint(
+            date=str(date),
+            provider_key=provider_key,
+            model=model,
+            source=source,
+            input_tokens=int(input_tokens),
+            output_tokens=int(output_tokens),
+        )
+        for date, provider_key, model, source, input_tokens, output_tokens in rows
+    ]
