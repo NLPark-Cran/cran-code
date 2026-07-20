@@ -55,6 +55,7 @@ import {
   CollapsibleContent,
 } from "@/components/ui/collapsible";
 import { hasPlatformModifier, isMacOS } from "@/hooks/utils";
+import { EmptyState } from "@/components/empty-state";
 import { cn, } from "@/lib/utils";
 
 // Top-level regex constants for performance
@@ -1132,7 +1133,11 @@ export const SessionsSidebar = memo(function SessionsSidebarComponent({
                         <Loader2 className="size-4 animate-spin text-muted-foreground" />
                       </div>
                     ) : archivedSessions.length === 0 ? (
-                      <p className="px-3 py-3 text-xs text-muted-foreground">{t("sessions:noArchived")}</p>
+                      <EmptyState
+                        icon={Archive}
+                        title={t("sessions:noArchived")}
+                        className="py-4"
+                      />
                     ) : (
                       <div className="space-y-1 px-1 pb-2 max-h-[50vh] overflow-y-auto">
                         <ul className="space-y-1">

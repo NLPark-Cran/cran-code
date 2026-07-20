@@ -24,6 +24,7 @@ import {
   type VirtualizedMessageListHandle,
 } from "./virtualized-message-list";
 import { MessageSearchDialog } from "../message-search-dialog";
+import { EmptyState } from "@/components/empty-state";
 
 type ChatConversationProps = {
   messages: LiveMessage[];
@@ -173,9 +174,7 @@ export function ChatConversation({
           </ConversationEmptyState>
         ) : emptySessionState ? (
           <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-muted-foreground">
-              {t("chat:startConversation")}
-            </p>
+            <EmptyState icon={SparklesIcon} title={t("chat:startConversation")} />
           </div>
         ) : null
       ) : (

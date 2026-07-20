@@ -201,6 +201,7 @@ export const ChatPromptComposer = memo(function ChatPromptComposerComponent({
         workDir={currentSession?.workDir}
         planMode={planMode}
         activityStatus={activityStatus}
+        streamStatus={status}
         usagePercent={usagePercent}
         usedTokens={usedTokens}
         maxTokens={maxTokens}

@@ -8,14 +8,15 @@ import {
 } from "react";
 import { cn } from "@/lib/utils";
 import type { GitDiffStats } from "@/lib/api/models";
+import type { ChatStatus } from "ai";
 import type { TokenUsage } from "@/hooks/wireTypes";
 import { useQueueStore } from "../../queue-store";
 import { useToolEventsStore } from "@/features/tool/store";
 import { ToolbarActivityIndicator, type ActivityDetail } from "../activity-status-indicator";
+import { ContextRing } from "../context-ring";
 import { ToolbarQueuePanel, ToolbarQueueTab } from "./toolbar-queue";
 import { ToolbarChangesPanel, ToolbarChangesTab } from "./toolbar-changes";
 import { ToolbarTodoPanel, ToolbarTodoTab } from "./toolbar-todo";
-import { ToolbarContextIndicator } from "./toolbar-context";
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ type PromptToolbarProps = {
   workDir?: string | null;
   planMode?: boolean;
   activityStatus?: ActivityDetail;
+  streamStatus?: ChatStatus;
   usagePercent?: number;
   usedTokens?: number;
   maxTokens?: number;
@@ -41,6 +43,7 @@ export const PromptToolbar = memo(function PromptToolbarComponent({
   workDir,
   planMode = false,
   activityStatus,
+  streamStatus,
   usagePercent,
   usedTokens,
   maxTokens,
@@ -128,12 +131,13 @@ export const PromptToolbar = memo(function PromptToolbarComponent({
         )}
 
         {hasContext && (
-          <ToolbarContextIndicator
-            usagePercent={usagePercent!}
+          <ContextRing
+            className="ml-auto"
+            usage={(usagePercent ?? 0) / 100}
             usedTokens={usedTokens!}
             maxTokens={maxTokens!}
             tokenUsage={tokenUsage ?? null}
-            className="ml-auto"
+            streamStatus={streamStatus}
           />
         )}
       </div>

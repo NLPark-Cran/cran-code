@@ -12,7 +12,18 @@ export type VideoNoPreviewAttachment = {
   filename: string;
 };
 
-export type MessageAttachmentPart = FileUIPart | NoPreviewAttachment | VideoNoPreviewAttachment;
+/** Media tombstoned by context compaction (placeholder chip, not loadable) */
+export type CompactedAttachment = {
+  kind: "compacted";
+  mediaType?: string;
+  filename?: string;
+};
+
+export type MessageAttachmentPart =
+  | FileUIPart
+  | NoPreviewAttachment
+  | VideoNoPreviewAttachment
+  | CompactedAttachment;
 
 // Re-export API types for convenience
 export type { Session } from "../lib/api/models";
@@ -116,6 +127,8 @@ export type LiveMessage = {
     errorText?: string;
     /** Media parts extracted from tool output (images/videos from ReadMediaFile etc.) */
     mediaParts?: Array<{ type: "image_url" | "video_url"; url: string }>;
+    /** Number of media parts tombstoned by context compaction (shown as a chip) */
+    compactedMediaCount?: number;
     approval?: {
       id: string;
       action: string;

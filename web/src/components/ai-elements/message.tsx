@@ -463,18 +463,21 @@ export function MessageAttachment({
     attachment: MessageAttachmentPart,
   ): attachment is NoPreviewAttachment =>
     "kind" in attachment && attachment.kind === "nopreview";
+  // Compacted tombstones are intercepted upstream; treat them as no-preview here.
+  const isCompactedAttachment = (attachment: MessageAttachmentPart): boolean =>
+    "kind" in attachment && attachment.kind === "compacted";
   const isVideoNoPreviewAttachment = (
     attachment: MessageAttachmentPart,
   ): attachment is VideoNoPreviewAttachment =>
     "kind" in attachment && attachment.kind === "video-nopreview";
-  const isNoPreview = isNoPreviewAttachment(data);
+  const isNoPreview = isNoPreviewAttachment(data) || isCompactedAttachment(data);
   const isVideoNoPreview = isVideoNoPreviewAttachment(data);
   const filename = data.filename || "";
   let mediaType: string | undefined;
   let url: string | undefined;
   if (!isNoPreview && !isVideoNoPreview) {
     mediaType = data.mediaType;
-    url = data.url;
+    url = "url" in data ? data.url : undefined;
   } else if (isVideoNoPreview) {
     mediaType = data.mediaType;
   }

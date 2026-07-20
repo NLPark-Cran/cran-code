@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { v2Api, type TeamRes, type ProjectRes } from "@/lib/api/v2";
 import { roleKey } from "@/i18n";
+import { EmptyState } from "@/components/empty-state";
 import { useAuthStore } from "@/stores/auth";
 import Layout from "@/components/Layout";
 import MemberManagement from "@/components/MemberManagement";
@@ -248,18 +249,20 @@ export default function TeamPage() {
               <h2 className="text-lg font-semibold mb-4">{t("project:listTitle")}</h2>
               {projects.length === 0 ? (
                 <Card className="border-dashed">
-                  <CardContent className="flex flex-col items-center justify-center py-16">
-                    <FolderGit className="mb-4 h-12 w-12 text-muted-foreground" />
-                    <p className="text-lg font-medium">{t("project:emptyTitle")}</p>
-                    <p className="text-muted-foreground">
-                      {t("project:emptyDesc")}
-                    </p>
-                    {canCreateProject && (
-                      <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        {t("project:newProject")}
-                      </Button>
-                    )}
+                  <CardContent className="py-8">
+                    <EmptyState
+                      icon={FolderGit}
+                      title={t("project:emptyTitle")}
+                      hint={t("project:emptyDesc")}
+                      action={
+                        canCreateProject ? (
+                          <Button onClick={() => setCreateOpen(true)}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            {t("project:newProject")}
+                          </Button>
+                        ) : undefined
+                      }
+                    />
                   </CardContent>
                 </Card>
               ) : (

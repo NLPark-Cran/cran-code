@@ -1,8 +1,58 @@
 "use client";
 
 import React from "react";
-import { refractor } from "refractor/all";
+import { refractor } from "refractor";
+import bash from "refractor/bash";
+import c from "refractor/c";
+import cpp from "refractor/cpp";
+import csharp from "refractor/csharp";
+import css from "refractor/css";
+import go from "refractor/go";
+import java from "refractor/java";
+import javascript from "refractor/javascript";
+import json from "refractor/json";
+import jsx from "refractor/jsx";
+import kotlin from "refractor/kotlin";
+import markup from "refractor/markup";
+import php from "refractor/php";
+import python from "refractor/python";
+import ruby from "refractor/ruby";
+import rust from "refractor/rust";
+import scss from "refractor/scss";
+import sql from "refractor/sql";
+import swift from "refractor/swift";
+import tsx from "refractor/tsx";
+import typescript from "refractor/typescript";
+import yaml from "refractor/yaml";
 import "./theme.css";
+
+// Register a trimmed language set instead of `refractor/all` (~300 grammars).
+for (const syntax of [
+  bash,
+  c,
+  cpp,
+  csharp,
+  css,
+  go,
+  java,
+  javascript,
+  json,
+  jsx,
+  kotlin,
+  markup,
+  php,
+  python,
+  ruby,
+  rust,
+  scss,
+  sql,
+  swift,
+  tsx,
+  typescript,
+  yaml,
+]) {
+  refractor.register(syntax);
+}
 import { ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -56,8 +106,14 @@ function hastToReact(
 
 function highlight(code: string, lang: string): React.ReactNode[] {
   const id = `${lang}:${code}`;
-  const tree = refractor.highlight(code, lang);
-  const nodes = tree.children.map((c, i) => hastToReact(c, `${id}-${i}`));
+  let children: ReturnType<typeof refractor.highlight>["children"];
+  try {
+    children = refractor.highlight(code, lang).children;
+  } catch {
+    // Language not in the trimmed registry — render as plain text.
+    children = [{ type: "text", value: code }];
+  }
+  const nodes = children.map((c, i) => hastToReact(c, `${id}-${i}`));
   return nodes;
 }
 

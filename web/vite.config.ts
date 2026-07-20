@@ -28,6 +28,12 @@ function readCranCliVersion(): string {
 const cranCliVersion = readCranCliVersion();
 const shouldAnalyze = process.env.ANALYZE === "true";
 
+const MONACO_CHUNK_REGEX = /monaco-editor|@monaco-editor|y-monaco|yjs|y-protocols|lib0/;
+const MERMAID_CHUNK_REGEX =
+  /node_modules\/(mermaid|@mermaid-js|cytoscape|dagre-d3-es|elkjs|treemap|d3-|d3\/)/;
+const VENDOR_CHUNK_REGEX =
+  /node_modules\/(react|react-dom|react-router-dom|scheduler)\//;
+
 // https://vite.dev/config/
 export default defineConfig({
   base: "/",
@@ -59,19 +65,37 @@ export default defineConfig({
     __CRAN_CLI_VERSION__: JSON.stringify(cranCliVersion),
   },
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-      "@ai-elements": path.resolve(__dirname, "./src/components/ai-elements"),
-    },
+    alias: [
+      // Bare `shiki` (streamdown's code block) → trimmed language registry.
+      // Subpath imports (shiki/core, shiki/langs/*, shiki/themes/*) untouched.
+      {
+        find: /^shiki$/,
+        replacement: path.resolve(__dirname, "./src/lib/shiki-trimmed.ts"),
+      },
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+      {
+        find: "@ai-elements",
+        replacement: path.resolve(__dirname, "./src/components/ai-elements"),
+      },
+    ],
   },
   build: {
     sourcemap: false,
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          monaco: ["@monaco-editor/react"],
-          vendor: ["react", "react-dom", "react-router-dom"],
+        manualChunks(id: string) {
+          if (!id.includes("node_modules")) return;
+          if (MONACO_CHUNK_REGEX.test(id)) {
+            return "monaco";
+          }
+          // Mermaid and its heavy layout deps — only reachable via dynamic import.
+          if (MERMAID_CHUNK_REGEX.test(id)) {
+            return "mermaid";
+          }
+          if (VENDOR_CHUNK_REGEX.test(id)) {
+            return "vendor";
+          }
         },
       },
     },

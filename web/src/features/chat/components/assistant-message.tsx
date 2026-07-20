@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,8 @@ import {
 } from "@ai-elements";
 import { BrainIcon, ChevronRightIcon } from "lucide-react";
 import { CompactionTimeline } from "./compaction-timeline";
+import { CompactedMediaChip } from "./compacted-media-chip";
+import { getToolSummary } from "./tool-summary";
 
 export type ToolApproval = NonNullable<LiveMessage["toolCall"]>["approval"];
 
@@ -81,7 +83,7 @@ export function AssistantMessage({
       case "thinking":
         return renderThinkingMessage(message, blocksExpanded, t);
       case "compaction":
-        return renderCompactionMessage(message);
+        return renderCompactionMessage(message, t);
       default:
         return renderAssistantText(message, t);
     }
@@ -97,15 +99,23 @@ export function AssistantMessage({
   return content;
 }
 
-const renderCompactionMessage = (message: LiveMessage) => {
+const renderCompactionMessage = (message: LiveMessage, t: TFunction) => {
   const summary = message.compactionSummary;
-  if (!summary) return null;
   return (
     <MessageContent className={assistantContentClass}>
-      <CompactionTimeline
-        humanTurns={summary.humanTurns}
-        aiTurns={summary.aiTurns}
-      />
+      <div className="flex items-center gap-3 py-1 select-none">
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-[11px] text-muted-foreground/70">
+          {t("chat:compactionDivider")}
+        </span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+      {summary ? (
+        <CompactionTimeline
+          humanTurns={summary.humanTurns}
+          aiTurns={summary.aiTurns}
+        />
+      ) : null}
     </MessageContent>
   );
 };
@@ -183,6 +193,40 @@ const renderChainOfThoughtMessage = (message: LiveMessage, t: TFunction) => {
   );
 };
 
+const RUNNING_TOOL_STATES = new Set([
+  "input-streaming",
+  "input-available",
+  "approval-requested",
+  "question-requested",
+]);
+
+/**
+ * Tool card with smart open state: running tools stay expanded with live
+ * output, finished tools collapse to a single-line summary card. A manual
+ * toggle overrides the heuristic until `blocksExpanded` changes (the key
+ * remounts this component, resetting the override).
+ */
+const SmartTool = ({
+  message,
+  blocksExpanded,
+  children,
+}: {
+  message: LiveMessage;
+  blocksExpanded: boolean;
+  children: ReactNode;
+}) => {
+  const isRunning =
+    message.isStreaming === true ||
+    (message.toolCall ? RUNNING_TOOL_STATES.has(message.toolCall.state) : false);
+  const [override, setOverride] = useState<boolean | null>(null);
+  const open = override ?? (blocksExpanded || isRunning);
+  return (
+    <Tool open={open} onOpenChange={setOverride}>
+      {children}
+    </Tool>
+  );
+};
+
 const renderToolMessage = ({
   message,
   pendingApprovalMap,
@@ -233,17 +277,21 @@ const renderToolMessage = ({
       : t("chat:subAgent")
     : null;
 
+  const toolSummary = getToolSummary(toolCall.title, toolCall.input, t);
+
   const toolBlock = (
     <div className="space-y-1">
-      <Tool
+      <SmartTool
         key={`${message.id}-${blocksExpanded}`}
-        defaultOpen={blocksExpanded}
+        message={message}
+        blocksExpanded={blocksExpanded}
       >
         <ToolHeader
           state={toolCall.state}
           title={toolCall.title}
           type={toolCall.type}
           input={toolCall.input}
+          summary={toolSummary}
         />
         <ToolContent>
           {toolCall.input ? <ToolInput input={toolCall.input} /> : null}
@@ -333,9 +381,14 @@ const renderToolMessage = ({
             </Confirmation>
           ) : null}
         </ToolContent>
-      </Tool>
+      </SmartTool>
       {toolCall.mediaParts ? (
         <ToolMediaPreview mediaParts={toolCall.mediaParts} />
+      ) : null}
+      {toolCall.compactedMediaCount ? (
+        <div className="mt-1 ml-4">
+          <CompactedMediaChip count={toolCall.compactedMediaCount} />
+        </div>
       ) : null}
       {isApprovalRequested ? (
         <div className={assistantMetaTextClass}>{t("chat:waitingApproval")}</div>

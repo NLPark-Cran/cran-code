@@ -158,6 +158,8 @@ export type ToolHeaderProps = {
   type: ToolUIPart["type"];
   state: ToolState;
   input?: ToolUIPart["input"];
+  /** Pre-computed one-line summary; overrides the generic primary-param guess */
+  summary?: string | null;
   className?: string;
 };
 
@@ -167,12 +169,13 @@ export const ToolHeader = ({
   type,
   state,
   input,
+  summary,
   ...props
 }: ToolHeaderProps) => {
   const rawName = title ?? type.split("-").slice(1).join("-");
   const displayName = TOOL_DISPLAY_NAMES[rawName] ?? rawName;
   const icon = TOOL_ICONS[rawName];
-  const primaryParam = getPrimaryParam(input);
+  const primaryParam = summary ?? getPrimaryParam(input);
 
   const fullUrl =
     rawName === "FetchURL" &&

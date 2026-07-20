@@ -69,6 +69,7 @@ export default function LoginPage() {
       </div>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+          <img src="/logo.png?v=2" alt="Cran" width={40} height={40} className="mx-auto mb-2 size-10" />
           <CardTitle className="text-2xl font-bold">{t("common:brandName")}</CardTitle>
           <CardDescription>{t("auth:subtitle")}</CardDescription>
         </CardHeader>

@@ -23,8 +23,11 @@ import {
   useRef,
   type ComponentPropsWithoutRef,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import { WrenchIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CompactedMediaChip } from "./compacted-media-chip";
 
 export type VirtualizedMessageListProps = {
   messages: LiveMessage[];
@@ -50,6 +53,17 @@ type ConversationListItem = {
   message: LiveMessage;
   index: number;
 };
+
+/** Visual group of consecutive assistant tool calls (stacked, less noise) */
+type ToolGroupInfo = {
+  index: number;
+  size: number;
+};
+
+const isGroupableToolMessage = (message: LiveMessage): boolean =>
+  message.role === "assistant" &&
+  message.variant === "tool" &&
+  message.toolCall?.title !== "Think";
 
 function VirtuosoScrollerComponent(
   props: ComponentPropsWithoutRef<"div">,
@@ -161,6 +175,7 @@ function VirtualizedMessageListComponent(
 ) {
   const virtuosoRef = useRef<VirtuosoHandle | null>(null);
   const scrollerRef = useRef<HTMLElement | null>(null);
+  const { t } = useTranslation();
 
   // Filtered messages list (excluding message-id) aligned with listItems indices
   const filteredMessages = useMemo(
@@ -173,6 +188,29 @@ function VirtualizedMessageListComponent(
       filteredMessages.map((message, index) => ({ message, index })),
     [filteredMessages],
   );
+
+  // Map message id -> position within a run of consecutive tool calls
+  const toolGroups = useMemo(() => {
+    const groups = new Map<string, ToolGroupInfo>();
+    let run: string[] = [];
+    const flush = () => {
+      if (run.length >= 2) {
+        for (const [index, id] of run.entries()) {
+          groups.set(id, { index, size: run.length });
+        }
+      }
+      run = [];
+    };
+    for (const message of filteredMessages) {
+      if (isGroupableToolMessage(message)) {
+        run.push(message.id);
+      } else {
+        flush();
+      }
+    }
+    flush();
+    return groups;
+  }, [filteredMessages]);
 
   const handleAtBottomChange = useCallback(
     (atBottom: boolean) => {
@@ -272,15 +310,29 @@ function VirtualizedMessageListComponent(
           );
         }
 
-        const spacingClass = getMessageSpacingClass(
+        let spacingClass = getMessageSpacingClass(
           message,
           item.index,
           filteredMessages,
         );
 
         const isHighlighted = item.index === highlightedMessageIndex;
+        const group = toolGroups.get(message.id);
 
-        return (
+        // Inside a tool group the wrapper owns the outer spacing
+        if (group && spacingClass) {
+          spacingClass =
+            spacingClass
+              .split(" ")
+              .filter(
+                (cls) =>
+                  (group.index === 0 || !cls.startsWith("mt-")) &&
+                  (group.index >= group.size - 1 || cls !== "mb-30"),
+              )
+              .join(" ") || undefined;
+        }
+
+        const messageNode = (
           <Message
             className={cn(
               spacingClass,
@@ -320,10 +372,18 @@ function VirtualizedMessageListComponent(
                 {message.attachments.map((attachment, attIdx) => {
                   const key =
                     "kind" in attachment
-                      ? attachment.filename
+                      ? (attachment.filename ?? `${message.id}-${attIdx}`)
                       : (attachment.filename ??
                         attachment.url ??
                         `${message.id}-${attIdx}`);
+                  if ("kind" in attachment && attachment.kind === "compacted") {
+                    return (
+                      <CompactedMediaChip
+                        key={key}
+                        filename={attachment.filename}
+                      />
+                    );
+                  }
                   return (
                     <MessageAttachment
                       className="size-28 sm:size-32 lg:size-40"
@@ -335,6 +395,28 @@ function VirtualizedMessageListComponent(
               </MessageAttachments>
             ) : null}
           </Message>
+        );
+
+        if (!group) {
+          return messageNode;
+        }
+
+        return (
+          <div
+            className={cn(
+              "border-x border-border-subtle bg-surface-muted/40 px-2",
+              group.index === 0 && "mt-2 rounded-t-lg border-t pt-1",
+              group.index === group.size - 1 && "mb-2 rounded-b-lg border-b pb-1",
+            )}
+          >
+            {group.index === 0 && (
+              <div className="flex items-center gap-1 pt-1 text-[10px] text-muted-foreground/70 select-none">
+                <WrenchIcon className="size-3" />
+                {t("chat:toolGroupCount", { count: group.size })}
+              </div>
+            )}
+            {messageNode}
+          </div>
         );
       }}
     />

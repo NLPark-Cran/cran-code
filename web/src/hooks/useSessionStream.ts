@@ -736,6 +736,22 @@ export function useSessionStream(
             continue; // Skip this text part, it's just metadata
           }
 
+          // Media tombstoned by the replay filter: render as a placeholder
+          // chip (with the sibling <image/...> tag's filename when available)
+          if (
+            text.trim() === "[image removed by context compaction]" ||
+            text.trim() === "[video removed by context compaction]"
+          ) {
+            attachments.push({
+              kind: "compacted",
+              mediaType: pendingMediaType,
+              filename: pendingFilename,
+            });
+            pendingFilename = undefined;
+            pendingMediaType = undefined;
+            continue;
+          }
+
           // New format: </video> closing tag - create attachment if no video_url follows
           if (text.trim() === "</video>") {
             // If we have pending video metadata but no video_url part will follow,
@@ -839,29 +855,43 @@ export function useSessionStream(
         }
 
         if (part.type === "image_url") {
-          const inferredMediaType = parseMediaTypeFromDataUrl(
-            part.image_url.url,
-          );
-          attachments.push({
-            type: "file",
-            mediaType: pendingMediaType ?? inferredMediaType ?? "image/*",
-            filename: pendingFilename,
-            url: part.image_url.url,
-          });
+          const url = part.image_url.url;
+          if (url.startsWith("compacted:")) {
+            attachments.push({
+              kind: "compacted",
+              mediaType: pendingMediaType ?? "image/*",
+              filename: pendingFilename,
+            });
+          } else {
+            const inferredMediaType = parseMediaTypeFromDataUrl(url);
+            attachments.push({
+              type: "file",
+              mediaType: pendingMediaType ?? inferredMediaType ?? "image/*",
+              filename: pendingFilename,
+              url,
+            });
+          }
           pendingFilename = undefined;
           pendingMediaType = undefined;
         }
 
         if (part.type === "video_url") {
-          const inferredMediaType = parseMediaTypeFromDataUrl(
-            part.video_url.url,
-          );
-          attachments.push({
-            type: "file",
-            mediaType: pendingMediaType ?? inferredMediaType ?? "video/*",
-            filename: pendingFilename,
-            url: part.video_url.url,
-          });
+          const url = part.video_url.url;
+          if (url.startsWith("compacted:")) {
+            attachments.push({
+              kind: "compacted",
+              mediaType: pendingMediaType ?? "video/*",
+              filename: pendingFilename,
+            });
+          } else {
+            const inferredMediaType = parseMediaTypeFromDataUrl(url);
+            attachments.push({
+              type: "file",
+              mediaType: pendingMediaType ?? inferredMediaType ?? "video/*",
+              filename: pendingFilename,
+              url,
+            });
+          }
           pendingFilename = undefined;
           pendingMediaType = undefined;
         }
@@ -1495,6 +1525,7 @@ export function useSessionStream(
 
           // Extract media parts (image_url/video_url) from output array
           let mediaParts: Array<{ type: "image_url" | "video_url"; url: string }> = [];
+          let compactedMediaCount = 0;
           if (Array.isArray(return_value.output)) {
             mediaParts = return_value.output
               .filter((part: Record<string, unknown>) => part.type === "image_url" || part.type === "video_url")
@@ -1503,6 +1534,17 @@ export function useSessionStream(
                 url: extractMediaUrl(part),
               }))
               .filter((p) => p.url);
+
+            // Replay tombstones (`compacted:` prefix) are not loadable media;
+            // count them and show a placeholder chip instead of broken tiles.
+            compactedMediaCount = mediaParts.filter((p) =>
+              p.url.startsWith("compacted:"),
+            ).length;
+            if (compactedMediaCount > 0) {
+              mediaParts = mediaParts.filter(
+                (p) => !p.url.startsWith("compacted:"),
+              );
+            }
 
             // For non-browser-renderable URLs (e.g. ms:// from Cran model),
             // try to construct serving URLs from file paths in text output tags
@@ -1565,6 +1607,8 @@ export function useSessionStream(
                     ? messageStr || undefined
                     : undefined,
                   mediaParts: mediaParts.length > 0 ? mediaParts : undefined,
+                  compactedMediaCount:
+                    compactedMediaCount > 0 ? compactedMediaCount : undefined,
                   // Mark subagent as complete when its parent Agent tool receives result
                   subagentRunning: msg.toolCall.subagentSteps
                     ? false

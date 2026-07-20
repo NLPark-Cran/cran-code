@@ -51,7 +51,7 @@ export function CompactionTimeline({
         )}
         <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         <span className="text-xs font-medium text-muted-foreground">
-          {t("chat:compactionSummary")}
+          {t("chat:compactionViewSummary")}
         </span>
         <span className="ml-auto text-[10px] text-muted-foreground/60">
           {t("chat:turns", { count: totalTurns })}

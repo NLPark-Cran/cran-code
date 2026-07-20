@@ -24,6 +24,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Users, ArrowRight, Loader2 } from "lucide-react";
 import { v2Api, type TeamRes } from "@/lib/api/v2";
+import { EmptyState } from "@/components/empty-state";
 import Layout from "@/components/Layout";
 
 export default function DashboardPage() {
@@ -170,16 +171,18 @@ export default function DashboardPage() {
         </div>
       ) : teams.length === 0 ? (
         <Card className="border-dashed">
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Users className="mb-4 h-12 w-12 text-muted-foreground" />
-            <p className="text-lg font-medium">{t("teams:emptyTitle")}</p>
-            <p className="text-muted-foreground">
-              {t("teams:emptyDesc")}
-            </p>
-            <Button className="mt-4" onClick={() => setCreateOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              {t("teams:createButton")}
-            </Button>
+          <CardContent className="py-8">
+            <EmptyState
+              icon={Users}
+              title={t("teams:emptyTitle")}
+              hint={t("teams:emptyDesc")}
+              action={
+                <Button onClick={() => setCreateOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("teams:createButton")}
+                </Button>
+              }
+            />
           </CardContent>
         </Card>
       ) : (

@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { SessionFileEntry } from "@/hooks/useSessions";
+import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
 
 type SessionFilesPanelProps = {
@@ -254,9 +255,8 @@ export function SessionFilesPanel({
           ) : null}
 
           {!(isLoading || error) && entries.length === 0 ? (
-            <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed text-sm text-muted-foreground">
-              <FolderIcon className="size-5" />
-              <span>{t("chat:noFilesHere")}</span>
+            <div className="rounded-xl border border-dashed">
+              <EmptyState icon={FolderIcon} title={t("chat:noFilesHere")} />
             </div>
           ) : null}
 
