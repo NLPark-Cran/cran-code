@@ -6,6 +6,7 @@ import asyncio
 import json
 import mimetypes
 import os
+import re
 import shutil
 import time
 from datetime import UTC, datetime
@@ -263,14 +264,65 @@ def _ensure_public_file_access_allowed(
         )
 
 
-def _read_wire_lines(wire_file: Path) -> list[str]:
-    """Read and parse wire.jsonl into JSONRPC event strings (runs in thread)."""
-    result: list[str] = []
-    with open(wire_file, encoding="utf-8") as f:
+# Compaction markers after which media content is considered live again.
+_COMPACTION_MARKER_TYPES = ('"type": "CompactionEnd"', '"type": "CompactionSummary"')
+# Single wire lines larger than this get their inline media regex-tombstoned
+# without a full JSON round-trip (a 100MB ReadMediaFile result is ~133MB
+# base64 on one line).
+_BIG_LINE_BYTES = 2 * 1024 * 1024
+_MEDIA_DATA_URL_RE = re.compile(
+    r'("(?:image_url|video_url)"\s*:\s*\{[^{}]*?"url"\s*:\s*")data:[^"]*(")'
+)
+
+
+def _tombstone_media_parts(node: Any) -> Any:
+    """Recursively replace image/video parts with a tiny text placeholder.
+
+    Keeps the message structure intact so clients still see a media chip; the
+    heavy base64 payload never crosses the WebSocket.
+    """
+    if isinstance(node, dict):
+        node_type = node.get("type")
+        if node_type in ("image_url", "video_url"):
+            kind = "image" if node_type == "image_url" else "video"
+            return {"type": "text", "text": f"[{kind} removed by context compaction]"}
+        return {key: _tombstone_media_parts(value) for key, value in node.items()}
+    if isinstance(node, list):
+        return [_tombstone_media_parts(item) for item in node]
+    return node
+
+
+def _last_compaction_line_no(wire_file: Path) -> int:
+    """Line number (1-based) of the last compaction marker; 0 when none."""
+    last = 0
+    line_no = 0
+    with open(wire_file, encoding="utf-8", errors="replace") as f:
         for line in f:
+            line_no += 1
+            if any(marker in line for marker in _COMPACTION_MARKER_TYPES):
+                last = line_no
+    return last
+
+
+def _read_wire_lines(wire_file: Path) -> list[str]:
+    """Read and parse a wire file into JSONRPC event strings (runs in thread).
+
+    Replay filtering: media (image/video) parts in records BEFORE the last
+    compaction marker are tombstoned — the model no longer has them in
+    context, so re-sending megabytes of base64 to every reconnecting client
+    is pure waste. Single lines over ``_BIG_LINE_BYTES`` always get their
+    inline media stripped.
+    """
+    cutoff_line = _last_compaction_line_no(wire_file)
+    result: list[str] = []
+    with open(wire_file, encoding="utf-8", errors="replace") as f:
+        for line_no, line in enumerate(f, start=1):
             line = line.strip()
             if not line:
                 continue
+            if len(line) > _BIG_LINE_BYTES and ("image_url" in line or "video_url" in line):
+                # Cheap regex tombstone avoids parsing a giant JSON document.
+                line = _MEDIA_DATA_URL_RE.sub(r"\1compacted:\2", line)
             try:
                 record = json.loads(line)
                 if not isinstance(record, dict):
@@ -283,6 +335,8 @@ def _read_wire_lines(wire_file: Path) -> list[str]:
                 if not isinstance(message_raw, dict):
                     continue
                 message_raw = cast(dict[str, Any], message_raw)
+                if cutoff_line and line_no < cutoff_line:
+                    message_raw = _tombstone_media_parts(message_raw)
                 message = deserialize_wire_message(message_raw)
                 _is_req = is_request(message)
                 event_msg: dict[str, Any] = {

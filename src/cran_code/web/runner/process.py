@@ -616,6 +616,16 @@ class SessionProcess:
                             if isinstance(wire_msg, CompactionBegin):
                                 self._in_compaction = True
                                 self._compaction_buffer.clear()
+                                # Record the marker in the annotated file so
+                                # history replay can truncate/tombstone
+                                # pre-compaction content (and the frontend's
+                                # CompactionEnd handler fires on replay).
+                                annotated = self._get_annotated_wire_file()
+                                if annotated is not None:
+                                    try:
+                                        await annotated.append_message(wire_msg, author="system")
+                                    except Exception:
+                                        pass
                             elif isinstance(wire_msg, CompactionEnd):
                                 self._in_compaction = False
                                 annotated = self._get_annotated_wire_file()
@@ -657,6 +667,16 @@ class SessionProcess:
                                     except Exception:
                                         pass
                                 self._compaction_buffer.clear()
+                                # Record the marker AFTER the summary so replay
+                                # clients see CompactionSummary → CompactionEnd
+                                # (the frontend truncates pre-compaction history
+                                # on CompactionEnd).
+                                annotated_end = self._get_annotated_wire_file()
+                                if annotated_end is not None:
+                                    try:
+                                        await annotated_end.append_message(wire_msg, author="system")
+                                    except Exception:
+                                        pass
                             elif self._in_compaction:
                                 self._compaction_buffer.append((wire_msg, time.time()))
                             # Write to annotated wire file with AI/tool author
