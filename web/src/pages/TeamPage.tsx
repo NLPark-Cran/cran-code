@@ -34,6 +34,7 @@ import { v2Api, type TeamRes, type ProjectRes } from "@/lib/api/v2";
 import { useAuthStore } from "@/stores/auth";
 import Layout from "@/components/Layout";
 import MemberManagement from "@/components/MemberManagement";
+import TeamProviderKeys from "@/components/TeamProviderKeys";
 
 export default function TeamPage() {
   const { teamId } = useParams<{ teamId: string }>();
@@ -317,6 +318,7 @@ export default function TeamPage() {
               canManage={canManageMembers}
               onChange={fetchData}
             />
+            {canManageMembers && <TeamProviderKeys teamId={team.id} />}
           </div>
         </div>
       ) : null}

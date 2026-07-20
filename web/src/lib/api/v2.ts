@@ -146,6 +146,85 @@ export interface FsEntry {
   size?: number;
 }
 
+export interface ProviderModelSpec {
+  model: string;
+  max_context_size: number;
+  capabilities: string[] | null;
+  display_name: string | null;
+}
+
+export interface ProviderInfo {
+  key: string;
+  type: string;
+  base_url: string;
+  has_api_key: boolean;
+  models: ProviderModelSpec[];
+  /** Config model keys, same order as `models` (used for select). */
+  model_keys: string[];
+}
+
+export interface ProviderListRes {
+  default_model: string;
+  default_thinking: boolean;
+  providers: ProviderInfo[];
+}
+
+export interface ProviderUpsertReq {
+  key: string;
+  type: string;
+  base_url: string;
+  /** Omit on update to keep the stored key. */
+  api_key?: string | null;
+  /** Omit on create to auto-fetch from `{base_url}/models`. */
+  models?: ProviderModelSpec[] | null;
+  custom_headers?: Record<string, string> | null;
+  reasoning_key?: string | null;
+}
+
+export interface FetchModelsReq {
+  base_url: string;
+  type?: string;
+  api_key?: string;
+  /** Reuse the stored key of this provider when `api_key` is omitted. */
+  provider_key?: string;
+}
+
+export interface SelectModelReq {
+  default_model: string;
+  default_thinking?: boolean;
+  restart_running_sessions?: boolean;
+  force_restart_busy_sessions?: boolean;
+}
+
+export interface SelectModelRes {
+  default_model: string;
+  default_thinking: boolean;
+  restarted_session_ids: string[] | null;
+  skipped_busy_session_ids: string[] | null;
+}
+
+export interface ModelContextReq {
+  max_context_size: number;
+  restart_running_sessions?: boolean;
+}
+
+export interface ProviderKeyRes {
+  provider_key: string;
+  has_api_key: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface UsageSummaryRes {
+  provider_key: string;
+  source: string;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  quota_tokens: number | null;
+  remaining_tokens: number | null;
+}
+
 export const v2Api = {
   auth: {
     register: (data: RegisterReq) =>
@@ -168,6 +247,23 @@ export const v2Api = {
       }),
     search: (q: string) =>
       _fetch<UserProfile[]>(`/users/search?q=${encodeURIComponent(q)}`),
+    setRole: (userId: string, role: string) =>
+      _fetch<UserProfile>(`/users/${encodeURIComponent(userId)}/role`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      }),
+    meProviderKeys: () => _fetch<ProviderKeyRes[]>("/users/me/provider-keys"),
+    putMeProviderKey: (providerKey: string, apiKey: string) =>
+      _fetch<ProviderKeyRes>(
+        `/users/me/provider-keys/${encodeURIComponent(providerKey)}`,
+        { method: "PUT", body: JSON.stringify({ api_key: apiKey }) },
+      ),
+    deleteMeProviderKey: (providerKey: string) =>
+      _fetch<{ detail: string }>(
+        `/users/me/provider-keys/${encodeURIComponent(providerKey)}`,
+        { method: "DELETE" },
+      ),
+    meUsage: () => _fetch<UsageSummaryRes[]>("/users/me/usage"),
   },
   teams: {
     list: () => _fetch<TeamRes[]>("/teams"),
@@ -192,6 +288,18 @@ export const v2Api = {
       _fetch<{ detail: string }>(`/teams/${teamId}/members/${memberId}`, {
         method: "DELETE",
       }),
+    listProviderKeys: (teamId: string) =>
+      _fetch<ProviderKeyRes[]>(`/teams/${teamId}/provider-keys`),
+    putProviderKey: (teamId: string, providerKey: string, apiKey: string) =>
+      _fetch<ProviderKeyRes>(
+        `/teams/${teamId}/provider-keys/${encodeURIComponent(providerKey)}`,
+        { method: "PUT", body: JSON.stringify({ api_key: apiKey }) },
+      ),
+    deleteProviderKey: (teamId: string, providerKey: string) =>
+      _fetch<{ detail: string }>(
+        `/teams/${teamId}/provider-keys/${encodeURIComponent(providerKey)}`,
+        { method: "DELETE" },
+      ),
   },
   projects: {
     list: (teamId?: string) =>
@@ -248,6 +356,38 @@ export const v2Api = {
         method: "POST",
         body: JSON.stringify({ message }),
       }),
+  },
+  providers: {
+    list: () => _fetch<ProviderListRes>("/providers/"),
+    create: (data: ProviderUpsertReq) =>
+      _fetch<ProviderListRes>("/providers/", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (key: string, data: ProviderUpsertReq) =>
+      _fetch<ProviderListRes>(`/providers/${encodeURIComponent(key)}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    delete: (key: string) =>
+      _fetch<ProviderListRes>(`/providers/${encodeURIComponent(key)}`, {
+        method: "DELETE",
+      }),
+    fetchModels: (data: FetchModelsReq) =>
+      _fetch<{ models: ProviderModelSpec[] }>("/providers/fetch-models", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    select: (data: SelectModelReq) =>
+      _fetch<SelectModelRes>("/providers/select", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    setModelContext: (modelKey: string, data: ModelContextReq) =>
+      _fetch<ProviderListRes>(
+        `/providers/models/${encodeURIComponent(modelKey)}/context`,
+        { method: "POST", body: JSON.stringify(data) },
+      ),
   },
   fs: {
     list: (projectId: string, path?: string) =>

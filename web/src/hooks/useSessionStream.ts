@@ -384,6 +384,10 @@ export function useSessionStream(
 
   // Initialize message tracking
   const initializeIdRef = useRef<string | null>(null);
+  // Verbatim initialize message for resending after a worker restart (L20).
+  const initializeMessageRef = useRef<string | null>(null);
+  // Last worker_id observed in session_status messages on this socket.
+  const lastWorkerIdRef = useRef<string | null>(null);
   const initializeRetryCountRef = useRef(0); // Track retry attempts for initialize
   const MAX_INITIALIZE_RETRIES = 5; // Maximum retry attempts
   const usingCachedCommandsRef = useRef(false); // Track if using cached slash commands
@@ -2200,7 +2204,11 @@ export function useSessionStream(
         },
       },
     };
-    ws.send(JSON.stringify(message));
+    // Keep the verbatim payload so we can replay it (same id) if the backend
+    // worker restarts (L20). The backend dedups identical replays.
+    const raw = JSON.stringify(message);
+    ws.send(raw);
+    initializeMessageRef.current = raw;
     console.log("[SessionStream] Sent initialize message");
   }, []);
 
@@ -2253,7 +2261,27 @@ export function useSessionStream(
             window.clearTimeout(historyCompleteTimeoutRef.current);
             historyCompleteTimeoutRef.current = null;
           }
-          applySessionStatus(message.params as SessionStatusPayload);
+          const statusPayload = message.params as SessionStatusPayload;
+          // L20 defense-in-depth: if the worker behind this socket changed
+          // (restart), resend the exact same initialize message. The backend
+          // dedups identical replays, so this is harmless when redundant.
+          const workerId = statusPayload.worker_id ?? null;
+          if (
+            workerId !== null &&
+            lastWorkerIdRef.current !== null &&
+            workerId !== lastWorkerIdRef.current &&
+            initializeMessageRef.current !== null &&
+            wsRef.current?.readyState === WebSocket.OPEN
+          ) {
+            console.log(
+              "[SessionStream] worker_id changed, resending initialize",
+            );
+            wsRef.current.send(initializeMessageRef.current);
+          }
+          if (workerId !== null) {
+            lastWorkerIdRef.current = workerId;
+          }
+          applySessionStatus(statusPayload);
           return;
         }
 
@@ -2600,6 +2628,7 @@ export function useSessionStream(
     if (!sessionId) return;
 
     initializeRetryCountRef.current = 0; // Reset retry count for new connection
+    lastWorkerIdRef.current = null; // Worker identity is per-connection (L20)
 
     // Close existing connection
     if (wsRef.current) {

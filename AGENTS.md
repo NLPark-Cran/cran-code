@@ -516,7 +516,7 @@ Access hierarchy (most to least privileged):
 
 ---
 
-## Current Work (as of 2026-06-08)
+## Merge Log (2026-06-08): upstream v1.49.0 + K3 support
 
 ### Active Task
 Merge upstream `MoonshotAI/kimi-cli` v1.49.0 (kosong 0.55.0) into cran-code; add Kimi K3 / `kimi-for-coding-highspeed` support.
@@ -558,6 +558,63 @@ A broader `pytest tests/core` run shows failures in branding/path-sensitive test
   - Telemetry imports (`kimi_cli.telemetry` → `cran_code.telemetry`).
   - Tests that monkeypatch `kimi_cli` modules.
 - Do **not** change the main package name from `cran-code`; keep upstream version numbers in sync.
+
+## Current Work (as of 2026-07-20)
+
+### Deployed: roles, per-user/team keys + key proxy, security hardening (bundle `index-DJAXV9iD.js`)
+
+**Role tiers & admin bootstrap** — `User.role` (admin/user, default user) is now enforced: `require_admin` in `web/auth_v2/jwt.py`; lifespan `ensure_admin_bootstrap()` promotes the earliest user when zero admins exist (`web/app.py`). Provider mutations (create/update/delete/select/fetch arbitrary URLs/model context) are admin-only; listing + stored-key fetch-models is open to any user.
+
+**Key architecture** (`web/db/models.py`, `web/db/keys.py`):
+- Tables: `user_provider_keys`, `team_provider_keys`, `provider_policies` (shared_mode all/restricted), `provider_grants` (user/team subject + optional token quota), `usage_records`.
+- Resolution chain: personal → team (earliest) → shared (policy-gated) → none.
+- APIs: `GET/PUT/DELETE /api/v2/users/me/provider-keys[/{key}]`, `GET /users/me/usage`, `PATCH /users/{id}/role` (admin), team keys under `/api/v2/teams/{id}/provider-keys` (owner/admin).
+- **Worker injection** (`SessionProcess._build_worker_env`): personal keys injected directly (`CRAN_API_KEY` for kimi, `OPENAI_API_KEY` for openai_*); team/shared keys for openai_* providers route via **key proxy** `OPENAI_BASE_URL=http://127.0.0.1:<port>/px/v1` + signed `cwk_` token (`web/api_v2/keyproxy.py`) so workers never see real keys. Proxy re-resolves the key per request (revocation-safe), enforces shared quotas (429), forwards upstream, records usage (incl. SSE `stream_options.include_usage` tee). Personal-key usage is metered from wire `StatusUpdate.token_usage` in `process.py` (`_record_wire_usage`); team/shared via the proxy (no double counting).
+- **Prompt gate** (`SessionProcess._prompt_gate_error`): no key / no grant / quota exhausted → immediate JSONRPC error with actionable guidance, no worker spawn.
+
+**Security hardening (20-review-fix sweep)** — C1 fetch-models SSRF guard (stored-key reuse pinned to stored base_url, https-only, private-IP block, admin-only arbitrary probes); C2 provider mutations admin-only; C3 worker env strips CRAN_* secrets (`_sanitize_worker_env`); H4 team-shared sessions accessible at all call sites (`get_user_team_ids` incl. WS); H5 local no-auth mode resolves a synthetic `local` user; M6 config.toml redacts api_key + restarts workers + v2 admin pass; M7 single-lock restart / lock-held writes in process.py; M8 compaction fallback-before-error + budget reset; M9 k3/highspeed capabilities aligned with official API (k3: thinking low/high/max + image/video; highspeed: always_thinking); M10 is_active enforced (resolve_user/terminal/collab); M11 login/register rate limit (10/min/IP); L12 collab WS disconnect + broadcast-outside-lock; L18 fs sensitive paths + read cap; L19 git_log clamp; L15 PUT key match + explicit key clear; L16 asyncio lock on config.toml mutations; L20 frontend resends initialize verbatim on worker_id change (backend dedups).
+
+**Kimi-Code (rewrite) borrowings** — k3 thinking effort defaults to `max` (`_resolve_thinking_effort` in `llm.py`, `CRAN_MODEL_THINKING_EFFORT` env override); upload image compression preserves format (JPEG stays JPEG q85, 2000px cap) instead of always-PNG/4096; step retry hardened to 10 attempts w/ exp backoff to 32s + jitter (matches upstream rewrite); compaction now emits a `StatusUpdate` right after `CompactionEnd` so the context meter resets immediately (fixes the stale-meter bug also observed in upstream kimi-cli). `Cache Write 0` in the usage panel is expected — Moonshot's API never reports cache creation.
+
+**P3**: `POST /api/v2/providers/models/{key}/context` sets a model's context window (K3 tiers 256K/512K/1M; 1M needs Allegretto+), optional worker restart.
+
+**Residual risk (accepted, documented)**: workers run as the same root user as the server, so a determined user with Shell access in a session could read server files (incl. config.toml keys). Full isolation needs non-root workers — deferred. Key proxy only protects team/shared keys from casual env inspection, not from a root worker.
+
+**Deferred borrowings** (from kimi-code research, not yet applied): blob-ref offload for context JSONL, strict-resend projector repairs, compaction handoff origin tagging, overflow→compact→retry loop.
+
+### Validation
+- `uv run pytest tests/web/`: 129 passed; pyright: only 4 pre-existing baseline errors in process.py.
+- Live: crys.tt2.li 200, bundle `index-DJAXV9iD.js`, `/px/v1/*` 401 unauth, providers GET 401 unauth.
+
+## Merge Log (2026-07-19): providers + initialize replay
+
+### Active Task
+1. **Model list refresh gap (documented)**: `refresh_managed_models()` only runs in the CLI startup path, never in the long-running web server. Fixed manually on the server; a web-startup refresh hook is a possible future fix.
+
+### Recently deployed (2026-07-19)
+- **Provider selection feature (complete)**: v2 API `src/cran_code/web/api_v2/providers.py` (`GET/POST /api/v2/providers/`, `PUT/DELETE /{key}`, `POST /fetch-models`, `POST /select`; any authenticated v2 user; keys never returned, only `has_api_key`) + frontend `web/src/pages/ProvidersPage.tsx` at `/settings/providers` (Layout dropdown → Providers) + `v2Api.providers` in `web/src/lib/api/v2.ts`. Tests: `tests/web/test_providers_api.py`. Verified live: providers list returns `kimi` + `tokendance`; bundle `index-HA78ZdQP.js`.
+- **AskUserQuestion/K3 fix** (`web/runner/process.py`): `SessionProcess` now caches the client's `initialize` message and replays it to every freshly spawned worker. Previously, worker restarts (`restart_running_workers`, e.g. on model switch) kept WebSockets alive, so the browser never re-sent `initialize` and the new wire server lost client capabilities (`supports_question`) — AskUserQuestion stayed visible but unusable, and K3 (which calls it eagerly) hit `QuestionNotSupported`. Tests: `tests/web/test_initialize_replay.py`.
+- **Config PATCH v2-user bypass** (`web/api/config.py`): `PATCH /api/config/` allows requests carrying a valid v2 user JWT even under `restrict_sensitive_apis` (public mode), so the web UI can switch models incl. third-party providers. Raw `/api/config/toml` endpoints stay restricted. Tests: `tests/web/test_config_api.py`.
+- Deploy gotcha: `uv tool install --force --from . cran-code` may reuse a cached wheel — use `--refresh` and verify the installed files under `~/.local/share/uv/tools/cran-code/lib/python3.14/site-packages/cran_code/` actually contain the new code.
+
+### Development constraints
+- Package version `1.49.0`; `kosong` `0.55.0`; wrapper `packages/kimi-code` depends on `cran-code==1.49.0`.
+- When merging upstream, always watch for:
+  - Imports of `kimi_cli.*` in source and tests — replace with `cran_code.*`.
+  - References to `kimi-cli` package name in `pyproject.toml` / `uv.lock` / wrapper package.
+  - Telemetry imports (`kimi_cli.telemetry` → `cran_code.telemetry`).
+  - Tests that monkeypatch `kimi_cli` modules.
+- Do **not** change the main package name from `cran-code`; keep upstream version numbers in sync.
+- `cran-code web` serves statics from the installed package (`~/.local/share/uv/tools/cran-code/.../cran_code/web/static`), not the repo's `web/dist`. Frontend deploy = build in `web/` → copy `dist/*` into `src/cran_code/web/static/` AND the installed tool's static dir → `systemctl restart cran-code.service`.
+- Never commit API keys / tokens; server secrets go to `~/.cran/server.env` (sourced by `/usr/local/bin/cran-code-web`).
+
+### Known pre-existing test failures
+`pytest tests/core`: 835 passed, 30 failed + 5 errors — all pre-existing branding/path-sensitive tests (`test_skill.py`, `test_agent_spec.py`, `test_default_agent.py`, `test_load_agents_md.py`, `test_skills_prompt.py`, `test_wire_message.py`, `test_plugin_manager.py`), verified identical at pre-merge commit. Address in a dedicated test-maintenance pass.
+
+### Validation Status (v1.49.0)
+- `uv lock` succeeds; `check_kimi_dependency_versions.py` ok.
+- 371 passed across merge-affected suites; pyright 0 errors on merged sources.
+- `crys.tt2.li` 200, bundle `index-BwBwDxmg.js`, UI shows v1.49.0; no post-restart log errors.
 
 ### Authentication Note
 A prior issue where sessions/teams appeared empty was caused by the 7-day JWT expiry. The fix includes:

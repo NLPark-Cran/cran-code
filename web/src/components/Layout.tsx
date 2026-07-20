@@ -11,7 +11,7 @@ import {
 import TeamSelector from "./TeamSelector";
 import { useAuthStore } from "@/stores/auth";
 import { clearAuthToken } from "@/lib/auth";
-import { Settings, LogOut, User } from "lucide-react";
+import { Settings, LogOut, User, Server } from "lucide-react";
 import SettingsDialog from "./SettingsDialog";
 
 interface LayoutProps {
@@ -65,6 +65,10 @@ export default function Layout({ children, breadcrumbs }: LayoutProps) {
                 <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/settings/providers")}>
+                  <Server className="mr-2 h-4 w-4" />
+                  Providers
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
