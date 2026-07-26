@@ -292,6 +292,41 @@ def _tombstone_media_parts(node: Any) -> Any:
     return node
 
 
+def _try_merge_delta(pending: dict[str, Any], nxt: dict[str, Any]) -> bool:
+    """Merge a streamed delta record into the pending one, in place.
+
+    Long sessions accumulate tens of thousands of streaming deltas
+    (``ContentPart`` text/think chunks, ``ToolCallPart`` argument chunks) —
+    over 98% of all wire records. The frontend concatenates these anyway, so
+    coalescing them server-side at replay time is semantics-preserving and
+    cuts replay frames by orders of magnitude (131k → ~2k on real sessions).
+    Returns True when ``nxt`` was merged into ``pending``.
+    """
+    msg_type = pending.get("type")
+    if msg_type != nxt.get("type"):
+        return False
+    p1 = pending.get("payload")
+    p2 = nxt.get("payload")
+    if not isinstance(p1, dict) or not isinstance(p2, dict):
+        return False
+    if msg_type == "ToolCallPart":
+        p1["arguments_part"] = (p1.get("arguments_part") or "") + (
+            p2.get("arguments_part") or ""
+        )
+        return True
+    if msg_type == "ContentPart":
+        part_type = p1.get("type")
+        if part_type != p2.get("type"):
+            return False
+        if part_type == "text":
+            p1["text"] = (p1.get("text") or "") + (p2.get("text") or "")
+            return True
+        if part_type == "think" and not p1.get("encrypted") and not p2.get("encrypted"):
+            p1["think"] = (p1.get("think") or "") + (p2.get("think") or "")
+            return True
+    return False
+
+
 def _last_compaction_line_no(wire_file: Path) -> int:
     """Line number (1-based) of the last compaction marker; 0 when none."""
     last = 0
@@ -315,6 +350,34 @@ def _read_wire_lines(wire_file: Path) -> list[str]:
     """
     cutoff_line = _last_compaction_line_no(wire_file)
     result: list[str] = []
+    pending: dict[str, Any] | None = None
+
+    def _flush() -> None:
+        nonlocal pending
+        if pending is None:
+            return
+        message_raw = pending
+        pending = None
+        try:
+            message = deserialize_wire_message(message_raw)
+            _is_req = is_request(message)
+            event_msg: dict[str, Any] = {
+                "jsonrpc": "2.0",
+                "method": "request" if _is_req else "event",
+                "params": message_raw,
+            }
+            if _is_req:
+                # JSON-RPC requests require a top-level ``id`` so the
+                # client can correlate its response.  Use the request's
+                # own ``id`` field (e.g. ApprovalRequest.id,
+                # QuestionRequest.id).  Note: ``message_raw`` wraps data
+                # as ``{"type": ..., "payload": {...}}`` so the id lives
+                # on the deserialized object, not at the raw dict top level.
+                event_msg["id"] = message.id
+            result.append(json.dumps(event_msg, ensure_ascii=False))
+        except (KeyError, ValueError, TypeError):
+            return
+
     with open(wire_file, encoding="utf-8", errors="replace") as f:
         for line_no, line in enumerate(f, start=1):
             line = line.strip()
@@ -325,36 +388,25 @@ def _read_wire_lines(wire_file: Path) -> list[str]:
                 line = _MEDIA_DATA_URL_RE.sub(r"\1compacted:\2", line)
             try:
                 record = json.loads(line)
-                if not isinstance(record, dict):
-                    continue
-                record = cast(dict[str, Any], record)
-                record_type = record.get("type")
-                if isinstance(record_type, str) and record_type == "metadata":
-                    continue
-                message_raw = record.get("message")
-                if not isinstance(message_raw, dict):
-                    continue
-                message_raw = cast(dict[str, Any], message_raw)
-                if cutoff_line and line_no < cutoff_line:
-                    message_raw = _tombstone_media_parts(message_raw)
-                message = deserialize_wire_message(message_raw)
-                _is_req = is_request(message)
-                event_msg: dict[str, Any] = {
-                    "jsonrpc": "2.0",
-                    "method": "request" if _is_req else "event",
-                    "params": message_raw,
-                }
-                if _is_req:
-                    # JSON-RPC requests require a top-level ``id`` so the
-                    # client can correlate its response.  Use the request's
-                    # own ``id`` field (e.g. ApprovalRequest.id,
-                    # QuestionRequest.id).  Note: ``message_raw`` wraps data
-                    # as ``{"type": ..., "payload": {...}}`` so the id lives
-                    # on the deserialized object, not at the raw dict top level.
-                    event_msg["id"] = message.id
-                result.append(json.dumps(event_msg, ensure_ascii=False))
-            except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+            except json.JSONDecodeError:
                 continue
+            if not isinstance(record, dict):
+                continue
+            record = cast(dict[str, Any], record)
+            record_type = record.get("type")
+            if isinstance(record_type, str) and record_type == "metadata":
+                continue
+            message_raw = record.get("message")
+            if not isinstance(message_raw, dict):
+                continue
+            message_raw = cast(dict[str, Any], message_raw)
+            if cutoff_line and line_no < cutoff_line:
+                message_raw = _tombstone_media_parts(message_raw)
+            if pending is not None and _try_merge_delta(pending, message_raw):
+                continue
+            _flush()
+            pending = message_raw
+    _flush()
     return result
 
 

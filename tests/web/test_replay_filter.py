@@ -153,3 +153,66 @@ class TestReplayMediaTombstone:
         url = events[0]["params"]["payload"]["user_input"][0]["image_url"]["url"]
         assert url.startswith("compacted:")
         assert len(json.dumps(events[0])) < 1024
+
+
+class TestReplayDeltaCoalescing:
+    """Streaming deltas (98%+ of wire records) must be merged at replay time."""
+
+    def _delta_run(self) -> list[str]:
+        records = []
+        for chunk in ["{\"", "command", "\": ", "\"ls -la\"", "}"]:
+            records.append(
+                _record({"type": "ToolCallPart", "payload": {"arguments_part": chunk}})
+            )
+        return records
+
+    def test_tool_call_parts_merged(self, tmp_path: Path) -> None:
+        wire = _write(tmp_path / "wire.jsonl", self._delta_run())
+        events = _events(wire)
+        assert len(events) == 1
+        args = events[0]["params"]["payload"]["arguments_part"]
+        assert args == '{"command": "ls -la"}'
+
+    def test_text_parts_merged(self, tmp_path: Path) -> None:
+        records = [
+            _record({"type": "ContentPart", "payload": {"type": "text", "text": "Hello, "}}),
+            _record({"type": "ContentPart", "payload": {"type": "text", "text": "world!"}}),
+        ]
+        wire = _write(tmp_path / "wire.jsonl", records)
+        events = _events(wire)
+        assert len(events) == 1
+        assert events[0]["params"]["payload"]["text"] == "Hello, world!"
+
+    def test_different_part_types_not_merged(self, tmp_path: Path) -> None:
+        records = [
+            _record({"type": "ContentPart", "payload": {"type": "think", "think": "hmm…"}}),
+            _record({"type": "ContentPart", "payload": {"type": "text", "text": "answer"}}),
+        ]
+        wire = _write(tmp_path / "wire.jsonl", records)
+        assert len(_events(wire)) == 2
+
+    def test_think_parts_merged_unless_encrypted(self, tmp_path: Path) -> None:
+        records = [
+            _record({"type": "ContentPart", "payload": {"type": "think", "think": "a"}}),
+            _record({"type": "ContentPart", "payload": {"type": "think", "think": "b"}}),
+            _record(
+                {
+                    "type": "ContentPart",
+                    "payload": {"type": "think", "think": "c", "encrypted": "sig"},
+                }
+            ),
+        ]
+        wire = _write(tmp_path / "wire.jsonl", records)
+        events = _events(wire)
+        assert len(events) == 2
+        assert events[0]["params"]["payload"]["think"] == "ab"
+        assert events[1]["params"]["payload"]["think"] == "c"
+
+    def test_merge_respects_event_boundaries(self, tmp_path: Path) -> None:
+        records = self._delta_run()
+        records.append(_record(_turn_text("next turn")))
+        records.extend(self._delta_run())
+        wire = _write(tmp_path / "wire.jsonl", records)
+        events = _events(wire)
+        assert len(events) == 3
+        assert events[1]["params"]["payload"]["user_input"] == "next turn"
