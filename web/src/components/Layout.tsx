@@ -34,8 +34,8 @@ export default function Layout({ children, breadcrumbs }: LayoutProps) {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
+    <div className="flex h-full flex-col overflow-hidden bg-background">
+      <header className="shrink-0 border-b bg-card">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
           <div className="flex items-center gap-2">
             <img
@@ -95,7 +95,7 @@ export default function Layout({ children, breadcrumbs }: LayoutProps) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 py-8">{children}</main>
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );

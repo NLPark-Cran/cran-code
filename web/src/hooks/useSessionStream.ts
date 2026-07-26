@@ -960,12 +960,30 @@ export function useSessionStream(
   );
 
   // Reset state for new step
-  const resetStepState = useCallback(() => {
-    currentThinkingRef.current = "";
-    currentTextRef.current = "";
-    thinkingMessageIdRef.current = null;
-    textMessageIdRef.current = null;
-  }, []);
+  const resetStepState = useCallback(
+    (absorbTextStub = false) => {
+      if (absorbTextStub && textMessageIdRef.current) {
+        const stub = currentTextRef.current;
+        if (stub.length > 0 && stub.trim().length <= 2) {
+          // Tiny trailing text stub (e.g. a lone "本" when the model's text
+          // run crosses a step boundary): drop the stub message and keep
+          // accumulating, so the next step's text message continues it
+          // instead of showing a one-character orphan message.
+          const stubId = textMessageIdRef.current;
+          setMessages((prev) => prev.filter((msg) => msg.id !== stubId));
+          currentThinkingRef.current = "";
+          thinkingMessageIdRef.current = null;
+          textMessageIdRef.current = null;
+          return; // keep currentTextRef (the stub text)
+        }
+      }
+      currentThinkingRef.current = "";
+      currentTextRef.current = "";
+      thinkingMessageIdRef.current = null;
+      textMessageIdRef.current = null;
+    },
+    [setMessages],
+  );
 
   const clearStepRetryStatus = useCallback(() => {
     const statusMessageId = stepRetryStatusMessageIdRef.current;
@@ -1324,7 +1342,7 @@ export function useSessionStream(
         case "StepBegin": {
           setCurrentStep(event.payload.n);
           clearStepRetryStatus();
-          resetStepState();
+          resetStepState(true);
           if (!isReplay) {
             setStatus("streaming");
           }
