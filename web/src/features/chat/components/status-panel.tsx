@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import type { ChatStatus } from "ai";
 import {
   Dialog,
@@ -6,8 +8,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { ArrowRightIcon, Loader2 } from "lucide-react";
 import { useGlobalConfig } from "@/hooks/useGlobalConfig";
+import { useAuthStore } from "@/stores/auth";
+import { v2Api } from "@/lib/api/v2";
 import type { TokenUsage } from "@/hooks/wireTypes";
 
 type StatusPanelProps = {
@@ -31,6 +37,12 @@ const WORKER_STATUS_KEYS: Record<ChatStatus, string> = {
   error: "chat:workerError",
 };
 
+const CONTEXT_TIERS = [
+  { label: "256K", value: 262144 },
+  { label: "512K", value: 524288 },
+  { label: "1M", value: 1048576 },
+];
+
 function StatusRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 text-sm">
@@ -51,8 +63,38 @@ export function StatusPanel({
   streamStatus,
 }: StatusPanelProps) {
   const { t } = useTranslation();
-  const { config } = useGlobalConfig();
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === "admin";
+  const { config, refresh } = useGlobalConfig();
+  const [contextBusy, setContextBusy] = useState<number | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
   const pct = Math.min(100, Math.max(0, usage * 100));
+
+  const currentModel = config?.models.find(
+    (m) => m.name === config.defaultModel,
+  );
+  const modelContextSize = currentModel?.maxContextSize ?? maxTokens;
+
+  const handleSetContext = async (size: number) => {
+    if (!config?.defaultModel || contextBusy !== null) return;
+    setContextBusy(size);
+    setContextError(null);
+    try {
+      await v2Api.providers.setModelContext(config.defaultModel, {
+        max_context_size: size,
+      });
+      await refresh();
+      // Let other useGlobalConfig consumers (composer, container) refresh too
+      window.dispatchEvent(new Event("cran:config-update"));
+    } catch (err) {
+      setContextError(
+        err instanceof Error ? err.message : t("providers:contextFailed"),
+      );
+    } finally {
+      setContextBusy(null);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -81,6 +123,60 @@ export function StatusPanel({
             </span>
           </div>
           <Progress className="bg-muted" value={pct} />
+        </div>
+
+        {/* Context window quick-set (admins); read-only for others */}
+        <div className="space-y-2 border-t pt-3">
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="text-muted-foreground">
+              {t("chat:statusContextLimit")}
+            </span>
+            {isAdmin ? (
+              <div className="flex items-center gap-1">
+                {contextBusy !== null ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : (
+                  CONTEXT_TIERS.map((tier) => (
+                    <Button
+                      key={tier.value}
+                      variant={
+                        modelContextSize === tier.value ? "secondary" : "ghost"
+                      }
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      disabled={modelContextSize === tier.value}
+                      onClick={() => handleSetContext(tier.value)}
+                    >
+                      {tier.label}
+                    </Button>
+                  ))
+                )}
+              </div>
+            ) : (
+              <span className="font-mono text-muted-foreground tabular-nums">
+                {compact(modelContextSize)}
+              </span>
+            )}
+          </div>
+          {isAdmin && (
+            <p className="text-xs text-muted-foreground">
+              {t("chat:statusContext1mHint")}
+            </p>
+          )}
+          {contextError && (
+            <p className="text-xs text-destructive">{contextError}</p>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              onOpenChange(false);
+              navigate("/settings/providers");
+            }}
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline cursor-pointer"
+          >
+            {t("chat:statusGoProviders")}
+            <ArrowRightIcon className="size-3" />
+          </button>
         </div>
 
         {tokenUsage && (

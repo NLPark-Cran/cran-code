@@ -1086,6 +1086,11 @@ export function useSessionStream(
       window.clearTimeout(historyCompleteTimeoutRef.current);
       historyCompleteTimeoutRef.current = null;
     }
+    // Drop any queued replay events from the previous session
+    replayQueueRef.current = [];
+    replayDrainScheduledRef.current = false;
+    replayClosingRef.current = false;
+    replayFinishRef.current = null;
     // Handle slashCommands: preserve or clear
     if (!preserveSlashCommands) {
       setSlashCommands([]);
@@ -2260,6 +2265,84 @@ export function useSessionStream(
     ],
   );
 
+  // --- Non-blocking replay processing ---------------------------------------
+  // Replays can deliver thousands of events; processing them synchronously
+  // (one per WS message, each triggering setMessages) freezes the tab.
+  // Instead, replayed events go through a FIFO queue drained in chunks of
+  // REPLAY_CHUNK_SIZE per macrotask. Completion markers (ReplayComplete /
+  // history_complete / stream finished) defer their semantics until the
+  // queue is fully drained, so ordering and history_complete behavior are
+  // preserved. Events arriving after a completion marker are still queued
+  // behind the drain (ordering) but flagged as live (replayClosingRef).
+  const REPLAY_CHUNK_SIZE = 200;
+  type ReplayQueueItem = {
+    event: WireEvent;
+    isReplay: boolean;
+    rpcMessageId?: string | number | null;
+  };
+  const replayQueueRef = useRef<ReplayQueueItem[]>([]);
+  const replayDrainScheduledRef = useRef(false);
+  const replayClosingRef = useRef(false);
+  const replayFinishRef = useRef<(() => void) | null>(null);
+
+  const drainReplayQueue = useCallback(() => {
+    replayDrainScheduledRef.current = false;
+    const chunk = replayQueueRef.current.splice(0, REPLAY_CHUNK_SIZE);
+    for (const item of chunk) {
+      processEvent(item.event, item.isReplay, item.rpcMessageId ?? undefined);
+    }
+    if (replayQueueRef.current.length > 0) {
+      replayDrainScheduledRef.current = true;
+      setTimeout(drainReplayQueue, 0);
+      return;
+    }
+    replayClosingRef.current = false;
+    const finish = replayFinishRef.current;
+    replayFinishRef.current = null;
+    finish?.();
+  }, [processEvent]);
+
+  const scheduleReplayDrain = useCallback(() => {
+    if (replayDrainScheduledRef.current) return;
+    replayDrainScheduledRef.current = true;
+    setTimeout(drainReplayQueue, 0);
+  }, [drainReplayQueue]);
+
+  const enqueueReplayEvent = useCallback(
+    (event: WireEvent, rpcMessageId?: string | number | null) => {
+      replayQueueRef.current.push({
+        event,
+        isReplay: !replayClosingRef.current,
+        rpcMessageId,
+      });
+      scheduleReplayDrain();
+    },
+    [scheduleReplayDrain],
+  );
+
+  /** True while replayed events are still queued/draining. */
+  const isReplayQueueActive = useCallback(
+    () => replayQueueRef.current.length > 0 || replayDrainScheduledRef.current,
+    [],
+  );
+
+  /**
+   * Run `finish` once the replay queue is empty; defers if events are
+   * still queued so completion semantics stay ordered after history.
+   */
+  const finishReplayWhenDrained = useCallback(
+    (finish: () => void) => {
+      if (isReplayQueueActive()) {
+        replayClosingRef.current = true;
+        replayFinishRef.current = finish;
+        return;
+      }
+      replayClosingRef.current = false;
+      finish();
+    },
+    [isReplayQueueActive],
+  );
+
   // Helper to send initialize message
   const sendInitialize = useCallback((ws: WebSocket) => {
     const id = uuidV4();
@@ -2374,13 +2457,15 @@ export function useSessionStream(
           console.log(
             `[SessionStream] Stream ${message.result.status}`,
           );
-          setStatus("ready");
-          clearStepRetryStatus();
-          setAwaitingFirstResponse(false);
-          awaitingIdleRef.current = false;
-          isReplayingRef.current = false;
-          setIsReplayingHistory(false);
-          completeStreamingMessages();
+          finishReplayWhenDrained(() => {
+            setStatus("ready");
+            clearStepRetryStatus();
+            setAwaitingFirstResponse(false);
+            awaitingIdleRef.current = false;
+            isReplayingRef.current = false;
+            setIsReplayingHistory(false);
+            completeStreamingMessages();
+          });
           return;
         }
 
@@ -2390,10 +2475,12 @@ export function useSessionStream(
           (message.params as { type?: string })?.type === "ReplayComplete"
         ) {
           console.log("[SessionStream] Replay complete");
-          isReplayingRef.current = false;
-          setIsReplayingHistory(false);
-          setStatus("ready");
-          awaitingIdleRef.current = false;
+          finishReplayWhenDrained(() => {
+            isReplayingRef.current = false;
+            setIsReplayingHistory(false);
+            setStatus("ready");
+            awaitingIdleRef.current = false;
+          });
           return;
         }
 
@@ -2403,23 +2490,25 @@ export function useSessionStream(
           console.log(
             "[SessionStream] History loaded, waiting for environment...",
           );
-          isReplayingRef.current = false;
-          // Keep status as "submitted" - input stays disabled until session_status
-          setStatus((current) => (current === "ready" ? current : "submitted"));
+          finishReplayWhenDrained(() => {
+            isReplayingRef.current = false;
+            // Keep status as "submitted" - input stays disabled until session_status
+            setStatus((current) => (current === "ready" ? current : "submitted"));
 
-          // Timeout fallback: reconnect if session_status not received within 15s
-          const currentWs = wsRef.current;
-          if (historyCompleteTimeoutRef.current) {
-            window.clearTimeout(historyCompleteTimeoutRef.current);
-          }
-          historyCompleteTimeoutRef.current = window.setTimeout(() => {
-            if (wsRef.current === currentWs) {
-              console.warn(
-                "[SessionStream] session_status timeout after history_complete, reconnecting...",
-              );
-              reconnectRef.current();
+            // Timeout fallback: reconnect if session_status not received within 15s
+            const currentWs = wsRef.current;
+            if (historyCompleteTimeoutRef.current) {
+              window.clearTimeout(historyCompleteTimeoutRef.current);
             }
-          }, 15000);
+            historyCompleteTimeoutRef.current = window.setTimeout(() => {
+              if (wsRef.current === currentWs) {
+                console.warn(
+                  "[SessionStream] session_status timeout after history_complete, reconnecting...",
+                );
+                reconnectRef.current();
+              }
+            }, 15000);
+          });
           return;
         }
 
@@ -2450,11 +2539,13 @@ export function useSessionStream(
               type: "ApprovalRequest",
               payload: params.payload as ApprovalRequestEvent["payload"],
             };
-            processEvent(
-              approvalEvent,
-              isReplayingRef.current,
-              message.id ?? (approvalEvent.payload.id as string | number),
-            );
+            const approvalRpcId =
+              message.id ?? (approvalEvent.payload.id as string | number);
+            if (isReplayingRef.current) {
+              enqueueReplayEvent(approvalEvent, approvalRpcId);
+            } else {
+              processEvent(approvalEvent, false, approvalRpcId);
+            }
             return;
           }
 
@@ -2463,11 +2554,13 @@ export function useSessionStream(
               type: "QuestionRequest",
               payload: params.payload as QuestionRequestEvent["payload"],
             };
-            processEvent(
-              questionEvent,
-              isReplayingRef.current,
-              message.id ?? (questionEvent.payload.id as string | number),
-            );
+            const questionRpcId =
+              message.id ?? (questionEvent.payload.id as string | number);
+            if (isReplayingRef.current) {
+              enqueueReplayEvent(questionEvent, questionRpcId);
+            } else {
+              processEvent(questionEvent, false, questionRpcId);
+            }
             return;
           }
         }
@@ -2475,7 +2568,11 @@ export function useSessionStream(
         // Process event
         const event = extractEvent(message);
         if (event) {
-          processEvent(event, isReplayingRef.current);
+          if (isReplayingRef.current) {
+            enqueueReplayEvent(event);
+          } else {
+            processEvent(event, false);
+          }
         }
       } catch (err) {
         console.warn(
@@ -2487,6 +2584,8 @@ export function useSessionStream(
     },
     [
       processEvent,
+      enqueueReplayEvent,
+      finishReplayWhenDrained,
       onError,
       setAwaitingFirstResponse,
       applySessionStatus,

@@ -5,6 +5,7 @@ import { initReactI18next } from "react-i18next";
 import enAuth from "./en/auth";
 import enChat from "./en/chat";
 import enCommon from "./en/common";
+import enDashboard from "./en/dashboard";
 import enNav from "./en/nav";
 import enProject from "./en/project";
 import enProviders from "./en/providers";
@@ -16,6 +17,7 @@ import enUsage from "./en/usage";
 import zhAuth from "./zh/auth";
 import zhChat from "./zh/chat";
 import zhCommon from "./zh/common";
+import zhDashboard from "./zh/dashboard";
 import zhNav from "./zh/nav";
 import zhProject from "./zh/project";
 import zhProviders from "./zh/providers";
@@ -42,6 +44,7 @@ export const resources = {
     sessions: zhSessions,
     tools: zhTools,
     usage: zhUsage,
+    dashboard: zhDashboard,
   },
   en: {
     common: enCommon,
@@ -55,6 +58,7 @@ export const resources = {
     sessions: enSessions,
     tools: enTools,
     usage: enUsage,
+    dashboard: enDashboard,
   },
 } as const;
 
