@@ -575,6 +575,12 @@ A broader `pytest tests/core` run shows failures in branding/path-sensitive test
 
 **Video modality (verified)**: upload (100MB cap) → `<video path=...>` tag → agent ReadMediaFile → provider `files.upload_video` (Kimi) or data URL; capability-gated by `video_in` (k3/td-kimi-k3 have it). Works end-to-end; only a nicer preview card is missing.
 
+### Hotfix (2026-07-26): replay delta coalescing + console dashboard
+- **Replay freeze root cause**: long sessions accumulate 98%+ ContentPart/ToolCallPart delta records; replaying 131k WS frames froze the tab (looked like "会话消失 + WS 错误"). `_read_wire_lines` now merges consecutive deltas server-side (131,296 records → 2,314 events / 1.9MB on the real failing session) and the frontend processes replay in 200-event macrotask chunks.
+- `/dashboard` is now a 控制台 (status cards / quick actions / recent sessions / teams).
+- StatusPanel has admin context-tier quick-set (256K/512K/1M) — the model context control lives there AND on ProvidersPage per model.
+- Bundle `index-CkMvkG1y.js`.
+
 ### Deferred (next milestone)
 - **Goal mode**: no backend exists in the old Python soul (new kimi-code TS only) — needs lifecycle + GoalStrip UI port, its own focused session.
 - **Blob-ref media offload**: wire/context records carry `blobref:` instead of inline base64, rehydrate on restore — big record-layer design; replay tombstoning (done) covers the worst symptoms meanwhile.
