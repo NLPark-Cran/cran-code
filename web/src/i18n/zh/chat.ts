@@ -262,6 +262,8 @@ export default {
   statusContextLimit: "上下文上限",
   statusContext1mHint: "1M 上下文窗口需要该提供方密钥所属账号具备 Allegretto+ 订阅等级。",
   statusGoProviders: "前往提供方设置",
+  loadOlderMessages: "加载更早消息",
+  loadOlderFailed: "加载历史消息失败",
   compactionDivider: "已压缩更早的上下文",
   compactionViewSummary: "查看摘要",
   toolGroupCount: "{{count}} 个工具调用",

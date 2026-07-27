@@ -18,14 +18,16 @@ import type React from "react";
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
+  useState,
   type ComponentPropsWithoutRef,
 } from "react";
 import { useTranslation } from "react-i18next";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
-import { WrenchIcon } from "lucide-react";
+import { Loader2Icon, WrenchIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CompactedMediaChip } from "./compacted-media-chip";
 
@@ -42,6 +44,14 @@ export type VirtualizedMessageListProps = {
   onAtBottomChange?: (atBottom: boolean) => void;
   /** Callback to fork session from before a specific turn */
   onForkSession?: (turnIndex: number) => void;
+  /** Whether the initial replay is still running (suppresses auto-scroll) */
+  isReplayingHistory?: boolean;
+  /** Whether older history pages exist on the server */
+  hasMoreHistory?: boolean;
+  /** Whether an older history page is being fetched */
+  isLoadingOlder?: boolean;
+  /** Fetch and prepend the next older history page */
+  onLoadOlderHistory?: () => Promise<void>;
 };
 
 export type VirtualizedMessageListHandle = {
@@ -53,6 +63,11 @@ type ConversationListItem = {
   message: LiveMessage;
   index: number;
 };
+
+// Virtuoso firstItemIndex base; prepends decrement from here so the
+// scroll anchor is preserved when older pages are added at the top.
+const FIRST_ITEM_BASE = 1_000_000;
+const START_REACHED_DEBOUNCE_MS = 500;
 
 /** Visual group of consecutive assistant tool calls (stacked, less noise) */
 type ToolGroupInfo = {
@@ -170,12 +185,20 @@ function VirtualizedMessageListComponent(
     highlightedMessageIndex = -1,
     onAtBottomChange,
     onForkSession,
+    isReplayingHistory = false,
+    hasMoreHistory = false,
+    isLoadingOlder = false,
+    onLoadOlderHistory,
   }: VirtualizedMessageListProps,
   ref: React.Ref<VirtualizedMessageListHandle>,
 ) {
   const virtuosoRef = useRef<VirtuosoHandle | null>(null);
   const scrollerRef = useRef<HTMLElement | null>(null);
   const { t } = useTranslation();
+  const [firstItemIndex, setFirstItemIndex] = useState(FIRST_ITEM_BASE);
+  const prevFirstIdRef = useRef<string | null>(null);
+  const prevLengthRef = useRef(0);
+  const startReachedAtRef = useRef(0);
 
   // Filtered messages list (excluding message-id) aligned with listItems indices
   const filteredMessages = useMemo(
@@ -188,6 +211,47 @@ function VirtualizedMessageListComponent(
       filteredMessages.map((message, index) => ({ message, index })),
     [filteredMessages],
   );
+
+  const listItemsRef = useRef<ConversationListItem[]>([]);
+  listItemsRef.current = listItems;
+
+  // Reset scroll anchoring when switching conversations
+  // biome-ignore lint/correctness/useExhaustiveDependencies: conversationKey is the intentional reset trigger; list items are read via ref
+  useEffect(() => {
+    setFirstItemIndex(FIRST_ITEM_BASE);
+    prevFirstIdRef.current = listItemsRef.current[0]?.message.id ?? null;
+    prevLengthRef.current = listItemsRef.current.length;
+  }, [conversationKey]);
+
+  // Prepend detection: first message id changed without conversation switch
+  // → an older page was prepended. Decrement firstItemIndex by the number
+  // of new items so the viewport stays anchored (no scroll jump).
+  useEffect(() => {
+    const firstId = listItems[0]?.message.id ?? null;
+    const prevFirstId = prevFirstIdRef.current;
+    if (prevFirstId !== null && firstId !== null && firstId !== prevFirstId) {
+      const prepended = listItems.length - prevLengthRef.current;
+      if (prepended > 0) {
+        setFirstItemIndex((value) => value - prepended);
+      }
+    }
+    prevFirstIdRef.current = firstId;
+    prevLengthRef.current = listItems.length;
+  }, [listItems]);
+
+  // During the initial replay we suppress auto-scroll entirely and jump to
+  // the bottom exactly once, when replay/history completes.
+  const prevReplayingRef = useRef(isReplayingHistory);
+  useEffect(() => {
+    if (prevReplayingRef.current && !isReplayingHistory && listItems.length > 0) {
+      virtuosoRef.current?.scrollToIndex({
+        index: listItems.length - 1,
+        align: "end",
+        behavior: "auto",
+      });
+    }
+    prevReplayingRef.current = isReplayingHistory;
+  }, [isReplayingHistory, listItems.length]);
 
   // Map message id -> position within a run of consecutive tool calls
   const toolGroups = useMemo(() => {
@@ -232,6 +296,9 @@ function VirtualizedMessageListComponent(
   // default tight threshold for the scroll-to-bottom button.
   const handleFollowOutput = useCallback(
     (isAtBottom: boolean) => {
+      // No auto-scroll during initial replay or while older pages load;
+      // only follow live output when the user is pinned to the bottom.
+      if (isReplayingHistory || isLoadingOlder) return false;
       if (isAtBottom) return "auto" as const;
       const scroller = scrollerRef.current;
       if (scroller) {
@@ -241,8 +308,20 @@ function VirtualizedMessageListComponent(
       }
       return false;
     },
-    [],
+    [isReplayingHistory, isLoadingOlder],
   );
+
+  const handleStartReached = useCallback(() => {
+    const canLoadOlder =
+      onLoadOlderHistory && hasMoreHistory && !isLoadingOlder;
+    if (!canLoadOlder) return;
+    const now = Date.now();
+    if (now - startReachedAtRef.current < START_REACHED_DEBOUNCE_MS) return;
+    startReachedAtRef.current = now;
+    onLoadOlderHistory().catch((error: unknown) => {
+      console.error("[MessageList] load older history failed:", error);
+    });
+  }, [onLoadOlderHistory, hasMoreHistory, isLoadingOlder]);
 
   useImperativeHandle(
     ref,
@@ -270,6 +349,26 @@ function VirtualizedMessageListComponent(
     [listItems.length],
   );
 
+  const ListHeader = useMemo(() => {
+    const showHeader = hasMoreHistory && onLoadOlderHistory;
+    if (!showHeader) return undefined;
+    const HeaderComponent = () => (
+      <div className="flex justify-center pb-2 pt-1">
+        <button
+          type="button"
+          onClick={handleStartReached}
+          disabled={isLoadingOlder}
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-border-subtle bg-surface-muted/60 px-3 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
+        >
+          {isLoadingOlder && <Loader2Icon className="size-3 animate-spin" />}
+          {t("chat:loadOlderMessages")}
+        </button>
+      </div>
+    );
+    HeaderComponent.displayName = "ListHeader";
+    return HeaderComponent;
+  }, [hasMoreHistory, onLoadOlderHistory, isLoadingOlder, handleStartReached, t]);
+
   return (
     <Virtuoso
       key={conversationKey}
@@ -278,6 +377,8 @@ function VirtualizedMessageListComponent(
       className="h-full"
       scrollerRef={handleScrollerRef}
       followOutput={handleFollowOutput}
+      firstItemIndex={firstItemIndex}
+      startReached={handleStartReached}
       defaultItemHeight={160}
       increaseViewportBy={{ top: 400, bottom: 400 }}
       overscan={200}
@@ -290,6 +391,7 @@ function VirtualizedMessageListComponent(
       components={{
         Scroller: VirtuosoScroller,
         List: VirtuosoList,
+        ...(ListHeader ? { Header: ListHeader } : {}),
       }}
       computeItemKey={(_index: number, item: ConversationListItem) =>
         item.message.id

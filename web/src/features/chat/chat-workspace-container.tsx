@@ -130,6 +130,9 @@ export function ChatWorkspaceContainer({
     sendSetPlanMode,
     slashCommands,
     error: streamError,
+    hasMoreHistory,
+    isLoadingOlder,
+    loadOlderHistory,
   } = sessionStream;
 
   const clearNewFiles = useToolEventsStore((state) => state.clearNewFiles);
@@ -408,6 +411,9 @@ export function ChatWorkspaceContainer({
       onPlanModeChange={handlePlanModeChange}
       errorMessage={streamError?.message}
       onForkSession={onForkSession ? handleForkSession : undefined}
+      hasMoreHistory={hasMoreHistory}
+      isLoadingOlder={isLoadingOlder}
+      onLoadOlderHistory={loadOlderHistory}
     />
   );
 }

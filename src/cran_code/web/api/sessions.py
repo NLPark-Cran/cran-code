@@ -270,9 +270,51 @@ _COMPACTION_MARKER_TYPES = ('"type": "CompactionEnd"', '"type": "CompactionSumma
 # without a full JSON round-trip (a 100MB ReadMediaFile result is ~133MB
 # base64 on one line).
 _BIG_LINE_BYTES = 2 * 1024 * 1024
+# Default history page size in RAW wire lines for paginated replay. The
+# initial WS replay and each "load earlier" request only transfer one page.
+_HISTORY_PAGE_LINES = 3000
 _MEDIA_DATA_URL_RE = re.compile(
     r'("(?:image_url|video_url)"\s*:\s*\{[^{}]*?"url"\s*:\s*")data:[^"]*(")'
 )
+
+
+class _WireIndex:
+    """Byte offsets of every line start + last compaction marker line."""
+
+    __slots__ = ("offsets", "compaction_line")
+
+    def __init__(self, offsets: list[int], compaction_line: int) -> None:
+        self.offsets = offsets
+        self.compaction_line = compaction_line
+
+
+# (path, mtime) -> index; rebuilt when the file changes. One entry per
+# actively-viewed session — tiny compared to the files themselves.
+_wire_index_cache: dict[str, tuple[float, _WireIndex]] = {}
+
+
+def _wire_index(wire_file: Path) -> _WireIndex:
+    stat = wire_file.stat()
+    cache_key = str(wire_file)
+    cached = _wire_index_cache.get(cache_key)
+    if cached is not None and cached[0] == stat.st_mtime:
+        return cached[1]
+    offsets: list[int] = []
+    compaction_line = 0
+    with open(wire_file, "rb") as f:
+        while True:
+            pos = f.tell()
+            line = f.readline()
+            if not line:
+                break
+            offsets.append(pos)
+            if any(marker.encode() in line for marker in _COMPACTION_MARKER_TYPES):
+                compaction_line = len(offsets)  # 1-based line number
+    index = _WireIndex(offsets, compaction_line)
+    if len(_wire_index_cache) > 64:
+        _wire_index_cache.clear()
+    _wire_index_cache[cache_key] = (stat.st_mtime, index)
+    return index
 
 
 def _tombstone_media_parts(node: Any) -> Any:
@@ -329,26 +371,21 @@ def _try_merge_delta(pending: dict[str, Any], nxt: dict[str, Any]) -> bool:
 
 def _last_compaction_line_no(wire_file: Path) -> int:
     """Line number (1-based) of the last compaction marker; 0 when none."""
-    last = 0
-    line_no = 0
-    with open(wire_file, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            line_no += 1
-            if any(marker in line for marker in _COMPACTION_MARKER_TYPES):
-                last = line_no
-    return last
+    return _wire_index(wire_file).compaction_line
 
 
-def _read_wire_lines(wire_file: Path) -> list[str]:
-    """Read and parse a wire file into JSONRPC event strings (runs in thread).
+def _parse_wire_window(
+    wire_file: Path,
+    index: _WireIndex,
+    start_line: int,
+    end_line: int,
+) -> list[str]:
+    """Parse raw lines [start_line, end_line) (1-based) into JSONRPC events.
 
-    Replay filtering: media (image/video) parts in records BEFORE the last
-    compaction marker are tombstoned — the model no longer has them in
-    context, so re-sending megabytes of base64 to every reconnecting client
-    is pure waste. Single lines over ``_BIG_LINE_BYTES`` always get their
-    inline media stripped.
+    Applies compaction-media tombstoning for records before the last
+    compaction marker and coalesces consecutive streaming deltas within the
+    window (see module docstrings above).
     """
-    cutoff_line = _last_compaction_line_no(wire_file)
     result: list[str] = []
     pending: dict[str, Any] | None = None
 
@@ -378,9 +415,20 @@ def _read_wire_lines(wire_file: Path) -> list[str]:
         except (KeyError, ValueError, TypeError):
             return
 
-    with open(wire_file, encoding="utf-8", errors="replace") as f:
-        for line_no, line in enumerate(f, start=1):
-            line = line.strip()
+    offsets = index.offsets
+    total = len(offsets)
+    start_line = max(1, start_line)
+    end_line = min(end_line, total + 1)
+    if start_line >= end_line:
+        return result
+    with open(wire_file, "rb") as f:
+        f.seek(offsets[start_line - 1])
+        end_pos = offsets[end_line - 1] if end_line <= total else None
+        for line_no in range(start_line, end_line):
+            raw = f.readline()
+            if end_pos is not None and f.tell() > end_pos:
+                break
+            line = raw.decode("utf-8", errors="replace").strip()
             if not line:
                 continue
             if len(line) > _BIG_LINE_BYTES and ("image_url" in line or "video_url" in line):
@@ -400,7 +448,7 @@ def _read_wire_lines(wire_file: Path) -> list[str]:
             if not isinstance(message_raw, dict):
                 continue
             message_raw = cast(dict[str, Any], message_raw)
-            if cutoff_line and line_no < cutoff_line:
+            if index.compaction_line and line_no < index.compaction_line:
                 message_raw = _tombstone_media_parts(message_raw)
             if pending is not None and _try_merge_delta(pending, message_raw):
                 continue
@@ -410,20 +458,97 @@ def _read_wire_lines(wire_file: Path) -> list[str]:
     return result
 
 
-async def replay_history(ws: WebSocket, session_dir: Path) -> None:
-    """Replay historical wire messages from wire.jsonl (or wire.annotated.jsonl) to a WebSocket."""
+def _read_wire_lines(wire_file: Path) -> list[str]:
+    """Read and parse a wire file into JSONRPC event strings (runs in thread).
+
+    Replay filtering: media (image/video) parts in records BEFORE the last
+    compaction marker are tombstoned — the model no longer has them in
+    context, so re-sending megabytes of base64 to every reconnecting client
+    is pure waste. Single lines over ``_BIG_LINE_BYTES`` always get their
+    inline media stripped. Streaming deltas are coalesced.
+    """
+    index = _wire_index(wire_file)
+    return _parse_wire_window(wire_file, index, 1, len(index.offsets) + 1)
+
+
+class HistoryPage(BaseModel):
+    """One page of replayable history events (newest first-page or older)."""
+
+    events: list[str]
+    oldest_line: int
+    """0-based raw line index of the oldest line included (next page cursor)."""
+    has_more: bool
+
+
+def _history_page(
+    session_dir: Path, before_line: int | None = None, limit: int = _HISTORY_PAGE_LINES
+) -> HistoryPage | None:
+    """Read one page of history events (runs in thread).
+
+    ``before_line=None`` returns the NEWEST page (used for initial replay);
+    otherwise the page of raw lines preceding ``before_line``.
+    """
     annotated_file = session_dir / "wire.annotated.jsonl"
     wire_file = session_dir / "wire.jsonl"
-    source = annotated_file if await asyncio.to_thread(annotated_file.exists) else wire_file
-    if not await asyncio.to_thread(source.exists):
-        return
+    source = annotated_file if annotated_file.exists() else wire_file
+    if not source.exists():
+        return None
+    index = _wire_index(source)
+    total = len(index.offsets)
+    if total == 0:
+        return None
+    end = total if before_line is None else max(0, min(before_line, total))
+    start = max(0, end - limit)
+    events = _parse_wire_window(source, index, start + 1, end + 1)
+    return HistoryPage(events=events, oldest_line=start, has_more=start > 0)
 
+
+async def replay_history(ws: WebSocket, session_dir: Path) -> HistoryPage | None:
+    """Replay the NEWEST page of wire history to a WebSocket.
+
+    Older pages are fetched on demand via ``GET .../history`` as the user
+    scrolls up — full-history replay made every reconnect slow and froze the
+    browser on long sessions.
+    """
+    page = await asyncio.to_thread(_history_page, session_dir)
+    if page is None:
+        return None
     try:
-        lines = await asyncio.to_thread(_read_wire_lines, source)
-        for event_text in lines:
+        for event_text in page.events:
             await ws.send_text(event_text)
     except Exception:
         pass
+    return page
+
+
+@router.get("/{session_id}/history", summary="Fetch an older page of session history")
+async def get_session_history(
+    session_id: UUID,
+    before_line: int | None = None,
+    limit: int = _HISTORY_PAGE_LINES,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> HistoryPage:
+    """Paginated history for lazy loading older messages on scroll-up.
+
+    ``before_line`` is the ``oldest_line`` cursor from the previous page;
+    omit it for the newest page. Returns coalesced JSONRPC event strings,
+    the next cursor (``oldest_line``) and ``has_more``.
+    """
+    session = get_session_or_404(session_id)
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    limit = max(100, min(limit, 10_000))
+    page = await asyncio.to_thread(
+        _history_page, session.cran_code_session.dir, before_line, limit
+    )
+    if page is None:
+        return HistoryPage(events=[], oldest_line=0, has_more=False)
+    return page
 
 
 @router.get("/", summary="List all sessions")
@@ -1294,20 +1419,21 @@ async def session_stream(
 
     session_process = await runner.get_or_create_session(session_id)
     attached = False
+    history_page: HistoryPage | None = None
     try:
         if has_history:
             # Attach WebSocket in replay mode before history replay
             await session_process.add_websocket_and_begin_replay(websocket)
             attached = True
 
-            # Replay history
+            # Replay the newest page of history (older pages load on demand)
             try:
-                await replay_history(websocket, session_dir)
+                history_page = await replay_history(websocket, session_dir)
             except Exception as e:
                 logger.warning(f"Failed to replay history: {e}")
 
         # Check if WebSocket is still connected before continuing
-        if not await send_history_complete(websocket):
+        if not await send_history_complete(websocket, history_page):
             logger.debug("WebSocket disconnected during history replay")
             return
 

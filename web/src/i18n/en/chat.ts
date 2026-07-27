@@ -262,6 +262,8 @@ export default {
   statusContextLimit: "Context limit",
   statusContext1mHint: "A 1M context window requires an Allegretto+ subscription tier on the account behind the provider key.",
   statusGoProviders: "Go to provider settings",
+  loadOlderMessages: "Load earlier messages",
+  loadOlderFailed: "Failed to load older messages",
   compactionDivider: "Earlier context compacted",
   compactionViewSummary: "View summary",
   toolGroupCount: "{{count}} tool calls",

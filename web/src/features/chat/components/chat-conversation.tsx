@@ -40,6 +40,9 @@ type ChatConversationProps = {
   isSearchOpen: boolean;
   onSearchOpenChange: (open: boolean) => void;
   onForkSession?: (turnIndex: number) => void;
+  hasMoreHistory?: boolean;
+  isLoadingOlder?: boolean;
+  onLoadOlderHistory?: () => Promise<void>;
 };
 
 export function ChatConversation({
@@ -55,6 +58,9 @@ export function ChatConversation({
   isSearchOpen,
   onSearchOpenChange,
   onForkSession,
+  hasMoreHistory = false,
+  isLoadingOlder = false,
+  onLoadOlderHistory,
 }: ChatConversationProps) {
   const { t } = useTranslation();
   const listRef = useRef<VirtualizedMessageListHandle>(null);
@@ -190,6 +196,10 @@ export function ChatConversation({
             highlightedMessageIndex={highlightedIndex}
             onAtBottomChange={setIsAtBottom}
             onForkSession={onForkSession}
+            isReplayingHistory={isReplayingHistory}
+            hasMoreHistory={hasMoreHistory}
+            isLoadingOlder={isLoadingOlder}
+            onLoadOlderHistory={onLoadOlderHistory}
           />
         </div>
       )}

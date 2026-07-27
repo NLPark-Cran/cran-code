@@ -116,7 +116,7 @@ import {
 import type { ChatStatus, ToolUIPart } from "ai";
 import type { LiveMessage, MessageAttachmentPart, SubagentStep } from "./types";
 import type { SessionStatus } from "@/lib/api/models";
-import { getAuthToken } from "@/lib/auth";
+import { getAuthHeader, getAuthToken } from "@/lib/auth";
 import {
   type ContentPart,
   type TokenUsage,
@@ -136,6 +136,7 @@ import {
   extractEvent,
 } from "./wireTypes";
 import { createMessageId, getApiBaseUrl } from "./utils";
+import { toast } from "sonner";
 import i18n from "@/i18n";
 import { cranCliVersion } from "@/lib/version";
 import { handleToolResult, useToolEventsStore, type TodoItem } from "@/features/tool/store";
@@ -204,6 +205,48 @@ const formatStepRetryStatus = (retry: StepRetryPayload): string =>
 const PROMPT_GATE_ERROR_CODE = -2;
 
 const PROMPT_GATE_PROVIDER_REGEX = /provider '([^']+)'/;
+
+/** Parse one raw JSONRPC event string (same shape as WS replay messages). */
+const parseRawHistoryEvent = (
+  raw: string,
+): { event: WireEvent; rpcMessageId?: string | number | null } | null => {
+  try {
+    const message: WireMessage = JSON.parse(raw);
+    if (message.method === "request") {
+      const params = message.params as {
+        type?: string;
+        payload?: unknown;
+      };
+      if (params?.type === "ApprovalRequest") {
+        const approvalEvent: ApprovalRequestEvent = {
+          type: "ApprovalRequest",
+          payload: params.payload as ApprovalRequestEvent["payload"],
+        };
+        return {
+          event: approvalEvent,
+          rpcMessageId:
+            message.id ?? (approvalEvent.payload.id as string | number),
+        };
+      }
+      if (params?.type === "QuestionRequest") {
+        const questionEvent: QuestionRequestEvent = {
+          type: "QuestionRequest",
+          payload: params.payload as QuestionRequestEvent["payload"],
+        };
+        return {
+          event: questionEvent,
+          rpcMessageId:
+            message.id ?? (questionEvent.payload.id as string | number),
+        };
+      }
+      return null;
+    }
+    const event = extractEvent(message);
+    return event ? { event } : null;
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Map a prompt-gate error message to localized guidance based on its content.
@@ -285,6 +328,12 @@ type UseSessionStreamReturn = {
   sessionStatus: SessionStatus | null;
   /** Whether the stream is still replaying history */
   isReplayingHistory: boolean;
+  /** Whether older history pages exist on the server */
+  hasMoreHistory: boolean;
+  /** Whether an older history page is currently being fetched */
+  isLoadingOlder: boolean;
+  /** Fetch and prepend the next older history page */
+  loadOlderHistory: () => Promise<void>;
   /** Whether waiting for the first response after sending a prompt */
   isAwaitingFirstResponse: boolean;
   /** Current context usage (0-1) */
@@ -376,6 +425,9 @@ export function useSessionStream(
   const [isAwaitingFirstResponse, setIsAwaitingFirstResponse] = useState(false);
   const [isReplayingHistory, setIsReplayingHistory] = useState(true);
   const [slashCommands, setSlashCommands] = useState<SlashCommandDef[]>([]);
+  // Paginated history replay: whether older pages exist + load state
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
 
   // Refs
   /**
@@ -459,10 +511,33 @@ export function useSessionStream(
   // Track the temporary StepRetry status so the next attempt can replace it.
   const stepRetryStatusMessageIdRef = useRef<string | null>(null);
 
-  // Wrapped setMessages
+  // Wrapped setMessages, delegating through a swappable sink so the
+  // older-history fold can redirect updates into a local array.
+  const messageSinkRef = useRef<typeof setMessagesInternal>(setMessagesInternal);
   const setMessages: typeof setMessagesInternal = useCallback((action) => {
-    setMessagesInternal(action);
+    messageSinkRef.current(action);
   }, []);
+
+  // Fresh mirror of the scalar UI states that processEvent may mutate.
+  // The isolated older-history fold snapshots/restores these synchronously.
+  const scalarStateRef = useRef({
+    status,
+    currentStep,
+    contextUsage,
+    tokenUsage,
+    planMode,
+    isAwaitingFirstResponse,
+  });
+  useEffect(() => {
+    scalarStateRef.current = {
+      status,
+      currentStep,
+      contextUsage,
+      tokenUsage,
+      planMode,
+      isAwaitingFirstResponse,
+    };
+  });
 
   const setAwaitingFirstResponse = useCallback((value: boolean) => {
     awaitingFirstResponseRef.current = value;
@@ -1109,6 +1184,11 @@ export function useSessionStream(
     replayDrainScheduledRef.current = false;
     replayClosingRef.current = false;
     replayFinishRef.current = null;
+    // Reset paginated history state
+    oldestLineCursorRef.current = null;
+    setHasMoreHistory(false);
+    isLoadingOlderRef.current = false;
+    setIsLoadingOlder(false);
     // Handle slashCommands: preserve or clear
     if (!preserveSlashCommands) {
       setSlashCommands([]);
@@ -2361,6 +2441,144 @@ export function useSessionStream(
     [isReplayQueueActive],
   );
 
+  // --- Paginated older-history loading --------------------------------------
+  /** 0-based raw wire-line cursor for the next older page (null = none yet) */
+  const oldestLineCursorRef = useRef<number | null>(null);
+  const isLoadingOlderRef = useRef(false);
+
+  /**
+   * Fold older-page events into a standalone LiveMessage[] block.
+   *
+   * Runs the SAME processEvent reduction, but isolated: the message sink is
+   * redirected to a local array and every live-stream ref/scalar the reducer
+   * may touch is snapshotted and restored afterwards, so the ongoing stream
+   * state is never disturbed. Message ids are fresh UUIDs (no collisions).
+   */
+  const foldOlderEvents = useCallback(
+    (
+      events: { event: WireEvent; rpcMessageId?: string | number | null }[],
+    ): LiveMessage[] => {
+      const snapshot = {
+        currentThinking: currentThinkingRef.current,
+        currentText: currentTextRef.current,
+        thinkingMessageId: thinkingMessageIdRef.current,
+        textMessageId: textMessageIdRef.current,
+        toolCalls: currentToolCallsRef.current,
+        toolCallId: currentToolCallIdRef.current,
+        approvals: pendingApprovalRequestsRef.current,
+        questions: pendingQuestionRequestsRef.current,
+        stepRetryStatusId: stepRetryStatusMessageIdRef.current,
+        compactionMessageId: compactionMessageIdRef.current,
+        compactionSummary: compactionSummaryRef.current,
+        mcpLoadingMessageId: mcpLoadingMessageIdRef.current,
+        turnCounter: turnCounterRef.current,
+        pendingClear: pendingClearRef.current,
+        hasTurnStarted: hasTurnStartedRef.current,
+        firstTurnCompleteCalled: firstTurnCompleteCalledRef.current,
+        awaitingFirstResponse: awaitingFirstResponseRef.current,
+        awaitingIdle: awaitingIdleRef.current,
+      };
+      const scalarSnapshot = scalarStateRef.current;
+
+      let folded: LiveMessage[] = [];
+      messageSinkRef.current = (action) => {
+        folded = typeof action === "function" ? action(folded) : action;
+      };
+      // Fresh fold state
+      currentThinkingRef.current = "";
+      currentTextRef.current = "";
+      thinkingMessageIdRef.current = null;
+      textMessageIdRef.current = null;
+      currentToolCallsRef.current = new Map();
+      currentToolCallIdRef.current = null;
+      pendingApprovalRequestsRef.current = new Map();
+      pendingQuestionRequestsRef.current = new Map();
+      stepRetryStatusMessageIdRef.current = null;
+      compactionMessageIdRef.current = null;
+      compactionSummaryRef.current = null;
+      mcpLoadingMessageIdRef.current = null;
+      turnCounterRef.current = 0;
+      pendingClearRef.current = false;
+
+      try {
+        for (const item of events) {
+          processEvent(item.event, true, item.rpcMessageId ?? undefined);
+        }
+      } finally {
+        messageSinkRef.current = setMessagesInternal;
+        currentThinkingRef.current = snapshot.currentThinking;
+        currentTextRef.current = snapshot.currentText;
+        thinkingMessageIdRef.current = snapshot.thinkingMessageId;
+        textMessageIdRef.current = snapshot.textMessageId;
+        currentToolCallsRef.current = snapshot.toolCalls;
+        currentToolCallIdRef.current = snapshot.toolCallId;
+        pendingApprovalRequestsRef.current = snapshot.approvals;
+        pendingQuestionRequestsRef.current = snapshot.questions;
+        stepRetryStatusMessageIdRef.current = snapshot.stepRetryStatusId;
+        compactionMessageIdRef.current = snapshot.compactionMessageId;
+        compactionSummaryRef.current = snapshot.compactionSummary;
+        mcpLoadingMessageIdRef.current = snapshot.mcpLoadingMessageId;
+        turnCounterRef.current = snapshot.turnCounter;
+        pendingClearRef.current = snapshot.pendingClear;
+        hasTurnStartedRef.current = snapshot.hasTurnStarted;
+        firstTurnCompleteCalledRef.current = snapshot.firstTurnCompleteCalled;
+        awaitingFirstResponseRef.current = snapshot.awaitingFirstResponse;
+        awaitingIdleRef.current = snapshot.awaitingIdle;
+        // Restore scalar UI states the reducer may have overwritten
+        setStatus(scalarSnapshot.status);
+        setCurrentStep(scalarSnapshot.currentStep);
+        setContextUsage(scalarSnapshot.contextUsage);
+        setTokenUsage(scalarSnapshot.tokenUsage);
+        setPlanMode(scalarSnapshot.planMode);
+        setAwaitingFirstResponse(scalarSnapshot.isAwaitingFirstResponse);
+      }
+      return folded;
+    },
+    [processEvent, setAwaitingFirstResponse],
+  );
+
+  /** Fetch and prepend the next older history page. */
+  const loadOlderHistory = useCallback(async () => {
+    if (!sessionId) return;
+    const cursor = oldestLineCursorRef.current;
+    if (isLoadingOlderRef.current || cursor === null) return;
+    isLoadingOlderRef.current = true;
+    setIsLoadingOlder(true);
+    try {
+      const basePath = getApiBaseUrl();
+      const response = await fetch(
+        `${basePath}/api/sessions/${encodeURIComponent(sessionId)}/history?before_line=${cursor}&limit=3000`,
+        { headers: { ...getAuthHeader() } },
+      );
+      if (!response.ok) {
+        throw new Error(i18n.t("chat:loadOlderFailed"));
+      }
+      const data = (await response.json()) as {
+        events?: string[];
+        oldest_line?: number;
+        has_more?: boolean;
+      };
+      const rawEvents = data.events ?? [];
+      const parsed = rawEvents
+        .map(parseRawHistoryEvent)
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+      const folded = foldOlderEvents(parsed);
+      oldestLineCursorRef.current =
+        typeof data.oldest_line === "number" ? data.oldest_line : null;
+      setHasMoreHistory(Boolean(data.has_more) && rawEvents.length > 0);
+      if (folded.length > 0) {
+        // Prepend as a block before the current first message
+        setMessagesInternal((prev) => [...folded, ...prev]);
+      }
+    } catch (err) {
+      console.error("[SessionStream] Failed to load older history:", err);
+      toast.error(i18n.t("chat:loadOlderFailed"));
+    } finally {
+      isLoadingOlderRef.current = false;
+      setIsLoadingOlder(false);
+    }
+  }, [sessionId, foldOlderEvents]);
+
   // Helper to send initialize message
   const sendInitialize = useCallback((ws: WebSocket) => {
     const id = uuidV4();
@@ -2507,6 +2725,21 @@ export function useSessionStream(
         if (message.method === "history_complete") {
           console.log(
             "[SessionStream] History loaded, waiting for environment...",
+          );
+          // Paginated replay: params tell us whether older pages exist and
+          // where the next page starts (raw wire-line cursor).
+          const historyParams = message.params as
+            | { has_more_history?: boolean; oldest_line?: number }
+            | undefined;
+          oldestLineCursorRef.current =
+            typeof historyParams?.oldest_line === "number"
+              ? historyParams.oldest_line
+              : null;
+          setHasMoreHistory(
+            Boolean(historyParams?.has_more_history) &&
+              historyParams?.oldest_line !== undefined &&
+              historyParams?.oldest_line !== null &&
+              historyParams.oldest_line > 0,
           );
           finishReplayWhenDrained(() => {
             isReplayingRef.current = false;
@@ -3353,6 +3586,9 @@ export function useSessionStream(
     currentStep,
     isConnected,
     isReplayingHistory,
+    hasMoreHistory,
+    isLoadingOlder,
+    loadOlderHistory,
     sendMessage,
     respondToApproval,
     respondToQuestion,

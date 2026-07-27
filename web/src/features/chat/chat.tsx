@@ -97,6 +97,12 @@ type ChatWorkspaceProps = {
   onForkSession?: (turnIndex: number) => void;
   /** Error message from the session stream */
   errorMessage?: string;
+  /** Whether older history pages exist on the server */
+  hasMoreHistory?: boolean;
+  /** Whether an older history page is being fetched */
+  isLoadingOlder?: boolean;
+  /** Fetch and prepend the next older history page */
+  onLoadOlderHistory?: () => Promise<void>;
 };
 
 type ToolApproval = NonNullable<LiveMessage["toolCall"]>["approval"];
@@ -131,6 +137,9 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
   onPlanModeChange,
   onForkSession,
   errorMessage,
+  hasMoreHistory = false,
+  isLoadingOlder = false,
+  onLoadOlderHistory,
 }: ChatWorkspaceProps): ReactElement {
   const { t } = useTranslation();
   const [blocksExpanded, setBlocksExpanded] = useState(false);
@@ -320,6 +329,9 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
                 isSearchOpen={isSearchOpen}
                 onSearchOpenChange={setIsSearchOpen}
                 onForkSession={onForkSession}
+                hasMoreHistory={hasMoreHistory}
+                isLoadingOlder={isLoadingOlder}
+                onLoadOlderHistory={onLoadOlderHistory}
               />
             </div>
 

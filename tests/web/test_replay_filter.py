@@ -216,3 +216,62 @@ class TestReplayDeltaCoalescing:
         events = _events(wire)
         assert len(events) == 3
         assert events[1]["params"]["payload"]["user_input"] == "next turn"
+
+
+class TestHistoryPagination:
+    """Paginated replay: newest page first, older pages via cursor."""
+
+    def _wire_with_turns(self, tmp_path: Path, n: int) -> Path:
+        records = [_record(_turn_text(f"turn {i}")) for i in range(n)]
+        return _write(tmp_path / "wire.jsonl", records)
+
+    def test_newest_page_returns_tail(self, tmp_path: Path) -> None:
+        from cran_code.web.api.sessions import _history_page
+
+        wire_dir = self._wire_with_turns(tmp_path, 10).parent
+        page = _history_page(wire_dir, before_line=None, limit=4)
+        assert page is not None
+        assert len(page.events) == 4
+        assert "turn 9" in page.events[-1]
+        assert page.has_more is True
+        assert page.oldest_line > 0
+
+    def test_older_page_via_cursor(self, tmp_path: Path) -> None:
+        from cran_code.web.api.sessions import _history_page
+
+        wire_dir = self._wire_with_turns(tmp_path, 10).parent
+        first = _history_page(wire_dir, before_line=None, limit=4)
+        assert first is not None
+        older = _history_page(wire_dir, before_line=first.oldest_line, limit=4)
+        assert older is not None
+        assert "turn 5" in older.events[-1]
+        oldest = _history_page(wire_dir, before_line=older.oldest_line, limit=4)
+        assert oldest is not None
+        assert len(oldest.events) == 2
+        assert oldest.has_more is False
+        assert oldest.oldest_line == 0
+
+    def test_small_file_single_page(self, tmp_path: Path) -> None:
+        from cran_code.web.api.sessions import _history_page
+
+        wire_dir = self._wire_with_turns(tmp_path, 3).parent
+        page = _history_page(wire_dir, before_line=None, limit=3000)
+        assert page is not None
+        assert len(page.events) == 3
+        assert page.has_more is False
+
+    def test_missing_file_returns_none(self, tmp_path: Path) -> None:
+        from cran_code.web.api.sessions import _history_page
+
+        assert _history_page(tmp_path) is None
+
+    def test_index_cache_reused(self, tmp_path: Path) -> None:
+        from cran_code.web.api.sessions import _wire_index, _wire_index_cache
+
+        wire = self._wire_with_turns(tmp_path, 5)
+        _wire_index(wire)
+        key = str(wire)
+        assert key in _wire_index_cache
+        first = _wire_index_cache[key]
+        _wire_index(wire)
+        assert _wire_index_cache[key] is first  # same entry, not rebuilt
