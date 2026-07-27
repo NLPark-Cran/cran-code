@@ -454,6 +454,10 @@ export function useSessionStream(
   const resetStateRef = useRef<(preserveSlashCommands?: boolean) => void>(() => undefined);
   const historyCompleteTimeoutRef = useRef<number | null>(null);
   const isReplayingRef = useRef(true); // Track if we're still replaying history
+  // Set once a session_status arrives on this connection; used to avoid the
+  // post-history_complete watchdog racing a session_status that was handled
+  // before the replay queue finished draining.
+  const sessionStatusSeenRef = useRef(false);
   const pendingMessageRef = useRef<string | null>(null); // Message to send after connection
   const awaitingIdleRef = useRef(false); // Track pending idle after cancel
   const awaitingFirstResponseRef = useRef(false); // Track if waiting for first event of a turn
@@ -1153,6 +1157,7 @@ export function useSessionStream(
   // Reset all state
   const resetState = useCallback((preserveSlashCommands = false) => {
     resetStepState();
+    sessionStatusSeenRef.current = false;
     stepRetryStatusMessageIdRef.current = null;
     currentToolCallsRef.current?.clear();
     currentToolCallIdRef.current = null;
@@ -2657,6 +2662,7 @@ export function useSessionStream(
         }
 
         if (message.method === "session_status") {
+          sessionStatusSeenRef.current = true;
           if (historyCompleteTimeoutRef.current) {
             window.clearTimeout(historyCompleteTimeoutRef.current);
             historyCompleteTimeoutRef.current = null;
@@ -2745,6 +2751,14 @@ export function useSessionStream(
             isReplayingRef.current = false;
             // Keep status as "submitted" - input stays disabled until session_status
             setStatus((current) => (current === "ready" ? current : "submitted"));
+
+            // The snapshot session_status may already have been processed
+            // (it is not queued behind the replay drain). If so, no watchdog
+            // is needed — setting one now would reconnect in 15s for no
+            // reason and loop forever on large sessions.
+            if (sessionStatusSeenRef.current) {
+              return;
+            }
 
             // Timeout fallback: reconnect if session_status not received within 15s
             const currentWs = wsRef.current;
@@ -3060,6 +3074,7 @@ export function useSessionStream(
 
     initializeRetryCountRef.current = 0; // Reset retry count for new connection
     lastWorkerIdRef.current = null; // Worker identity is per-connection (L20)
+    sessionStatusSeenRef.current = false;
 
     // Close existing connection
     if (wsRef.current) {
