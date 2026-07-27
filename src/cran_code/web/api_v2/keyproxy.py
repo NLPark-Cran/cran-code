@@ -27,8 +27,20 @@ from sqlalchemy import select
 from cran_code import logger
 from cran_code.config import load_config
 from cran_code.web.db.connection import AsyncSessionLocal
-from cran_code.web.db.keys import remaining_quota, resolve_provider_key
-from cran_code.web.db.models import TeamMember, UsageRecord
+from cran_code.web.db.keys import (
+    _global_api_key,
+    _is_global_admin,
+    _matching_grants,
+    _shared_allowed,
+    _used_shared_tokens,
+)
+from cran_code.web.db.models import (
+    ProviderPolicy,
+    TeamMember,
+    TeamProviderKey,
+    UsageRecord,
+    UserProviderKey,
+)
 
 router = APIRouter(prefix="/px/v1", tags=["keyproxy"])
 
@@ -108,6 +120,78 @@ async def _user_team_ids(user_id: str) -> list[str]:
         return [row[0] for row in result.all()]
 
 
+async def _resolve_for_proxy(
+    user_id: str, provider_key: str
+) -> tuple[str, str, int | None]:
+    """Single-DB-session variant of key resolution + shared quota check.
+
+    Returns ``(api_key, source, shared_remaining)``; ``shared_remaining`` is
+    ``None`` unless the resolved source is ``shared`` and a quota applies.
+    Raises no exceptions for missing keys — returns ``("", "", None)``.
+    Combining the lookups keeps the proxy at one DB connection per request
+    (the default pool exhausted under concurrent LLM traffic).
+    """
+    async with AsyncSessionLocal() as session:
+        team_ids = [
+            row[0]
+            for row in (
+                await session.execute(
+                    select(TeamMember.team_id).where(TeamMember.user_id == user_id)
+                )
+            ).all()
+        ]
+        api_key = ""
+        source = ""
+        # 1. personal
+        personal = (
+            await session.execute(
+                select(UserProviderKey).where(
+                    UserProviderKey.user_id == user_id,
+                    UserProviderKey.provider_key == provider_key,
+                )
+            )
+        ).scalar_one_or_none()
+        if personal is not None:
+            api_key, source = personal.api_key, "personal"
+        elif team_ids:
+            team_key = (
+                await session.execute(
+                    select(TeamProviderKey)
+                    .where(
+                        TeamProviderKey.provider_key == provider_key,
+                        TeamProviderKey.team_id.in_(team_ids),
+                    )
+                    .order_by(TeamProviderKey.created_at)
+                )
+            ).scalars().first()
+            if team_key is not None:
+                api_key, source = team_key.api_key, "team"
+        if not api_key:
+            global_key = _global_api_key(provider_key)
+            if global_key is not None and await _shared_allowed(
+                session, provider_key, user_id, team_ids
+            ):
+                api_key, source = global_key, "shared"
+        if not api_key:
+            return ("", "", None)
+        if source != "shared":
+            return (api_key, source, None)
+        # Quota for shared usage (same semantics as db.keys.remaining_quota)
+        policy = await session.get(ProviderPolicy, provider_key)
+        mode = policy.shared_mode if policy is not None else "all"
+        if mode != "restricted" or await _is_global_admin(session, user_id):
+            return (api_key, source, None)
+        grants = await _matching_grants(session, provider_key, user_id, team_ids)
+        if not grants or any(g.quota_tokens is None for g in grants):
+            return (api_key, source, None)
+        remainings = [
+            grant.quota_tokens - await _used_shared_tokens(session, provider_key, grant)
+            for grant in grants
+            if grant.quota_tokens is not None
+        ]
+        return (api_key, source, min(remainings) if remainings else None)
+
+
 async def record_usage(
     *,
     user_id: str,
@@ -182,14 +266,12 @@ async def proxy(path: str, request: Request) -> Response:
     provider_key = claims["p"]
     token_source = claims["s"]
 
-    team_ids = await _user_team_ids(user_id)
-    resolved = await resolve_provider_key(user_id, provider_key, team_ids)
-    if resolved is None:
+    real_key, source, shared_remaining = await _resolve_for_proxy(user_id, provider_key)
+    if not real_key:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No usable API key for this provider (revoked or policy changed)",
         )
-    real_key, source = resolved
     if source != token_source:
         # Resolution priority changed (e.g. a personal key was added); the
         # worker should be restarted to pick up fresh credentials.
@@ -198,13 +280,11 @@ async def proxy(path: str, request: Request) -> Response:
             detail="Key resolution changed; please restart the session",
         )
 
-    if source == "shared":
-        remaining = await remaining_quota(user_id, provider_key, team_ids)
-        if remaining is not None and remaining <= 0:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Shared-key quota exhausted; ask your administrator for more quota",
-            )
+    if source == "shared" and shared_remaining is not None and shared_remaining <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Shared-key quota exhausted; ask your administrator for more quota",
+        )
 
     config = load_config()
     provider = config.providers.get(provider_key)

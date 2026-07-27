@@ -8,6 +8,7 @@ from pathlib import Path
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
+from sqlalchemy.pool import NullPool
 
 from cran_code.share import get_share_dir
 
@@ -16,16 +17,17 @@ Base = declarative_base()
 # Default to ~/.cran/cran.db to keep within existing share dir
 _DEFAULT_DB_PATH = Path(get_share_dir()) / "cran.db"
 
-_db_url = os.environ.get("CRAN_DATABASE_URL")
-if _db_url is None:
-    _db_url = f"sqlite+aiosqlite:///{_DEFAULT_DB_PATH}"
+_db_url = os.environ.get("CRAN_DATABASE_URL") or f"sqlite+aiosqlite:///{_DEFAULT_DB_PATH}"
 
-engine = create_async_engine(
-    _db_url,
-    echo=False,
-    future=True,
-    pool_pre_ping=True,
-)
+_engine_kwargs: dict = {"echo": False, "future": True, "pool_pre_ping": True}
+if _db_url.startswith("sqlite"):
+    # SQLite: a default-sized QueuePool (5+10) exhausts quickly under the
+    # concurrent load of the key proxy, usage metering and prompt gate.
+    # aiosqlite connections are cheap, so skip pooling entirely and enable
+    # WAL so readers are not blocked behind writers.
+    _engine_kwargs["poolclass"] = NullPool
+
+engine = create_async_engine(_db_url, **_engine_kwargs)
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
@@ -38,6 +40,9 @@ AsyncSessionLocal = async_sessionmaker(
 def _enable_sqlite_pragma(dbapi_conn, connection_record):
     cursor = dbapi_conn.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
+    if _db_url.startswith("sqlite"):
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
     cursor.close()
 
 
