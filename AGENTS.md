@@ -585,6 +585,11 @@ A broader `pytest tests/core` run shows failures in branding/path-sensitive test
 - **QueuePool exhaustion**: sqlite now uses NullPool + WAL + busy_timeout; key proxy combines team-ids + resolution + quota into ONE DB session per request (was 3). Root cause of "WS 错误 / 会话和控制台加载不出" — all DB-backed endpoints timed out once proxy traffic grew.
 - **Fused model usage (对话与工具分离)**: `SearchWeb`/`FetchURL` tools use `config.services.moonshot_search` / `moonshot_fetch` — independent of the chat provider. Enabled with the Kimi subscription key (base_url `api.kimi.com/coding/v1/{search,fetch}`), so the conversation can run on TokenDance K3 while web search/fetch go through the Kimi subscription. Both endpoints verified live. Tools appear in new workers (SkipThisTool when unconfigured). TODO: expose services config in Providers UI.
 
+### Update (2026-07-27): paginated history replay
+- Initial WS replay now sends only the newest page (3000 raw lines, coalesced); older history loads on demand via `GET /api/sessions/{id}/history?before_line=N` (cursor = `oldest_line` from `history_complete.params`). Backend keeps a per-file wire offset index (mtime-cached).
+- Frontend folds older pages in an isolated sink (no live-stream ref mutation), prepends as a block;「加载更早消息」header + startReached auto-load; scroll: single jump-to-bottom after replay, firstItemIndex anchoring on prepend.
+- Fixes slow session loads on refresh/restart and the「反复滚动」jumpiness on bad networks. Bundle `index-gNXUXeTl.js`.
+
 ### Deferred (next milestone)
 - **Goal mode**: no backend exists in the old Python soul (new kimi-code TS only) — needs lifecycle + GoalStrip UI port, its own focused session.
 - **Blob-ref media offload**: wire/context records carry `blobref:` instead of inline base64, rehydrate on restore — big record-layer design; replay tombstoning (done) covers the worst symptoms meanwhile.
