@@ -581,6 +581,10 @@ A broader `pytest tests/core` run shows failures in branding/path-sensitive test
 - StatusPanel has admin context-tier quick-set (256K/512K/1M) — the model context control lives there AND on ProvidersPage per model.
 - Bundle `index-CkMvkG1y.js`.
 
+### Hotfix (2026-07-27): DB pool + fused search/fetch services
+- **QueuePool exhaustion**: sqlite now uses NullPool + WAL + busy_timeout; key proxy combines team-ids + resolution + quota into ONE DB session per request (was 3). Root cause of "WS 错误 / 会话和控制台加载不出" — all DB-backed endpoints timed out once proxy traffic grew.
+- **Fused model usage (对话与工具分离)**: `SearchWeb`/`FetchURL` tools use `config.services.moonshot_search` / `moonshot_fetch` — independent of the chat provider. Enabled with the Kimi subscription key (base_url `api.kimi.com/coding/v1/{search,fetch}`), so the conversation can run on TokenDance K3 while web search/fetch go through the Kimi subscription. Both endpoints verified live. Tools appear in new workers (SkipThisTool when unconfigured). TODO: expose services config in Providers UI.
+
 ### Deferred (next milestone)
 - **Goal mode**: no backend exists in the old Python soul (new kimi-code TS only) — needs lifecycle + GoalStrip UI port, its own focused session.
 - **Blob-ref media offload**: wire/context records carry `blobref:` instead of inline base64, rehydrate on restore — big record-layer design; replay tombstoning (done) covers the worst symptoms meanwhile.
