@@ -1793,13 +1793,24 @@ class KimiSoul:
             return not bool(getattr(exception, "_kimi_recovery_exhausted", False))
         if isinstance(exception, APIEmptyResponseError):
             return True
-        return isinstance(exception, APIStatusError) and exception.status_code in (
-            429,  # Too Many Requests
-            500,  # Internal Server Error
-            502,  # Bad Gateway
-            503,  # Service Unavailable
-            504,  # Gateway Timeout
-        )
+        if isinstance(exception, APIStatusError):
+            if exception.status_code in (
+                429,  # Too Many Requests
+                500,  # Internal Server Error
+                502,  # Bad Gateway
+                503,  # Service Unavailable
+                504,  # Gateway Timeout
+            ):
+                return True
+            # Some OpenAI-compatible gateways (e.g. TokenDance) return a bare
+            # 400 "Error when parsing request" for TRANSIENT upstream failures
+            # — the identical request succeeds on retry. Retry that specific
+            # message (only that one; real 400s must still fail fast).
+            if exception.status_code == 400 and "error when parsing request" in str(
+                exception
+            ).lower():
+                return True
+        return False
 
     async def _run_with_connection_recovery(
         self,
