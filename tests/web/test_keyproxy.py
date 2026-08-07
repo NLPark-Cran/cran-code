@@ -158,6 +158,78 @@ class TestBuildWorkerEnv:
         assert "OPENAI_API_KEY" not in env
 
 
+class TestProxyTokenRefresh:
+    """Expired proxy tokens on long-idle workers trigger a worker restart."""
+
+    def _prompt(self, msg_id: str = "p-1") -> str:
+        return json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "prompt",
+                "id": msg_id,
+                "params": {"user_input": "hi"},
+            }
+        )
+
+    def _make_sp(self, exp: float | None) -> SessionProcess:
+        sp = SessionProcess(uuid4())
+        sp._key_info = _SessionKeyInfo(
+            owner_id="user-1",
+            provider_key="tokendance",
+            provider_type="openai_legacy",
+            model="k3",
+            has_global_key=True,
+            api_key="sk-x",
+            source="shared",
+            proxy_token_exp=exp,
+        )
+        return sp
+
+    @pytest.mark.asyncio
+    async def test_expired_token_triggers_restart(self) -> None:
+        import time as _time
+
+        sp = self._make_sp(exp=_time.time() - 100)  # expired
+        restarts: list[str] = []
+
+        async def fake_restart(*, reason: str, force: bool = False) -> bool:
+            restarts.append(reason)
+            return True
+
+        with (
+            patch.object(SessionProcess, "is_alive", new_callable=lambda: property(lambda s: True)),
+            patch.object(SessionProcess, "restart_worker", side_effect=fake_restart),
+            patch.object(SessionProcess, "_start_locked", new=AsyncMock()),
+            patch.object(SessionProcess, "_prompt_gate_error", new=AsyncMock(return_value=None)),
+            patch.object(SessionProcess, "_handle_in_message", new=AsyncMock(return_value=None)),
+        ):
+            sp._process = MagicMock()  # stdin write target
+            sp._process.stdin = MagicMock()
+            sp._process.stdin.write = MagicMock()
+            sp._process.stdin.drain = AsyncMock()
+            await sp.send_message(self._prompt())
+        assert restarts == ["proxy_token_refresh"]
+
+    @pytest.mark.asyncio
+    async def test_fresh_token_no_restart(self) -> None:
+        import time as _time
+
+        sp = self._make_sp(exp=_time.time() + 3 * 24 * 3600)
+        with (
+            patch.object(SessionProcess, "is_alive", new_callable=lambda: property(lambda s: True)),
+            patch.object(SessionProcess, "restart_worker", new=AsyncMock()) as restart,
+            patch.object(SessionProcess, "_start_locked", new=AsyncMock()),
+            patch.object(SessionProcess, "_prompt_gate_error", new=AsyncMock(return_value=None)),
+            patch.object(SessionProcess, "_handle_in_message", new=AsyncMock(return_value=None)),
+        ):
+            sp._process = MagicMock()
+            sp._process.stdin = MagicMock()
+            sp._process.stdin.write = MagicMock()
+            sp._process.stdin.drain = AsyncMock()
+            await sp.send_message(self._prompt())
+        restart.assert_not_called()
+
+
 class TestPromptGate:
     def _session_patch(self, tmp_path: Path):
         session = MagicMock()

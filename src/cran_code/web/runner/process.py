@@ -110,6 +110,8 @@ class _SessionKeyInfo:
     """Resolved key material; empty when no key is usable for this user."""
     source: str = ""
     """""personal" | "team" | "shared"; empty when unresolved."""
+    proxy_token_exp: float | None = None
+    """Expiry (epoch seconds) of the minted key-proxy token, when used."""
 
 
 class SessionProcess:
@@ -332,22 +334,24 @@ class SessionProcess:
                 # Team/shared kimi keys go through the proxy as well so quota
                 # enforcement and usage metering apply (OAuth-managed kimi
                 # providers have no resolvable key and never reach this path).
-                from cran_code.web.api_v2.keyproxy import mint_proxy_token
+                from cran_code.web.api_v2.keyproxy import mint_proxy_token, verify_proxy_token
 
+                token = mint_proxy_token(info.owner_id, info.provider_key, info.source)
                 env["CRAN_BASE_URL"] = proxy_url
-                env["CRAN_API_KEY"] = mint_proxy_token(
-                    info.owner_id, info.provider_key, info.source
-                )
+                env["CRAN_API_KEY"] = token
+                claims = verify_proxy_token(token)
+                info.proxy_token_exp = float(claims["exp"]) if claims else None
         elif info.provider_type in ("openai_legacy", "openai_responses"):
             if info.source == "personal":
                 env["OPENAI_API_KEY"] = info.api_key
             elif proxy_url:
-                from cran_code.web.api_v2.keyproxy import mint_proxy_token
+                from cran_code.web.api_v2.keyproxy import mint_proxy_token, verify_proxy_token
 
+                token = mint_proxy_token(info.owner_id, info.provider_key, info.source)
                 env["OPENAI_BASE_URL"] = proxy_url
-                env["OPENAI_API_KEY"] = mint_proxy_token(
-                    info.owner_id, info.provider_key, info.source
-                )
+                env["OPENAI_API_KEY"] = token
+                claims = verify_proxy_token(token)
+                info.proxy_token_exp = float(claims["exp"]) if claims else None
         # Other provider types (anthropic/google/...) have no env-override
         # channel in augment_provider_with_env_vars; they use config as-is.
         return env
@@ -1071,6 +1075,20 @@ class SessionProcess:
                 )
         return None
 
+    def _needs_proxy_token_refresh(self) -> bool:
+        """Whether the live worker's key-proxy token is expiring within 1h.
+
+        Proxy tokens are minted at worker spawn with a 3-day TTL; a worker
+        left idle over that boundary keeps using the expired credential and
+        every LLM call fails with 401. Refreshing = restarting the worker,
+        which re-mints the token in ``_build_worker_env``.
+        """
+        info = self._key_info
+        if not self.is_alive or self.is_busy or info is None:
+            return False
+        exp = info.proxy_token_exp
+        return exp is not None and exp - time.time() < 3600
+
     async def send_message(self, message: str) -> None:
         """Send a message to the subprocess stdin.
 
@@ -1085,6 +1103,12 @@ class SessionProcess:
         except ValueError as e:
             logger.error(f"{e.__class__.__name__} {e}: Invalid JSONRPC in message: {message}")
             return
+
+        # Refresh an expiring key-proxy token BEFORE taking the lock
+        # (restart_worker acquires it; a long-idle worker's 3-day token may
+        # have expired since the last prompt).
+        if isinstance(in_message, JSONRPCPromptMessage) and self._needs_proxy_token_refresh():
+            await self.restart_worker(reason="proxy_token_refresh", force=True)
 
         async with self._lock:
             if isinstance(in_message, JSONRPCInitializeMessage):
