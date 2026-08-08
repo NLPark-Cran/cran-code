@@ -13,6 +13,7 @@ import sys
 import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from typing import Any, cast
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -178,6 +179,12 @@ class SessionProcess:
         # (via replay or a forwarded client message). Multi-client sessions
         # resend initialize on worker_id change; only the first may pass.
         self._worker_initialized: bool = False
+        # The initialize request id currently awaiting the worker's response,
+        # and the cached initialize result (slash commands, etc.). New
+        # clients whose initialize is deduped get answered from this cache —
+        # otherwise they would never receive the slash-command list.
+        self._pending_initialize_id: str | None = None
+        self._cached_initialize_result: dict[str, Any] | None = None
         # Latest key-resolution snapshot (per worker spawn), used for usage
         # metering of direct-injected personal keys.
         self._key_info: _SessionKeyInfo | None = None
@@ -439,6 +446,8 @@ class SessionProcess:
         # supports_plan_mode), client info, external tools and hooks.
         self._replayed_initialize_message = None
         self._worker_initialized = False
+        self._pending_initialize_id = None
+        self._cached_initialize_result = None
         if self._cached_initialize_message is not None:
             assert self._process.stdin is not None
             self._process.stdin.write(
@@ -447,6 +456,10 @@ class SessionProcess:
             await self._process.stdin.drain()
             self._replayed_initialize_message = self._cached_initialize_message
             self._worker_initialized = True
+            with contextlib.suppress(ValueError, KeyError, AttributeError):
+                init_id = json.loads(self._cached_initialize_message).get("id")
+                if init_id is not None:
+                    self._pending_initialize_id = str(init_id)
 
         if restart_started_at is not None:
             elapsed_ms = int((time.perf_counter() - restart_started_at) * 1000)
@@ -778,6 +791,15 @@ class SessionProcess:
         """Handle outbound message from worker."""
         match message:
             case JSONRPCSuccessResponse():
+                # Cache the worker's initialize result (slash commands etc.)
+                # so deduped initialize messages can be answered locally.
+                if (
+                    self._pending_initialize_id is not None
+                    and str(message.id) == self._pending_initialize_id
+                    and isinstance(message.result, dict)
+                ):
+                    self._cached_initialize_result = cast(dict[str, Any], message.result)
+                    self._pending_initialize_id = None
                 was_busy = self.is_busy
                 if message.id in self._in_flight_prompt_ids:
                     self._in_flight_prompt_ids.remove(message.id)
@@ -1176,7 +1198,14 @@ class SessionProcess:
                 # This worker generation already has its initialize (replayed
                 # by start() or sent by another client); a duplicate would
                 # confuse the wire server. The latest message is still cached
-                # above for future restarts.
+                # above for future restarts. Answer from the cached result so
+                # the client still receives slash commands.
+                if self._cached_initialize_result is not None:
+                    await self._broadcast(
+                        JSONRPCSuccessResponse(
+                            id=in_message.id, result=self._cached_initialize_result
+                        ).model_dump_json()
+                    )
                 return
 
             # Handle in message
@@ -1201,6 +1230,7 @@ class SessionProcess:
                 await process.stdin.drain()
                 if isinstance(in_message, JSONRPCInitializeMessage):
                     self._worker_initialized = True
+                    self._pending_initialize_id = str(in_message.id)
             except (BrokenPipeError, ConnectionResetError) as e:
                 # Worker died between the liveness check and the write.
                 # Roll back bookkeeping and tell the client (with the

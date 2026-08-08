@@ -20,6 +20,7 @@ from uuid import uuid4
 import pytest
 
 from cran_code.web.runner.process import SessionProcess
+from cran_code.wire.jsonrpc import JSONRPCSuccessResponse
 
 
 def _patch_session_dir(tmp_path: Path):
@@ -220,3 +221,37 @@ async def test_new_client_initialize_after_restart_not_skipped() -> None:
         await sp.restart_worker(reason="config_update")
         third_worker = factory.processes[2]
         assert third_worker.stdin.writes == [(new_init + "\n").encode()]
+
+
+@pytest.mark.asyncio
+async def test_deduped_initialize_gets_cached_result() -> None:
+    """Slash commands must survive initialize dedup: the second client's
+    initialize is answered from the cached worker result, not dropped."""
+    factory = _FakeProcessFactory()
+    sp = SessionProcess(uuid4())
+    broadcasts: list[str] = []
+
+    async def fake_broadcast(msg: str) -> None:
+        broadcasts.append(msg)
+
+    sp._broadcast = fake_broadcast  # type: ignore[method-assign]
+
+    with patch("asyncio.create_subprocess_exec", side_effect=factory):
+        await sp.send_message(_initialize_message("init-1"))
+        worker = factory.processes[0]
+        assert worker.stdin.writes == [(_initialize_message("init-1") + "\n").encode()]
+
+        # Worker answers the initialize with a slash-command list.
+        await sp._handle_out_message(
+            JSONRPCSuccessResponse(
+                id="init-1", result={"slash_commands": ["/compact", "/clear"]}
+            )
+        )
+
+        # Second client's initialize is deduped but answered from cache.
+        await sp.send_message(_initialize_message("init-2"))
+        assert len(worker.stdin.writes) == 1  # not forwarded
+        assert broadcasts, "cached initialize result should be broadcast"
+        response = json.loads(broadcasts[-1])
+        assert response["id"] == "init-2"
+        assert response["result"]["slash_commands"] == ["/compact", "/clear"]
