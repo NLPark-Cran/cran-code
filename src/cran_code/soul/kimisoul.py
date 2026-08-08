@@ -174,6 +174,33 @@ def is_retryable_api_error(e: Exception) -> bool:
     return isinstance(e, ChatProviderError)
 
 
+def _is_provider_overflow_error(e: BaseException) -> bool:
+    """Whether the provider rejected the request for being too large.
+
+    Covers HTTP 413 (body too large, e.g. image-heavy requests through a
+    gateway) and the 400 phrasings used by OpenAI-compatible gateways for
+    token-limit rejections.
+    """
+    if not isinstance(e, APIStatusError):
+        return False
+    if e.status_code == 413:
+        return True
+    if e.status_code == 400:
+        msg = str(e).lower()
+        return any(
+            marker in msg
+            for marker in (
+                "exceeded model token limit",
+                "maximum context",
+                "context length",
+                "too many tokens",
+                "request too large",
+                "payload too large",
+            )
+        )
+    return False
+
+
 def _provider_telemetry_kwargs(llm: LLM | None) -> dict[str, str]:
     if llm is None or llm.provider_config is None:
         return {}
@@ -1039,7 +1066,27 @@ class KimiSoul:
                 self._denwa_renji.set_n_checkpoints(self._context.n_checkpoints)
 
                 # ── 2e. Step Execution ──────────────────────────────────────────
-                step_outcome = await self._step()
+                # Overflow recovery: if the provider rejects the request as too
+                # large (HTTP 413 or a token-limit 400 — e.g. a gateway body
+                # limit hit well below the model's nominal token limit because
+                # base64 images inflate bytes), compact the context and retry
+                # the step instead of failing the whole turn.
+                for _overflow_attempt in range(3):
+                    try:
+                        step_outcome = await self._step()
+                        break
+                    except Exception as overflow_exc:
+                        if (
+                            not _is_provider_overflow_error(overflow_exc)
+                            or _overflow_attempt >= 2
+                        ):
+                            raise
+                        logger.warning(
+                            "Provider rejected the request as too large ({}); "
+                            "compacting context and retrying the step",
+                            overflow_exc,
+                        )
+                        await self.compact_context()
 
             except BackToTheFuture as e:
                 # ── 2f-i. D-Mail revert signal ────────────────────────────────
