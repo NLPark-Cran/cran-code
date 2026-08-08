@@ -1455,6 +1455,9 @@ async def session_stream(
             await session_process.end_replay(websocket)
             await session_process.start()
             await session_process.send_status_snapshot(websocket)
+            # Re-send unanswered questions/approvals so a pending
+            # AskUserQuestion survives reconnects.
+            await session_process.send_pending_requests(websocket)
         except Exception as e:
             logger.warning(f"Failed to start session environment: {e}")
             try:

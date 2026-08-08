@@ -181,6 +181,11 @@ class SessionProcess:
         # Latest key-resolution snapshot (per worker spawn), used for usage
         # metering of direct-injected personal keys.
         self._key_info: _SessionKeyInfo | None = None
+        # Unanswered worker requests (QuestionRequest/ApprovalRequest), raw
+        # JSONRPC lines keyed by request id. Re-sent to every new WebSocket
+        # after replay so a pending question survives reconnects; cleared
+        # when answered or when the worker (re)spawns.
+        self._pending_requests: dict[str, str] = {}
 
     def _get_annotated_wire_file(self) -> WireFile | None:
         """Lazy-load the annotated wire file for this session."""
@@ -222,6 +227,19 @@ class SessionProcess:
     def websocket_count(self) -> int:
         """Get the number of connected WebSockets."""
         return self._websocket_count
+
+    async def send_pending_requests(self, ws: WebSocket) -> None:
+        """Re-send unanswered worker requests to a (re)connected client.
+
+        Called after history replay + status snapshot so a pending
+        AskUserQuestion/approval survives page refreshes and reconnects.
+        """
+        for raw in list(self._pending_requests.values()):
+            try:
+                if ws.application_state == WebSocketState.CONNECTED:
+                    await ws.send_text(raw)
+            except Exception:
+                return
 
     async def send_status_snapshot(self, ws: WebSocket) -> None:
         """Send the current status snapshot to a specific WebSocket."""
@@ -388,6 +406,7 @@ class SessionProcess:
             return
 
         self._in_flight_prompt_ids.clear()
+        self._pending_requests.clear()
         self._expecting_exit = False
         self._worker_id = str(uuid4())
 
@@ -580,6 +599,9 @@ class SessionProcess:
                         # is_busy is already False when the frontend reacts
                         # to the error and sends a new prompt.
                         self._in_flight_prompt_ids.clear()
+                        # The worker is gone; its pending questions can no
+                        # longer be answered.
+                        self._pending_requests.clear()
                         await self._broadcast(
                             JSONRPCErrorResponse(
                                 id=str(uuid4()),
@@ -693,6 +715,13 @@ class SessionProcess:
                                     except Exception:
                                         pass
                         case "request":
+                            # Track unanswered requests so they can be
+                            # re-sent to clients that connect later.
+                            req_id = msg.get("id")
+                            if req_id is not None:
+                                self._pending_requests[str(req_id)] = line.decode(
+                                    "utf-8", errors="replace"
+                                ).rstrip("\n")
                             wire_msg = deserialize_wire_message(msg["params"])
                             msg["params"] = wire_msg
                             await self._handle_out_message(
@@ -1114,6 +1143,13 @@ class SessionProcess:
             if isinstance(in_message, JSONRPCInitializeMessage):
                 # Cache the latest initialize so it survives worker restarts.
                 self._cached_initialize_message = message
+
+            # A response to a pending worker request (question/approval)
+            # resolves it — stop re-sending it to future connections.
+            if isinstance(in_message, (JSONRPCSuccessResponse, JSONRPCErrorResponse)):
+                resp_id = getattr(in_message, "id", None)
+                if resp_id is not None:
+                    self._pending_requests.pop(str(resp_id), None)
 
             if isinstance(in_message, JSONRPCPromptMessage):
                 # Key/quota gate: answer immediately with an actionable error
