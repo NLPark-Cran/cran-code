@@ -1,0 +1,13 @@
+default_model = "qwen38"
+default_yolo = true
+telemetry = false
+
+[providers.tokendance]
+type = "openai_legacy"
+base_url = "{base_url}"
+api_key = "{api_key}"
+
+[models.qwen38]
+provider = "tokendance"
+model = "{model}"
+max_context_size = 262144
