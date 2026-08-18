@@ -15,7 +15,18 @@ from cran_code.utils.logging import logger
 from cran_code.wire.types import ContentPart, TextPart, ThinkPart
 
 COMPACTION_SYSTEM_PROMPT = "You are a helpful assistant that compacts conversation context."
-COMPACTION_OUTPUT_PREFIX = "Previous context has been compacted. Here is the compaction output:"
+# Prepended (as a system-tagged part) before the compaction summary. Teaches
+# the model to treat the summary as fallible notes, not proof.
+COMPACTION_OUTPUT_PREFIX = (
+    "The conversation so far has been compacted to free up context. What follows "
+    "is your own working summary of this task — use it to continue your train of "
+    "thought rather than starting over. Treat it as notes, not proof: where it "
+    "says a step was done, tests passed, or a fix worked, verify that yourself "
+    "before relying on it. Any user messages earlier in this context are preserved "
+    "verbatim from the compacted conversation; where a system-reminder note among "
+    "them marks an omitted middle section, the user messages it replaced are "
+    "covered by this summary."
+)
 
 
 class CompactionResult(NamedTuple):

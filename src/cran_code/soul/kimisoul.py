@@ -77,7 +77,13 @@ from cran_code.soul.dynamic_injection import (
 )
 from cran_code.soul.dynamic_injections.afk_mode import AfkModeInjectionProvider
 from cran_code.soul.dynamic_injections.plan_mode import PlanModeInjectionProvider
-from cran_code.soul.message import check_message, system, system_reminder, tool_result_to_message
+from cran_code.soul.message import (
+    check_message,
+    omit_unsupported_media,
+    system,
+    system_reminder,
+    tool_result_to_message,
+)
 from cran_code.soul.slash import registry as soul_slash_registry
 from cran_code.soul.toolset import KimiToolset
 from cran_code.tools.dmail import NAME as SendDMail_NAME
@@ -1444,13 +1450,19 @@ class KimiSoul:
 
         assert self._runtime.llm is not None
         tool_messages = [tool_result_to_message(tr) for tr in tool_results]
+        # Drop unsupported media from tool results instead of aborting mid-task
+        # after the tool has already run (see #2588). User-provided media still
+        # raises LLMNotSupported via check_message on the turn/steer paths.
+        rewritten: list[Message] = []
         for tm in tool_messages:
-            if missing_caps := check_message(tm, self._runtime.llm.capabilities):
+            omitted_msg, omitted_caps = omit_unsupported_media(tm, self._runtime.llm.capabilities)
+            if omitted_caps:
                 logger.warning(
-                    "Tool result message requires unsupported capabilities: {caps}",
-                    caps=missing_caps,
+                    "Omitting unsupported media from tool result (missing capabilities: {caps})",
+                    caps=omitted_caps,
                 )
-                raise LLMNotSupported(self._runtime.llm, list(missing_caps))
+            rewritten.append(omitted_msg)
+        tool_messages = rewritten
 
         await self._context.append_message(result.message)
         if result.usage is not None:
@@ -1461,6 +1473,30 @@ class KimiSoul:
         )
         await self._context.append_message(tool_messages)
         # token count of tool results are not available yet
+
+    def _request_overhead_estimate(self) -> int:
+        """Estimate system-prompt + tool-schema tokens for the next request.
+
+        Compaction estimates count only message content; the real request also
+        carries the system prompt and tool schemas (which can be tens of
+        thousands of tokens with MCP tools). Character heuristic, matching
+        ``estimate_text_tokens``.
+        """
+        import json as _json
+
+        total_chars = len(self._agent.system_prompt or "")
+        toolset = self._agent.toolset
+        tools = getattr(toolset, "tools", None) or []
+        for tool in tools:
+            try:
+                total_chars += len(getattr(tool, "name", "") or "")
+                total_chars += len(getattr(tool, "description", "") or "")
+                params = getattr(tool, "params", None)
+                if params is not None and hasattr(params, "model_json_schema"):
+                    total_chars += len(_json.dumps(params.model_json_schema()))
+            except Exception:
+                continue
+        return total_chars // 4
 
     async def compact_context(
         self,
@@ -1673,6 +1709,12 @@ class KimiSoul:
         from cran_code.telemetry import track
 
         estimated_token_count = compaction_result.estimated_token_count
+        # kimi-code c0b61c6e: the next real request includes the system prompt
+        # and tool schemas, which the compaction estimate omits — add that
+        # overhead so the post-compaction token count (and the safety checks
+        # below, which compare against the API-measured pre-compaction count)
+        # are not drastically under-reported.
+        estimated_token_count += self._request_overhead_estimate()
 
         def _is_not_reducing(estimate: int) -> bool:
             """Whether the compacted estimate failed to shrink the context."""
@@ -1711,7 +1753,9 @@ class KimiSoul:
                 )
                 raise
 
-            fallback_estimate = fallback_result.estimated_token_count
+            fallback_estimate = (
+                fallback_result.estimated_token_count + self._request_overhead_estimate()
+            )
             if fallback_estimate < estimated_token_count:
                 compaction_result = fallback_result
                 estimated_token_count = fallback_estimate
