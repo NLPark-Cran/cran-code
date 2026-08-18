@@ -38,3 +38,8 @@
 - 内存模型 / wire / 各 provider 序列化零改动；wire.jsonl 刻意不外置（前端重放需内联渲染）。
 - fork 按 context 行中的 blobref 引用复制 blob；revert/clear 轮转保留 blobref，blob 随会话目录同生同灭。
 - 测试：tests/core/test_blobstore.py 17 例（单元 + Context 集成 + revert + fork）。
+
+## 2026-08-18 — swarm 可视化
+- wire 新事件 SubagentStatus（实例创建/状态变更时由 SubagentStore 单一 choke point 发射，前台后台均覆盖；shell/ACP 默认忽略）。
+- GET /api/sessions/{id}/subagents 快照端点（meta.json 直读，鉴权同 fork）。
+- 前端：zustand swarm store + 会话切换时快照水合（竞态安全）+ chat header SwarmPanel（运行数徽章/状态点/步数/相对时间）；Notification 事件接 toast（重放时不刷）。

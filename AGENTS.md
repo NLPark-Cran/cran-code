@@ -38,6 +38,7 @@ docs/dev/                 # 开发分册（见下）
 | 部署 SOP（含验证清单与回滚） | `docs/dev/deploy.md` |
 | 故障索引（症状→根因→修复，先查这个） | `docs/dev/troubleshooting.md` |
 | 里程碑归档 | `docs/dev/changelog.md` |
+| Goal 模式设计（移植方案） | `docs/dev/goal-mode.md` |
 | docs/ 写作规范（上游归档） | `docs/dev/documentation-style.md` |
 
 ## 不可违背约束（摘要）
@@ -51,9 +52,10 @@ docs/dev/                 # 开发分册（见下）
 
 ## 当前状态（2026-08-18）
 
-- 最新部署 bundle：`index-cVNE5YlD.js`（后端与前端均已上线）。
+- 最新部署 bundle：`index-B6ieFPeQ.js`（后端与前端均已上线）。
 - 上游同步：已与 MoonshotAI/kimi-cli main 齐平（merge commit 250ad162 之后无 behind）。
-- 进行中里程碑（见 docs/dev/changelog.md 末节与 plans）：Goal 模式移植、媒体 blob-ref 外置、swarm 可视化、千问办公风视觉收敛。
+- 进行中里程碑（见 docs/dev/changelog.md 末节与 plans）：Goal 模式移植（设计：docs/dev/goal-mode.md）、千问办公风视觉收敛。
+- 已完成：媒体 blob-ref 外置（soul/blobstore.py）、swarm 可视化（SubagentStatus 事件 + /subagents 快照 + 前端面板）。
 - 我的 CLI 环境注意：子 agent 与主会话共用同一 Kimi 订阅配额，大批量 agent 工作可能撞上周期上限（403）。
 
 ## 快速开始（本地开发）
