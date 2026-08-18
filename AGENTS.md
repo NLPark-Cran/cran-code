@@ -590,6 +590,12 @@ A broader `pytest tests/core` run shows failures in branding/path-sensitive test
 - Frontend folds older pages in an isolated sink (no live-stream ref mutation), prepends as a block;「加载更早消息」header + startReached auto-load; scroll: single jump-to-bottom after replay, firstItemIndex anchoring on prepend.
 - Fixes slow session loads on refresh/restart and the「反复滚动」jumpiness on bad networks. Bundle `index-gNXUXeTl.js`.
 
+### Update (2026-08-18): review round 3 + TokenDance attribution
+- **TokenDance 应用标识**: `providers.tokendance.custom_headers` (X-App-Name: Cran Code, X-Site-URL: https://crys.tt2.li) — flows via kosong default_headers AND the key proxy; verified 200 end-to-end. ASCII only (headers must be latin-1).
+- **Round-3 audit fixes**: fork turnIndex now session-absolute (history pages carry turn_base; wire index tracks TurnBegin lines and snaps page starts to turn boundaries); initialize dedup queues waiters until the cached result lands; replay queue gating covers drain-in-progress; loadOlderHistory has a session/epoch guard; proxy-token refresh never force-kills a busy worker; "Error when parsing request" 400 also triggers overflow-compaction retry (TD gateway transient).
+- Server config: `loop_control.max_retries_per_step` 3 → 10 (explicit config overrode the new default).
+- Bundle `index-cVNE5YlD.js`.
+
 ### Deferred (next milestone)
 - **Goal mode**: no backend exists in the old Python soul (new kimi-code TS only) — needs lifecycle + GoalStrip UI port, its own focused session.
 - **Blob-ref media offload**: wire/context records carry `blobref:` instead of inline base64, rehydrate on restore — big record-layer design; replay tombstoning (done) covers the worst symptoms meanwhile.
