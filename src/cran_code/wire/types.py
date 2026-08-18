@@ -299,6 +299,37 @@ class SubagentEvent(BaseModel):
         return event
 
 
+class SubagentStatus(BaseModel):
+    """
+    A lifecycle status update for a subagent instance.
+
+    Emitted best-effort whenever a subagent instance is created or its status
+    changes. Unlike `SubagentEvent` (which streams inner activity of a
+    foreground run), this is a lightweight side-channel that also covers
+    background agents, enabling swarm-style overviews.
+    """
+
+    agent_id: str
+    """The subagent instance ID."""
+    subagent_type: str
+    """The built-in subagent type used by this instance."""
+    description: str
+    """Short human-readable description of the instance's task."""
+    status: Literal[
+        "idle",
+        "running_foreground",
+        "running_background",
+        "completed",
+        "failed",
+        "killed",
+    ]
+    """The instance lifecycle status."""
+    updated_at: float
+    """Unix timestamp of the status change."""
+    last_task_id: str | None = None
+    """The background task ID, if this instance is/was running in background."""
+
+
 class ApprovalResponse(BaseModel):
     """
     Indicates that an approval request has been resolved.
@@ -544,6 +575,7 @@ type Event = (
     | ToolResult
     | ApprovalResponse
     | SubagentEvent
+    | SubagentStatus
     | PlanDisplay
     | BtwBegin
     | BtwEnd
@@ -694,6 +726,7 @@ __all__ = [
     "ToolResult",
     "ApprovalResponse",
     "SubagentEvent",
+    "SubagentStatus",
     "PlanDisplay",
     "BtwBegin",
     "BtwEnd",

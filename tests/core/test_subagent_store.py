@@ -196,3 +196,56 @@ def test_list_instances_skips_meta_with_invalid_field_types(session) -> None:
     records = store.list_instances()
 
     assert [record.agent_id for record in records] == ["a7777777"]
+
+
+def test_status_update_emitted_when_wire_active(session) -> None:
+    from types import SimpleNamespace
+
+    from cran_code.soul import _current_wire
+    from cran_code.wire.types import SubagentStatus
+
+    sent: list[object] = []
+    fake_wire = SimpleNamespace(soul_side=SimpleNamespace(send=sent.append))
+    token = _current_wire.set(fake_wire)
+    try:
+        store = SubagentStore(session)
+        store.create_instance(
+            agent_id="a9999999",
+            description="emit test",
+            launch_spec=AgentLaunchSpec(
+                agent_id="a9999999",
+                subagent_type="coder",
+                model_override=None,
+                effective_model=None,
+            ),
+        )
+        store.update_instance("a9999999", status="running_foreground", last_task_id="t-1")
+    finally:
+        _current_wire.reset(token)
+
+    assert len(sent) == 2
+    assert all(isinstance(m, SubagentStatus) for m in sent)
+    created, running = sent
+    assert created.status == "idle"
+    assert created.agent_id == "a9999999"
+    assert created.subagent_type == "coder"
+    assert created.description == "emit test"
+    assert running.status == "running_foreground"
+    assert running.last_task_id == "t-1"
+
+
+def test_status_update_noop_without_wire(session) -> None:
+    # No wire in context: must not raise.
+    store = SubagentStore(session)
+    store.create_instance(
+        agent_id="a8888888",
+        description="no wire",
+        launch_spec=AgentLaunchSpec(
+            agent_id="a8888888",
+            subagent_type="coder",
+            model_override=None,
+            effective_model=None,
+        ),
+    )
+    store.update_instance("a8888888", status="failed")
+    assert store.require_instance("a8888888").status == "failed"

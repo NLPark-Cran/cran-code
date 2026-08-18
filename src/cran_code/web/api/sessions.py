@@ -1133,6 +1133,32 @@ def extract_first_turn_from_wire(session_dir: Path) -> tuple[str, str] | None:
     return None
 
 
+@router.get("/{session_id}/subagents", summary="List subagent instances of a session")
+async def list_session_subagents(
+    session_id: UUID,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> list[dict[str, Any]]:
+    """Snapshot of subagent instances (swarm overview), read from meta.json files.
+
+    Live updates stream over the WebSocket as `SubagentStatus` events; this
+    endpoint provides the initial state on page load / reconnect.
+    """
+    from dataclasses import asdict
+
+    from cran_code.subagents.store import SubagentStore
+
+    session = get_session_or_404(session_id)
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    store = SubagentStore(session.cran_code_session)
+    return [asdict(record) for record in store.list_instances()]
+
+
 @router.post("/{session_id}/fork", summary="Fork a session at a specific turn")
 async def fork_session_endpoint(
     session_id: UUID,
