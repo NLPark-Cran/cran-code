@@ -196,6 +196,10 @@ def _is_provider_overflow_error(e: BaseException) -> bool:
                 "too many tokens",
                 "request too large",
                 "payload too large",
+                # TokenDance's gateway uses this generic message for transient
+                # upstream failures on large requests; compacting shrinks the
+                # body and the retry typically succeeds.
+                "error when parsing request",
             )
         )
     return False

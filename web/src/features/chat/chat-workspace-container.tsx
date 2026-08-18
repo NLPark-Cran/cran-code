@@ -133,6 +133,7 @@ export function ChatWorkspaceContainer({
     hasMoreHistory,
     isLoadingOlder,
     loadOlderHistory,
+    lastPrependCountRef,
   } = sessionStream;
 
   const clearNewFiles = useToolEventsStore((state) => state.clearNewFiles);
@@ -414,6 +415,7 @@ export function ChatWorkspaceContainer({
       hasMoreHistory={hasMoreHistory}
       isLoadingOlder={isLoadingOlder}
       onLoadOlderHistory={loadOlderHistory}
+      lastPrependCountRef={lastPrependCountRef}
     />
   );
 }

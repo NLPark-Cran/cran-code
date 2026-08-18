@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import bisect
 import json
 import mimetypes
 import os
@@ -279,28 +280,40 @@ _MEDIA_DATA_URL_RE = re.compile(
 
 
 class _WireIndex:
-    """Byte offsets of every line start + last compaction marker line."""
+    """Byte offsets of every line start + last compaction marker + turn lines."""
 
-    __slots__ = ("offsets", "compaction_line")
+    __slots__ = ("offsets", "compaction_line", "turn_lines")
 
-    def __init__(self, offsets: list[int], compaction_line: int) -> None:
+    def __init__(
+        self, offsets: list[int], compaction_line: int, turn_lines: list[int]
+    ) -> None:
         self.offsets = offsets
         self.compaction_line = compaction_line
+        # 1-based line numbers of TurnBegin records (used to snap page
+        # boundaries to turn starts and to compute session-absolute turn
+        # indices for fork).
+        self.turn_lines = turn_lines
 
 
-# (path, mtime) -> index; rebuilt when the file changes. One entry per
-# actively-viewed session — tiny compared to the files themselves.
-_wire_index_cache: dict[str, tuple[float, _WireIndex]] = {}
+# (path) -> (stat signature, index); rebuilt when the file changes. One entry
+# per actively-viewed session — tiny compared to the files themselves.
+_wire_index_cache: dict[str, tuple[tuple[float, int, int], _WireIndex]] = {}
 
 
 def _wire_index(wire_file: Path) -> _WireIndex:
     stat = wire_file.stat()
+    # mtime+size+inode: a same-mtime file replacement (cp -p) must not reuse
+    # stale offsets.
+    signature = (stat.st_mtime, stat.st_size, stat.st_ino)
     cache_key = str(wire_file)
     cached = _wire_index_cache.get(cache_key)
-    if cached is not None and cached[0] == stat.st_mtime:
+    if cached is not None and cached[0] == signature:
         return cached[1]
     offsets: list[int] = []
+    turn_lines: list[int] = []
     compaction_line = 0
+    turn_marker = b'"type": "TurnBegin"'
+    markers = [m.encode() for m in _COMPACTION_MARKER_TYPES]
     with open(wire_file, "rb") as f:
         while True:
             pos = f.tell()
@@ -308,12 +321,14 @@ def _wire_index(wire_file: Path) -> _WireIndex:
             if not line:
                 break
             offsets.append(pos)
-            if any(marker.encode() in line for marker in _COMPACTION_MARKER_TYPES):
+            if turn_marker in line:
+                turn_lines.append(len(offsets))
+            elif any(marker in line for marker in markers):
                 compaction_line = len(offsets)  # 1-based line number
-    index = _WireIndex(offsets, compaction_line)
+    index = _WireIndex(offsets, compaction_line, turn_lines)
     if len(_wire_index_cache) > 64:
         _wire_index_cache.clear()
-    _wire_index_cache[cache_key] = (stat.st_mtime, index)
+    _wire_index_cache[cache_key] = (signature, index)
     return index
 
 
@@ -478,6 +493,12 @@ class HistoryPage(BaseModel):
     oldest_line: int
     """0-based raw line index of the oldest line included (next page cursor)."""
     has_more: bool
+    source: str = ""
+    """Which wire file the page came from (wire.annotated.jsonl / wire.jsonl);
+    a change invalidates cursors."""
+    turn_base: int = 0
+    """Number of TurnBegin records strictly before this page (session-
+    absolute turn index of the page's first turn)."""
 
 
 def _history_page(
@@ -486,7 +507,9 @@ def _history_page(
     """Read one page of history events (runs in thread).
 
     ``before_line=None`` returns the NEWEST page (used for initial replay);
-    otherwise the page of raw lines preceding ``before_line``.
+    otherwise the page of raw lines preceding ``before_line``. The page start
+    snaps forward to the nearest turn boundary so a page never begins in the
+    middle of a turn (which would strand tool cards / subagent steps).
     """
     annotated_file = session_dir / "wire.annotated.jsonl"
     wire_file = session_dir / "wire.jsonl"
@@ -499,8 +522,20 @@ def _history_page(
         return None
     end = total if before_line is None else max(0, min(before_line, total))
     start = max(0, end - limit)
+    # Snap forward to the first TurnBegin at/after start (1-based compare).
+    if start > 0 and index.turn_lines:
+        snap_idx = bisect.bisect_left(index.turn_lines, start + 1)
+        if snap_idx < len(index.turn_lines) and index.turn_lines[snap_idx] <= end:
+            start = index.turn_lines[snap_idx] - 1
+    turn_base = bisect.bisect_left(index.turn_lines, start + 1) if index.turn_lines else 0
     events = _parse_wire_window(source, index, start + 1, end + 1)
-    return HistoryPage(events=events, oldest_line=start, has_more=start > 0)
+    return HistoryPage(
+        events=events,
+        oldest_line=start,
+        has_more=start > 0,
+        source=source.name,
+        turn_base=turn_base,
+    )
 
 
 async def replay_history(ws: WebSocket, session_dir: Path) -> HistoryPage | None:

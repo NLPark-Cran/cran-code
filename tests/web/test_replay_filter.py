@@ -275,3 +275,36 @@ class TestHistoryPagination:
         first = _wire_index_cache[key]
         _wire_index(wire)
         assert _wire_index_cache[key] is first  # same entry, not rebuilt
+
+    def test_page_start_snaps_to_turn_boundary(self, tmp_path: Path) -> None:
+        # A page must never start mid-turn (strands tool cards / subagent
+        # steps): pad each turn with extra records so an unsnapped window
+        # would start inside a turn.
+        from cran_code.web.api.sessions import _history_page
+
+        records: list[str] = []
+        for i in range(6):
+            records.append(_record(_turn_text(f"turn {i}")))
+            records.append(
+                _record({"type": "ContentPart", "payload": {"type": "text", "text": f"reply {i}"}})
+            )
+            records.append(
+                _record({"type": "ContentPart", "payload": {"type": "text", "text": "..."}})
+            )
+        _write(tmp_path / "wire.jsonl", records)
+        # 18 lines; limit 5 -> unsnapped start=13 (mid-turn 4), snapped to
+        # the TurnBegin at line 13 (0-based 12).
+        page = _history_page(tmp_path, before_line=None, limit=5)
+        assert page is not None
+        first = json.loads(page.events[0])
+        assert first["params"]["type"] == "TurnBegin"
+
+    def test_turn_base_counts_prior_turns(self, tmp_path: Path) -> None:
+        from cran_code.web.api.sessions import _history_page
+
+        wire_dir = self._wire_with_turns(tmp_path, 10).parent
+        page = _history_page(wire_dir, before_line=None, limit=4)
+        assert page is not None
+        # 10 one-line turns; page covers turns 6-9 (0-based line 6).
+        assert page.turn_base == 6
+        assert page.source == "wire.jsonl"

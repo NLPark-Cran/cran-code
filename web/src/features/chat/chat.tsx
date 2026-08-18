@@ -103,6 +103,8 @@ type ChatWorkspaceProps = {
   isLoadingOlder?: boolean;
   /** Fetch and prepend the next older history page */
   onLoadOlderHistory?: () => Promise<void>;
+  /** Exact count of the most recent older-history prepend */
+  lastPrependCountRef?: React.RefObject<number>;
 };
 
 type ToolApproval = NonNullable<LiveMessage["toolCall"]>["approval"];
@@ -140,6 +142,7 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
   hasMoreHistory = false,
   isLoadingOlder = false,
   onLoadOlderHistory,
+  lastPrependCountRef,
 }: ChatWorkspaceProps): ReactElement {
   const { t } = useTranslation();
   const [blocksExpanded, setBlocksExpanded] = useState(false);
@@ -332,6 +335,7 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
                 hasMoreHistory={hasMoreHistory}
                 isLoadingOlder={isLoadingOlder}
                 onLoadOlderHistory={onLoadOlderHistory}
+                lastPrependCountRef={lastPrependCountRef}
               />
             </div>
 
