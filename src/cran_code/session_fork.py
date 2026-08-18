@@ -307,6 +307,8 @@ async def fork_session(
 
     # Copy referenced video files
     _copy_referenced_videos(source_session_dir, new_session_dir, truncated_wire_lines)
+    # Copy referenced media blobs (externalized from context.jsonl)
+    _copy_referenced_blobs(source_session_dir, new_session_dir, truncated_context_lines)
 
     # Write truncated wire.jsonl
     new_wire_path = new_session_dir / "wire.jsonl"
@@ -334,6 +336,31 @@ async def fork_session(
     save_session_state(new_state, new_session_dir)
 
     return new_session.id
+
+
+def _copy_referenced_blobs(
+    source_dir: Path,
+    new_session_dir: Path,
+    context_lines: list[str],
+) -> None:
+    """Copy media blob files referenced by blobrefs in the context lines."""
+    from cran_code.soul.blobstore import find_blobrefs
+
+    source_blobs = source_dir / "blobs"
+    if not source_blobs.is_dir():
+        return
+
+    referenced: set[str] = set()
+    for line in context_lines:
+        referenced.update(find_blobrefs(line))
+
+    files_to_copy = [source_blobs / name for name in referenced if (source_blobs / name).is_file()]
+    if not files_to_copy:
+        return
+    new_blobs = new_session_dir / "blobs"
+    new_blobs.mkdir(parents=True, exist_ok=True)
+    for blob in files_to_copy:
+        shutil.copy2(blob, new_blobs / blob.name)
 
 
 def _read_all_lines(path: Path) -> list[str]:

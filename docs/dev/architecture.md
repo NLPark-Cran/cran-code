@@ -13,7 +13,8 @@ Cran Code = MoonshotAI/kimi-cli (Python) 的 fork + 自建 Web 多用户层。�
 浏览器 ──WS──▶ FastAPI (SessionProcess) ──JSONRPC/stdio──▶ worker (KimiSoul + kosong → LLM provider)
                      │
                      ├─ wire.jsonl / wire.annotated.jsonl（事件日志，重放来源）
-                     ├─ context.jsonl（模型上下文，compaction 会重建）
+                     ├─ context.jsonl（模型上下文，compaction 会重建；大媒体以 blobref 外置）
+                     ├─ blobs/（context 媒体的内容寻址 blob，随会话目录同生同灭）
                      └─ ~/.cran/cran.db（sqlite：用户/团队/key/配额/用量）
 ```
 
@@ -23,7 +24,8 @@ Cran Code = MoonshotAI/kimi-cli (Python) 的 fork + 自建 Web 多用户层。�
 |---|---|---|
 | `soul/kimisoul.py` | agent 主循环（step/工具/压缩/重试） | 任何改动先跑 `tests/core/test_kimisoul_*` |
 | `soul/compaction.py` | SimpleCompaction + 提示词 | prompt 在 `prompts/compact.md`（第一人称交接笔记式） |
-| `soul/context.py` | context.jsonl 持久化（含 `_usage` token 账本、checkpoint） | restore 会读回 `_usage` |
+| `soul/context.py` | context.jsonl 持久化（含 `_usage` token 账本、checkpoint） | restore 会读回 `_usage`；append 时大媒体外置为 blobref |
+| `soul/blobstore.py` | 媒体 blob-ref：写时把 ≥1KB 的 data: URL 存为 `blobs/<sha256>.<ext>`，restore 时水合回 data URL；blob 缺失降级为文本占位片 | fork 会按引用复制 blob；wire.jsonl 不外置（前端重放需要内联） |
 | `web/runner/process.py` | SessionProcess：worker 生命周期、锁、广播、key 注入、prompt 闸门、pending 请求跟踪、initialize 缓存/去重 | `_lock` 保护的临界区，勿在持锁时调 restart |
 | `web/api/sessions.py` | v1 会话 API + WS stream + 分页重放（`_WireIndex` 偏移索引缓存） | 重放只发最新一页；更老分页走 HTTP |
 | `web/api_v2/` | 协作平台 API（users/teams/projects/providers/keyproxy/admin/fs/git/terminal/collab） | 全部 v2 JWT；管理动作用 `require_admin` |

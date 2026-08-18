@@ -32,3 +32,9 @@
 - compaction prompt 第一人称化 + 摘要不可信前缀 + token 计数含 overhead。
 - system.md 升级（去过度主动、预告纪律、拒绝不绕路、爆炸半径、注入硬化、CANDID、语言跟随）。
 - TokenDance 应用标识（X-App-Name/X-Site-URL）。
+
+## 2026-08-18 — 媒体 blob-ref 外置
+- `soul/blobstore.py`：context.jsonl 落盘时把 ≥1KB 的 data: URL 媒体外置为 `blobs/<sha256>.<ext>`（内容寻址去重），restore 时水合回 data URL；blob 缺失/引用非法降级为文本占位片，restore 不炸。
+- 内存模型 / wire / 各 provider 序列化零改动；wire.jsonl 刻意不外置（前端重放需内联渲染）。
+- fork 按 context 行中的 blobref 引用复制 blob；revert/clear 轮转保留 blobref，blob 随会话目录同生同灭。
+- 测试：tests/core/test_blobstore.py 17 例（单元 + Context 集成 + revert + fork）。
