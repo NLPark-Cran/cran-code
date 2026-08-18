@@ -132,6 +132,8 @@ import {
   type SessionStatusPayload,
   type StepRetryEvent,
   type SubagentEventWire,
+  type SubagentStatusWire,
+  type NotificationWire,
   type PlanDisplayEvent,
   extractEvent,
 } from "./wireTypes";
@@ -140,6 +142,10 @@ import { toast } from "sonner";
 import i18n from "@/i18n";
 import { cranCliVersion } from "@/lib/version";
 import { handleToolResult, useToolEventsStore, type TodoItem } from "@/features/tool/store";
+import {
+  type SwarmSnapshotItem,
+  useSwarmStore,
+} from "@/stores/swarm";
 import { v4 as uuidV4 } from "uuid";
 
 // Regex patterns moved to top level for performance
@@ -157,6 +163,35 @@ const NEWLINE_REGEX = /\r?\n/;
 const MEDIA_TAG_PATH_REGEX = /<(?:image|video)\s+[^>]*path="([^"]*\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/uploads\/([^"]+))"/g;
 const BROWSER_URL_PROTOCOLS = new Set(["http:", "https:", "data:", "blob:"]);
 const WIRE_PROTOCOL_VERSION = "1.10";
+
+/** Map a Notification wire event to a brief localized toast (never during replay). */
+function showNotificationToast(payload: NotificationWire["payload"]): void {
+  const inner = payload.payload ?? {};
+  const description = inner.description || payload.title || payload.body;
+  if (!description) return;
+  const rawStatus = inner.status ?? "";
+  const statusKey =
+    rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+  const statusLabel = rawStatus
+    ? i18n.t(`chat:taskStatus${statusKey}`, { defaultValue: rawStatus })
+    : "";
+  const message = statusLabel
+    ? i18n.t("chat:taskNotification", { description, status: statusLabel })
+    : description;
+  switch (payload.severity) {
+    case "success":
+      toast.success(message);
+      break;
+    case "error":
+      toast.error(message);
+      break;
+    case "warning":
+      toast.warning(message);
+      break;
+    default:
+      toast.info(message);
+  }
+}
 
 type StepRetryPayload = StepRetryEvent["payload"];
 
@@ -1250,6 +1285,10 @@ export function useSessionStream(
       agentId?: string,
       subagentType?: string,
     ) => {
+      // Track live step activity for the swarm panel (keyed by agent_id).
+      if (agentId) {
+        useSwarmStore.getState().touchActivity(agentId);
+      }
       setMessages((prev) => {
         // Find the parent Agent tool message by toolCallId
         const parentIdx = prev.findIndex(
@@ -2116,6 +2155,22 @@ export function useSessionStream(
               subPayload.agent_id ?? undefined,
               subPayload.subagent_type ?? undefined,
             );
+          }
+          break;
+        }
+
+        case "SubagentStatus": {
+          const statusPayload = (event as SubagentStatusWire).payload;
+          useSwarmStore.getState().upsertFromStatus(statusPayload);
+          break;
+        }
+
+        case "Notification": {
+          // Surface terminal background-task notifications as toasts; do not
+          // add them to the message timeline. Skip during replay to avoid a
+          // toast storm when reconnecting to a long-lived session.
+          if (!isReplay) {
+            showNotificationToast((event as NotificationWire).payload);
           }
           break;
         }
@@ -3673,6 +3728,7 @@ export function useSessionStream(
     resetStateRef.current(true);
     setMessages([]);
     useToolEventsStore.getState().clearTodoItems();
+    useSwarmStore.getState().clear();
 
     // Auto-connect if we have a valid sessionId
     if (sessionId) {
@@ -3691,6 +3747,33 @@ export function useSessionStream(
       disconnectRef.current();
     };
   }, [sessionId, setMessages]);
+
+  // Hydrate the swarm agent snapshot when the session changes.
+  // Failures (404/403/network/empty) leave the store empty — the live
+  // `SubagentStatus` stream will populate it as events arrive.
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    const sessionAtStart = sessionId;
+    (async () => {
+      try {
+        const basePath = getApiBaseUrl();
+        const response = await fetch(
+          `${basePath}/api/sessions/${encodeURIComponent(sessionAtStart)}/subagents`,
+          { headers: { ...getAuthHeader() } },
+        );
+        if (!response.ok) return;
+        const data = (await response.json()) as SwarmSnapshotItem[];
+        if (cancelled || sessionIdLiveRef.current !== sessionAtStart) return;
+        useSwarmStore.getState().hydrate(Array.isArray(data) ? data : []);
+      } catch {
+        // Network or parse error: keep the store as-is (empty).
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
 
   // Cleanup on unmount
   useEffect(

@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SessionInfoPopover } from "./session-info-popover";
+import { SwarmPanel } from "./swarm-panel";
 import { OpenInMenu } from "./open-in-menu";
 import { isMacOS } from "@/hooks/utils";
 
@@ -165,6 +166,8 @@ export function ChatWorkspaceHeader({
               sessionId={selectedSessionId}
               session={currentSession}
             />
+
+            <SwarmPanel />
 
             {onToggleFilesPanel ? (
               <Tooltip>
