@@ -1,0 +1,34 @@
+# 开发里程碑（归档自 AGENTS.md 的历史记录）
+
+## 2026-06-08 — upstream v1.49.0 合并 + K3 支持
+- 合并 MoonshotAI/kimi-cli v1.49.0（kosong 0.55.0）；新增 K3 / kimi-for-coding-highspeed 支持。
+
+## 2026-07-19/20 — Providers 功能 + initialize 重放 + 安全大修 + key 体系
+- Providers v2 API + ProvidersPage（模型选择/切换重启 worker）。
+- AskUserQuestion/K3 修复：initialize 缓存重放（worker 重启不丢客户端能力）。
+- 20 项安全审查修复（SSRF、角色、限流、fs 防护、toml 脱敏等）；require_admin + 零 admin 引导。
+- Key 体系：个人/团队/共享三级解析、/px 代理、配额与用量计量、prompt 闸门。
+- 二轮审查：代理令牌加固（JWT 密钥签名、3 天 TTL、loopback-only、路径白名单）、kimi 系也走代理、v1 config PATCH 收 admin。
+
+## 2026-07-21 — 前端全面进化
+- i18n 全套（react-i18next，11 命名空间，zh 默认 + English 切换）。
+- UX：工具调用卡片（运行展开/完成折叠/分组）、ContextRing + StatusPanel、压缩分隔线、已压缩媒体占位片。
+- 性能：shiki 裁 31 语言、refractor 300→22、manualChunks → dist 20MB→12MB、chunk 358→52。
+- 用量统计页 /settings/usage；会话分叉/标题/归档打磨。
+- 修复：压缩后图片重放（tombstone）、ReadMediaFile 压缩（2000px 保格式）。
+
+## 2026-07-26/27 — 重放冻结与重连循环修复 + 控制台化
+- 流式碎片合并（131K→2.3K 帧）+ 分片重放；分页重放（最新一页 + 游标加载更早）。
+- session_status 竞态导致的无限重连修复；控制台式 /dashboard；Layout 滚动壳修复；文本残段吸收。
+- DB NullPool + WAL（QueuePool 耗尽修复）。
+
+## 2026-07-27/08-09 — 兼容性修复
+- TD 网关 413/瞬时 400 → 溢出压缩重试；代理令牌过期自动刷新；pending 问题补发；initialize 缓存应答。
+- 三轮审查：fork turnIndex 绝对化、分页边界 turn 对齐、initialize 空窗排队、重放队列排序等。
+
+## 2026-08-18 — 上游 merge + 社区 PR + kimi-code 借鉴
+- merge upstream/main（kosong 0.56.0；behind 归零）。
+- 移植社区 PR：#2507 #2520 #2572 #2530 #2592 #2539 #2535。
+- compaction prompt 第一人称化 + 摘要不可信前缀 + token 计数含 overhead。
+- system.md 升级（去过度主动、预告纪律、拒绝不绕路、爆炸半径、注入硬化、CANDID、语言跟随）。
+- TokenDance 应用标识（X-App-Name/X-Site-URL）。
