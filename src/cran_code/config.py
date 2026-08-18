@@ -71,6 +71,9 @@ class LLMModel(BaseModel):
     """Model capabilities"""
     display_name: str | None = None
     """Human-readable model name (sourced from the provider's models API when available)"""
+    default_effort: str | None = None
+    """Default thinking effort for this model (e.g. "low"/"high"/"max").
+    Overrides the global heuristic when set (kimi-code model-pool pattern)."""
 
 
 class LoopControl(BaseModel):

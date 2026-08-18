@@ -516,14 +516,16 @@ def create_llm(
 def _resolve_thinking_effort(model: LLMModel) -> ThinkingEffort:
     """Resolve the thinking effort for a model.
 
-    Priority: ``CRAN_MODEL_THINKING_EFFORT`` env override → model default.
-    K3 supports low/high/max and defaults to ``max`` (higher efforts unlock
-    better reasoning on the subscription tiers that allow them); other models
-    keep ``high``.
+    Priority: ``CRAN_MODEL_THINKING_EFFORT`` env override → the model's
+    ``default_effort`` config → model default. K3 supports low/high/max and
+    defaults to ``max`` (higher efforts unlock better reasoning on the
+    subscription tiers that allow them); other models keep ``high``.
     """
     override = os.getenv("CRAN_MODEL_THINKING_EFFORT", "").strip().lower()
     if override in ("low", "medium", "high", "xhigh", "max"):
         return cast(ThinkingEffort, override)
+    if model.default_effort in ("low", "medium", "high", "xhigh", "max"):
+        return cast(ThinkingEffort, model.default_effort)
     if model.model == "k3":
         return "max"
     return "high"

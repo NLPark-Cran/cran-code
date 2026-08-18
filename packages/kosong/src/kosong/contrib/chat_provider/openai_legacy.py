@@ -214,6 +214,12 @@ class OpenAILegacy:
             message.content = [TextPart(text=message.extract_text(sep="\n"))]
         else:
             message.content = content
+        # Reasoning-only assistant messages (thinking interrupted before any
+        # text) would otherwise serialize with an empty content list, which
+        # strict OpenAI-compatible gateways reject with a 400. Project an
+        # explicit empty text part instead (kimi-code fe3cdae5).
+        if not message.content and has_reasoning:
+            message.content = [TextPart(text="")]
         dumped_message = message.model_dump(exclude_none=True)
         if has_reasoning and self._reasoning_key:
             dumped_message[self._reasoning_key] = reasoning_content
