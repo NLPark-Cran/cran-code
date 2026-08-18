@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Kosong: Stop sending an empty `anthropic-beta` header when no beta features are declared — adaptive thinking removes the interleaved-thinking beta, which previously left an empty header value that some backends reject
+
 ## 0.55.0 (2026-07-16)
 
 - Kimi: Stop automatically sending the legacy `reasoning_effort` parameter when configuring thinking — requests now use `thinking.type` exclusively while preserving explicit legacy passthrough
