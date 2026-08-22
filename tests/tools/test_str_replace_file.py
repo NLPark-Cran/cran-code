@@ -6,6 +6,7 @@ from pathlib import Path
 
 from kaos.path import KaosPath
 
+from cran_code.tools.file.read_tracker import mark_read
 from cran_code.tools.file.replace import Edit, Params, StrReplaceFile
 from cran_code.wire.types import DiffDisplayBlock
 
@@ -17,6 +18,7 @@ async def test_replace_single_occurrence(
     file_path = temp_work_dir / "test.txt"
     original_content = "Hello world! This is a test."
     await file_path.write_text(original_content)
+    mark_read(file_path.canonical() if hasattr(file_path, "canonical") else file_path)
 
     result = await str_replace_file_tool(
         Params(path=str(file_path), edit=Edit(old="world", new="universe"))
@@ -39,6 +41,7 @@ async def test_replace_all_occurrences(
     file_path = temp_work_dir / "test.txt"
     original_content = "apple banana apple cherry apple"
     await file_path.write_text(original_content)
+    mark_read(file_path.canonical() if hasattr(file_path, "canonical") else file_path)
 
     result = await str_replace_file_tool(
         Params(
@@ -59,6 +62,7 @@ async def test_replace_multiple_edits(
     file_path = temp_work_dir / "test.txt"
     original_content = "Hello world! Goodbye world!"
     await file_path.write_text(original_content)
+    mark_read(file_path.canonical() if hasattr(file_path, "canonical") else file_path)
 
     result = await str_replace_file_tool(
         Params(
@@ -82,6 +86,7 @@ async def test_replace_multiline_content(
     file_path = temp_work_dir / "test.txt"
     original_content = "Line 1\nLine 2\nLine 3\n"
     await file_path.write_text(original_content)
+    mark_read(file_path.canonical() if hasattr(file_path, "canonical") else file_path)
 
     result = await str_replace_file_tool(
         Params(
@@ -102,6 +107,7 @@ async def test_replace_unicode_content(
     file_path = temp_work_dir / "test.txt"
     original_content = "Hello 世界! café"
     await file_path.write_text(original_content)
+    mark_read(file_path.canonical() if hasattr(file_path, "canonical") else file_path)
 
     result = await str_replace_file_tool(
         Params(path=str(file_path), edit=Edit(old="世界", new="地球"))
@@ -117,6 +123,7 @@ async def test_replace_no_match(str_replace_file_tool: StrReplaceFile, temp_work
     file_path = temp_work_dir / "test.txt"
     original_content = "Hello world!"
     await file_path.write_text(original_content)
+    mark_read(file_path.canonical() if hasattr(file_path, "canonical") else file_path)
 
     result = await str_replace_file_tool(
         Params(path=str(file_path), edit=Edit(old="notfound", new="replacement"))
@@ -135,6 +142,7 @@ async def test_replace_with_relative_path(
     await relative_dir.mkdir(parents=True, exist_ok=True)
     file_path = relative_dir / "file.txt"
     await file_path.write_text("old content")
+    mark_read(file_path)
 
     result = await str_replace_file_tool(
         Params(path="relative/path/file.txt", edit=Edit(old="old", new="new"))
@@ -149,6 +157,7 @@ async def test_replace_outside_work_directory(
 ):
     """Test replacing outside the working directory with an absolute path."""
     outside_file.write_text("old content", encoding="utf-8")
+    mark_read(outside_file)
 
     result = await str_replace_file_tool(
         Params(path=str(outside_file), edit=Edit(old="old", new="new"))
@@ -168,6 +177,7 @@ async def test_replace_outside_work_directory_with_prefix(
     sneaky_dir.mkdir(parents=True, exist_ok=True)
     sneaky_file = sneaky_dir / "test.txt"
     sneaky_file.write_text("content", encoding="utf-8")
+    mark_read(sneaky_file)
 
     result = await str_replace_file_tool(
         Params(path=str(sneaky_file), edit=Edit(old="content", new="new"))
@@ -213,6 +223,7 @@ async def test_replace_mixed_multiple_edits(
     file_path = temp_work_dir / "test.txt"
     original_content = "apple apple banana apple cherry"
     await file_path.write_text(original_content)
+    mark_read(file_path.canonical() if hasattr(file_path, "canonical") else file_path)
 
     result = await str_replace_file_tool(
         Params(
@@ -238,6 +249,7 @@ async def test_replace_empty_strings(
     file_path = temp_work_dir / "test.txt"
     original_content = "Hello world!"
     await file_path.write_text(original_content)
+    mark_read(file_path.canonical() if hasattr(file_path, "canonical") else file_path)
 
     result = await str_replace_file_tool(
         Params(path=str(file_path), edit=Edit(old="world", new=""))

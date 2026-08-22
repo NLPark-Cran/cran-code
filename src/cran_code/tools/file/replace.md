@@ -1,6 +1,7 @@
 Replace specific strings within a specified file.
 
 **Tips:**
+- You must have read the file with ReadFile earlier in this session before editing it; otherwise the edit is rejected (read-before-write discipline).
 - Only use this tool on text files.
 - Multi-line strings are supported.
 - Can specify a single edit or a list of edits in one call.

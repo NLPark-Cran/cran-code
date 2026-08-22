@@ -11,6 +11,7 @@ from cran_code.soul.approval import Approval
 from cran_code.tools.display import DisplayBlock
 from cran_code.tools.file import FileActions
 from cran_code.tools.file.plan_mode import inspect_plan_edit_target
+from cran_code.tools.file.read_tracker import has_read, mark_read, not_read_error
 from cran_code.tools.utils import load_desc
 from cran_code.utils.diff import build_diff_blocks
 from cran_code.utils.logging import logger
@@ -128,6 +129,14 @@ class StrReplaceFile(CallableTool2[Params]):
                     brief="Invalid path",
                 )
 
+            # Read-before-write discipline: refuse to modify a file the agent
+            # has never read this session (plan file edits are exempt).
+            if not is_plan_file_edit and not has_read(p):
+                return ToolError(
+                    message=not_read_error(p),
+                    brief="Read the file first",
+                )
+
             # Read the file content
             content = await p.read_text(errors="replace")
 
@@ -168,6 +177,7 @@ class StrReplaceFile(CallableTool2[Params]):
 
             # Write the modified content back to the file
             await p.write_text(content, errors="replace")
+            mark_read(p)  # the agent now knows the post-edit content
 
             # Count changes for success message
             total_replacements = 0

@@ -11,6 +11,7 @@ from cran_code.soul.approval import Approval
 from cran_code.tools.display import DisplayBlock
 from cran_code.tools.file import FileActions
 from cran_code.tools.file.plan_mode import inspect_plan_edit_target
+from cran_code.tools.file.read_tracker import has_read, mark_read, not_read_error
 from cran_code.tools.utils import load_desc
 from cran_code.utils.diff import build_diff_blocks
 from cran_code.utils.logging import logger
@@ -121,6 +122,13 @@ class WriteFile(CallableTool2[Params]):
                 )
 
             file_existed = await p.exists()
+            # Read-before-write discipline: refuse to modify an existing file the
+            # agent has never read this session (plan file writes are exempt).
+            if file_existed and not is_plan_file_write and not has_read(p):
+                return ToolError(
+                    message=not_read_error(p),
+                    brief="Read the file first",
+                )
             old_text = None
             if file_existed:
                 old_text = await p.read_text(errors="replace")
@@ -158,6 +166,7 @@ class WriteFile(CallableTool2[Params]):
                     await p.write_text(params.content)
                 case "append":
                     await p.append_text(params.content)
+            mark_read(p)  # the agent now knows the content it just wrote
 
             # Get file info for success message
             file_size = (await p.stat()).st_size

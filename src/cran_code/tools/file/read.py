@@ -7,6 +7,7 @@ from kosong.tooling import CallableTool2, ToolError, ToolOk, ToolReturnValue
 from pydantic import BaseModel, Field, model_validator
 
 from cran_code.soul.agent import Runtime
+from cran_code.tools.file.read_tracker import mark_read
 from cran_code.tools.file.utils import MEDIA_SNIFF_BYTES, detect_file_type
 from cran_code.tools.utils import load_desc, truncate_line
 from cran_code.utils.logging import logger
@@ -159,9 +160,12 @@ class ReadFile(CallableTool2[Params]):
             assert params.line_offset != 0
 
             if params.line_offset < 0:
-                return await self._read_tail(p, params)
+                result = await self._read_tail(p, params)
             else:
-                return await self._read_forward(p, params)
+                result = await self._read_forward(p, params)
+            if isinstance(result, ToolOk):
+                mark_read(p)
+            return result
         except Exception as e:
             logger.warning("ReadFile failed: {path}: {error}", path=params.path, error=e)
             return ToolError(

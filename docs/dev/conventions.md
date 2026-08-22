@@ -78,6 +78,10 @@
 
 `CRAN_API_KEY` / `CRAN_BASE_URL` / `CRAN_MODEL_NAME` / `CRAN_MODEL_THINKING_EFFORT`（模型接入）；`CRAN_SHARE_DIR`（默认 `~/.cran`）；`CRAN_DATABASE_URL` / `CRAN_JWT_SECRET` / `CRAN_PROJECT_ROOT`（平台）；`CRAN_KEY_PROXY_PORT` / `CRAN_MAX_FILE_SIZE`；`CRAN_WEB_*`（SESSION_TOKEN/ALLOWED_ORIGINS/ENFORCE_ORIGIN/LAN_ONLY/RESTRICT_SENSITIVE_APIS/MAX_PUBLIC_PATH_DEPTH）；`CRAN_BUILD_SHA` / `CRAN_DISABLE_TELEMETRY`。
 
+## 行为纪律（模型可见，改动需同步工具描述）
+
+- **Read-before-write**：WriteFile/StrReplaceFile 修改已存在文件前必须先在会话内 ReadFile 过（`tools/file/read_tracker.py`，进程内跟踪；plan 文件豁免；新建文件不受限）。测试侧：`tests/conftest.py` 有 autouse 隔离夹具，夹具文件创建后需 `mark_read(path)`。
+
 ## 常用命令
 
 ```bash

@@ -29,6 +29,8 @@ def test_agent_description(agent_tool: AgentTool):
         """\
 Start a subagent instance to work on a focused task.
 
+Brief it like a colleague who just walked into the room: it does not see your conversation, so give it the context, constraints, and the exact outcome you expect. Do not delegate understanding — if the task hinges on a specific file path or line number, locate it yourself first and hand it over. Once a subagent is running, leave that scope to it: do not redo its searches or reads in parallel.
+
 The Agent tool can either create a new subagent instance or resume an existing one by `agent_id`.
 Each instance keeps its own context history under the current session, so repeated use of the same
 instance can preserve previous findings and work.
@@ -140,7 +142,17 @@ def test_shell_description(shell_tool: Shell):
     """Test the description of Shell tool."""
     assert shell_tool.base.description == snapshot(
         """\
-Execute a bash (`/bin/bash`) command. Use this tool to explore the filesystem, edit files, run scripts, get system information, etc.
+Execute a bash (`/bin/bash`) command. Use this for shell semantics — pipes, env, processes, git, package managers, build/test runners, anything genuinely interactive or multi-step.
+
+**Translate these to a dedicated tool instead:**
+- `cat` / `head` / `tail` (known path) → `ReadFile` / `ReadMediaFile`
+- `sed` / `awk` (in-place edit) → `StrReplaceFile`
+- `echo > file` / `cat <<EOF` → `WriteFile`
+- `find` / recursive `ls` to locate files by name pattern → `Glob`
+- `grep` / `rg` (search file contents) → `Grep`
+- `echo` / `printf` (talk to the user) → just output text directly
+
+The dedicated tools render in the per-tool permission UI and keep raw stdout out of the conversation; that is why they are worth reaching for whenever one fits.
 
 **Output:**
 The stdout and stderr will be combined and returned as a string. The output may be truncated if it is too long. If the command failed, the exit code will be provided in a system tag.
@@ -155,7 +167,7 @@ If `run_in_background=true`, the command will be started as a background task an
 - Never run commands that require superuser privileges unless explicitly instructed to do so.
 
 **Guidelines for efficiency:**
-- For multiple related commands, use `&&` to chain them in a single call, e.g. `cd /path && ls -la`
+- For multiple related commands, use `&&` to chain them in a single call, e.g. `cd /path && ls -la`. Independent read-only commands (separate `git show`, `ls`, or status checks) should be issued as separate parallel Shell calls in one response, not chained into a single call — chaining serializes their execution and mixes their output. Do not stitch outputs together with `echo` separators.
 - Use `;` to run commands sequentially regardless of success/failure
 - Use `||` for conditional execution (run second command only if first fails)
 - Use pipe operations (`|`) and redirections (`>`, `>>`) to chain input and output between commands
@@ -358,6 +370,7 @@ def test_write_file_description(write_file_tool: WriteFile):
 Write content to a file.
 
 **Tips:**
+- To modify an EXISTING file, you must have read it with ReadFile earlier in this session; otherwise the write is rejected (read-before-write discipline). Creating new files is always allowed.
 - When `mode` is not specified, it defaults to `overwrite`. Always write with caution.
 - When the content to write is too long (e.g. > 100 lines), use this tool multiple times instead of a single call. Use `overwrite` mode at the first time, then use `append` mode after the first write.
 """
@@ -371,10 +384,12 @@ def test_str_replace_file_description(str_replace_file_tool: StrReplaceFile):
 Replace specific strings within a specified file.
 
 **Tips:**
+- You must have read the file with ReadFile earlier in this session before editing it; otherwise the edit is rejected (read-before-write discipline).
 - Only use this tool on text files.
 - Multi-line strings are supported.
 - Can specify a single edit or a list of edits in one call.
 - You should prefer this tool over WriteFile tool and Shell `sed` command.
+- DO NOT issue consecutive StrReplaceFile calls on the same file when the second edit's `old` text overlaps or follows the first edit's region: a previous edit can invalidate a later edit's `old` string, causing "old string not found". Read the file again before the next edit in that case. (Multiple edits in ONE call are applied in order and are safe when the regions don't overlap.)
 """
     )
 

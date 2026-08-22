@@ -8,6 +8,7 @@ import pytest
 from kaos.path import KaosPath
 from pydantic import ValidationError
 
+from cran_code.tools.file.read_tracker import mark_read
 from cran_code.tools.file.write import Params, WriteFile
 from cran_code.wire.types import DiffDisplayBlock
 
@@ -35,6 +36,7 @@ async def test_overwrite_existing_file(write_file_tool: WriteFile, temp_work_dir
     file_path = temp_work_dir / "existing.txt"
     original_content = "Original content"
     await file_path.write_text(original_content)
+    mark_read(file_path)
 
     new_content = "New content"
     result = await write_file_tool(Params(path=str(file_path), content=new_content))
@@ -49,6 +51,7 @@ async def test_append_to_file(write_file_tool: WriteFile, temp_work_dir: KaosPat
     file_path = temp_work_dir / "append_test.txt"
     original_content = "First line\n"
     await file_path.write_text(original_content)
+    mark_read(file_path)
 
     append_content = "Second line\n"
     result = await write_file_tool(
