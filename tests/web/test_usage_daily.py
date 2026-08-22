@@ -173,3 +173,54 @@ class TestAdminUsage:
         admin = await make_user(session_factory, "root", role=UserRole.admin)
         # require_admin passes admins through
         assert (await jwt_mod.require_admin(admin)).id == admin.id
+
+
+class TestTimezoneBucketing:
+    """Daily buckets must follow the requested timezone's calendar."""
+
+    async def test_tz_shifts_day_assignment(self, session_factory: SessionFactory):
+        user = await make_user(session_factory, "alice")
+        # 2026-08-20 16:30 UTC == 2026-08-21 00:30 in Asia/Shanghai
+        instant = datetime(2026, 8, 20, 16, 30, tzinfo=UTC)
+        await add_usage(
+            session_factory, user.id, "kimi", "shared", 10, 5, created_at=instant
+        )
+
+        rows_utc = await users_api.get_my_usage_daily(days=30, current_user=user)
+        assert {r.date for r in rows_utc} == {"2026-08-20"}
+
+        rows_cst = await users_api.get_my_usage_daily(days=30, tz="Asia/Shanghai", current_user=user)
+        assert {r.date for r in rows_cst} == {"2026-08-21"}
+        assert rows_cst[0].input_tokens == 10
+
+    async def test_tz_filters_since_by_local_day(self, session_factory: SessionFactory):
+        user = await make_user(session_factory, "alice")
+        # Local (Shanghai) yesterday 23:00 == 15:00 UTC yesterday: with days=1
+        # (today only, local) this record must NOT appear.
+        now_utc = datetime.now(UTC)
+        cst_now = now_utc + timedelta(hours=8)
+        yesterday_local = cst_now - timedelta(days=1)
+        instant = yesterday_local.replace(hour=23, minute=0) - timedelta(hours=8)
+        await add_usage(
+            session_factory, user.id, "kimi", "shared", 10, 5, created_at=instant
+        )
+
+        rows = await users_api.get_my_usage_daily(days=1, tz="Asia/Shanghai", current_user=user)
+        assert rows == []
+        rows2 = await users_api.get_my_usage_daily(days=2, tz="Asia/Shanghai", current_user=user)
+        assert len(rows2) == 1
+
+    async def test_invalid_tz_rejected(self, session_factory: SessionFactory):
+        user = await make_user(session_factory, "alice")
+        with pytest.raises(HTTPException) as exc_info:
+            await users_api.get_my_usage_daily(days=7, tz="Mars/Olympus", current_user=user)
+        assert exc_info.value.status_code == 400
+
+    async def test_admin_usage_tz(self, session_factory: SessionFactory):
+        admin = await make_user(session_factory, "root", role=UserRole.admin)
+        instant = datetime(2026, 8, 20, 16, 30, tzinfo=UTC)
+        await add_usage(
+            session_factory, admin.id, "kimi", "shared", 3, 1, created_at=instant
+        )
+        rows = await admin_api.get_admin_usage(days=30, tz="Asia/Shanghai", current_user=admin)
+        assert {r.date for r in rows} == {"2026-08-21"}

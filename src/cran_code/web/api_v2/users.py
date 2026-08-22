@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
@@ -20,6 +18,7 @@ from cran_code.web.db import (
     UserRole,
 )
 from cran_code.web.db.keys import quota_summary
+from cran_code.web.db.tz import local_day_start_utc, sqlite_shift_modifier, validate_tz_name
 
 router = APIRouter(prefix="/api/v2/users", tags=["users"])
 
@@ -318,17 +317,24 @@ class UsageDailyPoint(BaseModel):
 @router.get("/me/usage/daily", response_model=list[UsageDailyPoint])
 async def get_my_usage_daily(
     days: int = 30,
+    tz: str | None = None,
     current_user: JWTUser = Depends(require_user),
 ) -> list[UsageDailyPoint]:
     """Per-day token usage for the current user over the last ``days`` days.
 
     Rows are grouped by ``(date, provider_key, model, source)`` and ordered
-    chronologically. Days are UTC calendar days. ``days`` is clamped to
-    [1, 90].
+    chronologically. Days are calendar days in the ``tz`` timezone (IANA name,
+    default UTC); pass the browser's timezone for a local "today".
+    ``days`` is clamped to [1, 90].
     """
     days = min(max(days, 1), 90)
-    since = datetime.now(UTC) - timedelta(days=days)
-    day_col = func.date(UsageRecord.created_at)
+    if tz is not None:
+        try:
+            validate_tz_name(tz)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    since = local_day_start_utc(tz, days)
+    day_col = func.date(func.datetime(UsageRecord.created_at, sqlite_shift_modifier(tz)))
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(

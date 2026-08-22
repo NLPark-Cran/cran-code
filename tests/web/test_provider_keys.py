@@ -565,3 +565,40 @@ class TestUsageEndpoint:
     ):
         user = await make_user(session_factory, "alice")
         assert await users_api.get_my_usage(current_user=user) == []
+
+
+class TestTeamTimezone:
+    async def test_update_and_read_timezone(self, session_factory: SessionFactory):
+        owner = await make_user(session_factory, "owner")
+        team = await make_team(session_factory, owner)
+
+        resp = await teams_api.update_team(
+            team.id, teams_api.TeamUpdate(timezone="Asia/Shanghai"), current_user=owner
+        )
+        assert resp.timezone == "Asia/Shanghai"
+
+        # Empty string clears back to UTC
+        resp = await teams_api.update_team(
+            team.id, teams_api.TeamUpdate(timezone=""), current_user=owner
+        )
+        assert resp.timezone is None
+
+    async def test_invalid_timezone_rejected(self, session_factory: SessionFactory):
+        owner = await make_user(session_factory, "owner")
+        team = await make_team(session_factory, owner)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await teams_api.update_team(
+                team.id, teams_api.TeamUpdate(timezone="Not/AZone"), current_user=owner
+            )
+        assert exc_info.value.status_code == 400
+
+    async def test_timezone_column_migration(self, session_factory: SessionFactory):
+        # create_all alone creates the column on fresh DBs; the column exists.
+        from sqlalchemy import inspect as sa_inspect
+
+        async with session_factory() as session:
+            cols = await session.run_sync(
+                lambda s: {c["name"] for c in sa_inspect(s.bind).get_columns("teams")}
+            )
+        assert "timezone" in cols

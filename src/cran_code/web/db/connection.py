@@ -46,7 +46,16 @@ def _enable_sqlite_pragma(dbapi_conn, connection_record):
     cursor.close()
 
 
+async def _ensure_column(conn, table: str, column: str, ddl_type: str) -> None:
+    """Idempotent manual migration: add a column when missing (no alembic)."""
+    rows = (await conn.exec_driver_sql(f"PRAGMA table_info({table})")).fetchall()
+    if rows and all(row[1] != column for row in rows):
+        await conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}")
+
+
 async def init_db() -> None:
-    """Create all tables if they do not exist."""
+    """Create all tables if they do not exist, then apply manual column migrations."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # 2026-08-23: team display timezone for usage statistics
+        await _ensure_column(conn, "teams", "timezone", "VARCHAR(64)")

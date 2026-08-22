@@ -19,6 +19,7 @@ from cran_code.web.db import (
     TeamProviderKey,
     User,
 )
+from cran_code.web.db.tz import validate_tz_name
 
 router = APIRouter(prefix="/api/v2/teams", tags=["teams"])
 
@@ -32,6 +33,12 @@ class TeamCreate(BaseModel):
 class TeamUpdate(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=100)
     description: str | None = Field(None, max_length=500)
+    timezone: str | None = Field(
+        None,
+        max_length=64,
+        description="IANA display timezone for team usage statistics (e.g. Asia/Shanghai). "
+        "Empty string clears it back to UTC.",
+    )
 
 
 class TeamMemberResponse(BaseModel):
@@ -48,6 +55,7 @@ class TeamResponse(BaseModel):
     name: str
     slug: str
     description: str | None
+    timezone: str | None
     owner_id: str
     members: list[TeamMemberResponse]
     created_at: str
@@ -62,6 +70,7 @@ def _team_response(team: Team) -> TeamResponse:
         name=team.name,
         slug=team.slug,
         description=team.description,
+        timezone=team.timezone,
         owner_id=team.owner_id,
         members=[
             TeamMemberResponse(
@@ -208,6 +217,17 @@ async def update_team(
             team.name = req.name
         if req.description is not None:
             team.description = req.description
+        if req.timezone is not None:
+            if req.timezone == "":
+                team.timezone = None
+            else:
+                try:
+                    validate_tz_name(req.timezone)
+                except ValueError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+                    ) from exc
+                team.timezone = req.timezone
         await session.commit()
         await session.refresh(team)
         return _team_response(team)
