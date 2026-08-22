@@ -11,22 +11,27 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { BarChart3, Coins, Loader2, ServerCog, Users } from "lucide-react";
+import { BarChart3, Coins, ExternalLink, Loader2, ServerCog, Users } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   v2Api,
   type AdminUsageDailyPointRes,
+  type TeamRes,
   type UsageDailyPointRes,
   type UsageSummaryRes,
 } from "@/lib/api/v2";
 import { useAuthStore } from "@/stores/auth";
+import { useTeamStore } from "@/stores/team";
 import { EmptyState } from "@/components/empty-state";
 import Layout from "@/components/Layout";
 import { StackedBarChart, type DailyBar } from "@/components/stacked-bar-chart";
+import { getBrowserTimeZone } from "@/hooks/utils";
 
+/* Semantic tokens so segment dots stay visible on both light and dark cards. */
 const SOURCE_COLORS: Record<string, string> = {
-  personal: "fill-emerald-500",
-  team: "fill-sky-500",
-  shared: "fill-amber-500",
+  personal: "fill-primary",
+  team: "fill-info",
+  shared: "fill-warning",
 };
 
 const SOURCE_BADGE_VARIANT: Record<string, "secondary" | "outline" | "default"> = {
@@ -40,15 +45,23 @@ const formatTokens = (n: number): string =>
 
 export default function UsagePage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const isAdmin = user?.role === "admin";
+  const selectedTeamId = useTeamStore((s) => s.selectedTeamId);
 
   const [days, setDays] = useState(30);
   const [daily, setDaily] = useState<UsageDailyPointRes[]>([]);
   const [summary, setSummary] = useState<UsageSummaryRes[]>([]);
   const [adminDaily, setAdminDaily] = useState<AdminUsageDailyPointRes[]>([]);
+  const [teams, setTeams] = useState<TeamRes[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const browserTz = useMemo(() => getBrowserTimeZone(), []);
+  const selectedTeam = teams.find((team) => team.id === selectedTeamId);
+  // Team usage buckets by the team's configured timezone when set.
+  const effectiveTeamTz = selectedTeam?.timezone ?? browserTz;
 
   useEffect(() => {
     let cancelled = false;
@@ -57,14 +70,20 @@ export default function UsagePage() {
       setError(null);
       try {
         const [dailyRes, summaryRes] = await Promise.all([
-          v2Api.users.meUsageDaily(days),
+          v2Api.users.meUsageDaily(days, browserTz),
           v2Api.users.meUsage(),
         ]);
         if (cancelled) return;
         setDaily(dailyRes);
         setSummary(summaryRes);
         if (isAdmin) {
-          setAdminDaily(await v2Api.admin.usage(days));
+          // Teams first so the selected team's timezone can drive bucketing.
+          const teamsRes = await v2Api.teams.list();
+          if (cancelled) return;
+          setTeams(teamsRes);
+          const team = teamsRes.find((item) => item.id === selectedTeamId);
+          const tz = team?.timezone ?? browserTz;
+          setAdminDaily(await v2Api.admin.usage(days, tz));
         }
       } catch (err) {
         if (!cancelled) {
@@ -80,7 +99,7 @@ export default function UsagePage() {
     return () => {
       cancelled = true;
     };
-  }, [days, isAdmin, t]);
+  }, [days, isAdmin, selectedTeamId, browserTz, t]);
 
   const sourceLabel = useCallback(
     (source: string) =>
@@ -296,11 +315,29 @@ export default function UsagePage() {
           {isAdmin && (
             <Card>
               <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <ServerCog className="h-4 w-4 text-muted-foreground" />
-                  <CardTitle className="text-lg">{t("usage:teamUsage")}</CardTitle>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <ServerCog className="h-4 w-4 text-muted-foreground" />
+                    <CardTitle className="text-lg">{t("usage:teamUsage")}</CardTitle>
+                  </div>
+                  {selectedTeam && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+                      onClick={() => navigate(`/team/${selectedTeam.id}`)}
+                    >
+                      {selectedTeam.name}
+                      <ExternalLink className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
-                <CardDescription>{t("usage:teamUsageDesc")}</CardDescription>
+                <CardDescription>
+                  {t("usage:teamUsageDesc")}
+                  <span className="ml-2 text-xs text-muted-foreground/70">
+                    {t("usage:timezoneCaption", { tz: effectiveTeamTz })}
+                  </span>
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 {adminByUser.length === 0 ? (

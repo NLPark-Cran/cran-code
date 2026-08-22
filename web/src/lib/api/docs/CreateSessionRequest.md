@@ -9,6 +9,7 @@ Name | Type
 ------------ | -------------
 `workDir` | string
 `createDir` | boolean
+`teamId` | string
 
 ## Example
 
@@ -19,6 +20,7 @@ import type { CreateSessionRequest } from ''
 const example = {
   "workDir": null,
   "createDir": null,
+  "teamId": null,
 } satisfies CreateSessionRequest
 
 console.log(example)

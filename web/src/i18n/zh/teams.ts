@@ -15,4 +15,9 @@ export default {
   emptyTitle: "还没有团队",
   emptyDesc: "创建你的第一个团队，开始协作",
   loadDataFailed: "加载数据失败",
+  timezoneLabel: "团队时区",
+  timezoneDesc: "用于按当地日历日统计团队用量。",
+  timezoneDefault: "默认（UTC）",
+  timezoneUpdated: "时区已更新",
+  timezoneUpdateFailed: "时区更新失败",
 } as const;

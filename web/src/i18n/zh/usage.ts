@@ -20,4 +20,5 @@ export default {
   emptyTitle: "暂无用量数据",
   emptyHint: "开始对话后，这里会显示你的 token 用量。",
   loadFailed: "加载用量数据失败",
+  timezoneCaption: "时区：{{tz}}",
 } as const;

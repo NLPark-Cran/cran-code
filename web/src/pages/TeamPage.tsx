@@ -20,7 +20,15 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import {
   Plus,
@@ -30,6 +38,7 @@ import {
   Users,
   Settings,
   GitBranch,
+  Globe,
 } from "lucide-react";
 import { v2Api, type TeamRes, type ProjectRes } from "@/lib/api/v2";
 import { roleKey } from "@/i18n";
@@ -38,6 +47,21 @@ import { useAuthStore } from "@/stores/auth";
 import Layout from "@/components/Layout";
 import MemberManagement from "@/components/MemberManagement";
 import TeamProviderKeys from "@/components/TeamProviderKeys";
+
+/** Curated IANA timezones for team usage bucketing. */
+const TEAM_TIMEZONES = [
+  "UTC",
+  "Asia/Shanghai",
+  "Asia/Tokyo",
+  "Asia/Singapore",
+  "Europe/London",
+  "Europe/Berlin",
+  "America/New_York",
+  "America/Los_Angeles",
+] as const;
+
+/** Radix Select forbids empty-string item values; "" means "clear" (UTC). */
+const TZ_CLEAR_VALUE = "__default__";
 
 export default function TeamPage() {
   const { teamId } = useParams<{ teamId: string }>();
@@ -83,7 +107,7 @@ export default function TeamPage() {
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!teamId || !createName.trim() || !createSlug.trim()) return;
+    if (!((teamId && createName.trim() ) && createSlug.trim())) return;
     setCreateLoading(true);
     setCreateError(null);
     try {
@@ -119,6 +143,24 @@ export default function TeamPage() {
   const userMembership = team?.members.find((m) => m.user_id === user?.id);
   const canCreateProject = userMembership?.role === "owner" || userMembership?.role === "admin";
   const canManageMembers = userMembership?.role === "owner" || userMembership?.role === "admin";
+
+  const [tzSaving, setTzSaving] = useState(false);
+
+  const handleTimezoneChange = async (value: string) => {
+    if (!team) return;
+    setTzSaving(true);
+    try {
+      const updated = await v2Api.teams.update(team.id, {
+        timezone: value === TZ_CLEAR_VALUE ? "" : value,
+      });
+      setTeam(updated);
+      toast.success(t("teams:timezoneUpdated"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("teams:timezoneUpdateFailed"));
+    } finally {
+      setTzSaving(false);
+    }
+  };
 
   const breadcrumbs = (
     <Button
@@ -324,6 +366,38 @@ export default function TeamPage() {
               canManage={canManageMembers}
               onChange={fetchData}
             />
+            {canManageMembers && (
+              <Card className="mt-4">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Globe className="h-4 w-4 text-muted-foreground" />
+                    {t("teams:timezoneLabel")}
+                  </CardTitle>
+                  <CardDescription>{t("teams:timezoneDesc")}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Select
+                    value={team.timezone ?? TZ_CLEAR_VALUE}
+                    onValueChange={handleTimezoneChange}
+                    disabled={tzSaving}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={TZ_CLEAR_VALUE}>
+                        {t("teams:timezoneDefault")}
+                      </SelectItem>
+                      {TEAM_TIMEZONES.map((tz) => (
+                        <SelectItem key={tz} value={tz}>
+                          {tz}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </CardContent>
+              </Card>
+            )}
             {canManageMembers && <TeamProviderKeys teamId={team.id} />}
           </div>
         </div>

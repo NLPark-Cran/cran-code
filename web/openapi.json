@@ -60,7 +60,7 @@
       "get": {
         "tags": ["config"],
         "summary": "Get cran-code config.toml",
-        "description": "Get cran-code config.toml.",
+        "description": "Get cran-code config.toml (provider API keys redacted).",
         "operationId": "get_config_toml_api_config_toml_get",
         "responses": {
           "200": {
@@ -96,6 +96,59 @@
                 "schema": {
                   "$ref": "#/components/schemas/UpdateConfigTomlResponse"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/history": {
+      "get": {
+        "tags": ["sessions"],
+        "summary": "Fetch an older page of session history",
+        "description": "Paginated history for lazy loading older messages on scroll-up.\n\n``before_line`` is the ``oldest_line`` cursor from the previous page;\nomit it for the newest page. Returns coalesced JSONRPC event strings,\nthe next cursor (``oldest_line``) and ``has_more``.",
+        "operationId": "get_session_history_api_sessions__session_id__history_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "before_line",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "integer" }, { "type": "null" }],
+              "title": "Before Line"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 3000, "title": "Limit" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HistoryPage" }
               }
             }
           },
@@ -459,6 +512,305 @@
         }
       }
     },
+    "/api/sessions/{session_id}/subagents": {
+      "get": {
+        "tags": ["sessions"],
+        "summary": "List subagent instances of a session",
+        "description": "Snapshot of subagent instances (swarm overview), read from meta.json files.\n\nLive updates stream over the WebSocket as `SubagentStatus` events; this\nendpoint provides the initial state on page load / reconnect.",
+        "operationId": "list_session_subagents_api_sessions__session_id__subagents_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "object", "additionalProperties": true },
+                  "title": "Response List Session Subagents Api Sessions  Session Id  Subagents Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/goal": {
+      "get": {
+        "tags": ["sessions"],
+        "summary": "Get the session goal snapshot",
+        "operationId": "get_session_goal_api_sessions__session_id__goal_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Session Goal Api Sessions  Session Id  Goal Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["sessions"],
+        "summary": "Create a goal for the session",
+        "description": "User-initiated goal creation (no model approval needed — this IS the user).\n\nThe goal becomes active immediately; the worker picks it up at the next\nturn boundary (goal.json is the IPC between web main process and worker).",
+        "operationId": "create_session_goal_api_sessions__session_id__goal_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GoalCreateRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Session Goal Api Sessions  Session Id  Goal Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["sessions"],
+        "summary": "Cancel the session goal",
+        "operationId": "delete_session_goal_api_sessions__session_id__goal_delete",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Session Goal Api Sessions  Session Id  Goal Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/goal/pause": {
+      "post": {
+        "tags": ["sessions"],
+        "summary": "Pause the session goal",
+        "operationId": "pause_session_goal_api_sessions__session_id__goal_pause_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Pause Session Goal Api Sessions  Session Id  Goal Pause Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/goal/resume": {
+      "post": {
+        "tags": ["sessions"],
+        "summary": "Resume the session goal",
+        "description": "Resume a paused/blocked goal. The driver continues at the next turn.",
+        "operationId": "resume_session_goal_api_sessions__session_id__goal_resume_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Resume Session Goal Api Sessions  Session Id  Goal Resume Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/fork": {
+      "post": {
+        "tags": ["sessions"],
+        "summary": "Fork a session at a specific turn",
+        "description": "Fork a session, creating a new session with history up to the specified turn.\n\nThe new session shares the same work_dir as the original session.",
+        "operationId": "fork_session_endpoint_api_sessions__session_id__fork_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ForkSessionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Session" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{session_id}/generate-title": {
       "post": {
         "tags": ["sessions"],
@@ -576,7 +928,7 @@
       "get": {
         "tags": ["work-dirs"],
         "summary": "Get the startup directory",
-        "description": "Get the directory where cran web was started.",
+        "description": "Get the directory where kimi web was started.",
         "operationId": "get_startup_dir_api_work_dirs_startup_get",
         "responses": {
           "200": {
@@ -587,6 +939,2295 @@
                   "type": "string",
                   "title": "Response Get Startup Dir Api Work Dirs Startup Get"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/register": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Register",
+        "operationId": "register_api_v2_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RegisterRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TokenResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/auth/login": {
+      "post": {
+        "tags": ["auth"],
+        "summary": "Login",
+        "operationId": "login_api_v2_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TokenResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/users/me": {
+      "get": {
+        "tags": ["users"],
+        "summary": "Get Me",
+        "operationId": "get_me_api_v2_users_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/cran_code__web__api_v2__users__UserResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [{ "OAuth2PasswordBearer": [] }]
+      },
+      "patch": {
+        "tags": ["users"],
+        "summary": "Update Me",
+        "operationId": "update_me_api_v2_users_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UserProfileUpdate" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/cran_code__web__api_v2__users__UserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        },
+        "security": [{ "OAuth2PasswordBearer": [] }]
+      }
+    },
+    "/api/v2/users/search": {
+      "get": {
+        "tags": ["users"],
+        "summary": "Search Users",
+        "description": "Search users by username, email, or display_name.",
+        "operationId": "search_users_api_v2_users_search_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "title": "Q" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/cran_code__web__api_v2__users__UserResponse"
+                  },
+                  "title": "Response Search Users Api V2 Users Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/users/{user_id}/role": {
+      "patch": {
+        "tags": ["users"],
+        "summary": "Update User Role",
+        "description": "Change a user's global role (admin only).",
+        "operationId": "update_user_role_api_v2_users__user_id__role_patch",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "User Id" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UserRoleUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/cran_code__web__api_v2__users__UserResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/users/me/provider-keys": {
+      "get": {
+        "tags": ["users"],
+        "summary": "List My Provider Keys",
+        "description": "List the current user's stored provider keys (masked).",
+        "operationId": "list_my_provider_keys_api_v2_users_me_provider_keys_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderKeyResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List My Provider Keys Api V2 Users Me Provider Keys Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [{ "OAuth2PasswordBearer": [] }]
+      }
+    },
+    "/api/v2/users/me/provider-keys/{provider_key}": {
+      "put": {
+        "tags": ["users"],
+        "summary": "Upsert My Provider Key",
+        "description": "Create or replace the current user's API key for a provider.",
+        "operationId": "upsert_my_provider_key_api_v2_users_me_provider_keys__provider_key__put",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "provider_key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Provider Key" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderKeyUpsertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProviderKeyResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["users"],
+        "summary": "Delete My Provider Key",
+        "description": "Delete the current user's API key for a provider.",
+        "operationId": "delete_my_provider_key_api_v2_users_me_provider_keys__provider_key__delete",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "provider_key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Provider Key" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Delete My Provider Key Api V2 Users Me Provider Keys  Provider Key  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/users/me/usage": {
+      "get": {
+        "tags": ["users"],
+        "summary": "Get My Usage",
+        "description": "Per-provider token usage summary for the current user.\n\nRows are grouped by ``(provider_key, source)``. Rows with\n``source='shared'`` additionally carry ``quota_tokens`` /\n``remaining_tokens`` when a restricted-mode grant covers the user\n(``None`` = unlimited / not applicable).",
+        "operationId": "get_my_usage_api_v2_users_me_usage_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": { "$ref": "#/components/schemas/UsageSummary" },
+                  "type": "array",
+                  "title": "Response Get My Usage Api V2 Users Me Usage Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [{ "OAuth2PasswordBearer": [] }]
+      }
+    },
+    "/api/v2/users/me/usage/daily": {
+      "get": {
+        "tags": ["users"],
+        "summary": "Get My Usage Daily",
+        "description": "Per-day token usage for the current user over the last ``days`` days.\n\nRows are grouped by ``(date, provider_key, model, source)`` and ordered\nchronologically. Days are calendar days in the ``tz`` timezone (IANA name,\ndefault UTC); pass the browser's timezone for a local \"today\".\n``days`` is clamped to [1, 90].",
+        "operationId": "get_my_usage_daily_api_v2_users_me_usage_daily_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 30, "title": "Days" }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Tz"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/UsageDailyPoint" },
+                  "title": "Response Get My Usage Daily Api V2 Users Me Usage Daily Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/admin/usage": {
+      "get": {
+        "tags": ["admin"],
+        "summary": "Get Admin Usage",
+        "description": "Per-day token usage for ALL users (admin only).\n\nSame bucketing as ``/users/me/usage/daily`` but additionally grouped by\nuser, with ``username`` resolved via a join. Ordered by date, then user.\nDays are calendar days in the ``tz`` timezone (IANA name, default UTC).\n``days`` is clamped to [1, 90].",
+        "operationId": "get_admin_usage_api_v2_admin_usage_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 30, "title": "Days" }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Tz"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AdminUsageDailyPoint"
+                  },
+                  "title": "Response Get Admin Usage Api V2 Admin Usage Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/teams": {
+      "get": {
+        "tags": ["teams"],
+        "summary": "List Teams",
+        "operationId": "list_teams_api_v2_teams_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": { "$ref": "#/components/schemas/TeamResponse" },
+                  "type": "array",
+                  "title": "Response List Teams Api V2 Teams Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [{ "OAuth2PasswordBearer": [] }]
+      },
+      "post": {
+        "tags": ["teams"],
+        "summary": "Create Team",
+        "operationId": "create_team_api_v2_teams_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TeamCreate" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TeamResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        },
+        "security": [{ "OAuth2PasswordBearer": [] }]
+      }
+    },
+    "/api/v2/teams/{team_id}": {
+      "get": {
+        "tags": ["teams"],
+        "summary": "Get Team",
+        "operationId": "get_team_api_v2_teams__team_id__get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Team Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TeamResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["teams"],
+        "summary": "Update Team",
+        "operationId": "update_team_api_v2_teams__team_id__patch",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Team Id" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TeamUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TeamResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/teams/{team_id}/members": {
+      "post": {
+        "tags": ["teams"],
+        "summary": "Add Team Member",
+        "operationId": "add_team_member_api_v2_teams__team_id__members_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Team Id" }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "title": "User Id" }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "default": "member", "title": "Role" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TeamResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/teams/{team_id}/members/{member_id}": {
+      "patch": {
+        "tags": ["teams"],
+        "summary": "Update Team Member Role",
+        "operationId": "update_team_member_role_api_v2_teams__team_id__members__member_id__patch",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Team Id" }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Member Id" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/TeamMemberUpdateRole" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TeamResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["teams"],
+        "summary": "Remove Team Member",
+        "operationId": "remove_team_member_api_v2_teams__team_id__members__member_id__delete",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Team Id" }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Member Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Remove Team Member Api V2 Teams  Team Id  Members  Member Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/teams/{team_id}/provider-keys": {
+      "get": {
+        "tags": ["teams"],
+        "summary": "List Team Provider Keys",
+        "description": "List a team's stored provider keys (masked). Team owner/admin only.",
+        "operationId": "list_team_provider_keys_api_v2_teams__team_id__provider_keys_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Team Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeamProviderKeyResponse"
+                  },
+                  "title": "Response List Team Provider Keys Api V2 Teams  Team Id  Provider Keys Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/teams/{team_id}/provider-keys/{provider_key}": {
+      "put": {
+        "tags": ["teams"],
+        "summary": "Upsert Team Provider Key",
+        "description": "Create or replace a team's API key for a provider. Team owner/admin only.",
+        "operationId": "upsert_team_provider_key_api_v2_teams__team_id__provider_keys__provider_key__put",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Team Id" }
+          },
+          {
+            "name": "provider_key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Provider Key" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamProviderKeyUpsertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamProviderKeyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["teams"],
+        "summary": "Delete Team Provider Key",
+        "description": "Delete a team's API key for a provider. Team owner/admin only.",
+        "operationId": "delete_team_provider_key_api_v2_teams__team_id__provider_keys__provider_key__delete",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Team Id" }
+          },
+          {
+            "name": "provider_key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Provider Key" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Delete Team Provider Key Api V2 Teams  Team Id  Provider Keys  Provider Key  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects": {
+      "get": {
+        "tags": ["projects"],
+        "summary": "List Projects",
+        "operationId": "list_projects_api_v2_projects_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ProjectResponse" },
+                  "title": "Response List Projects Api V2 Projects Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["projects"],
+        "summary": "Create Project",
+        "operationId": "create_project_api_v2_projects_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ProjectCreate" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}": {
+      "get": {
+        "tags": ["projects"],
+        "summary": "Get Project",
+        "operationId": "get_project_api_v2_projects__project_id__get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["projects"],
+        "summary": "Update Project",
+        "operationId": "update_project_api_v2_projects__project_id__patch",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ProjectUpdate" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/members": {
+      "post": {
+        "tags": ["projects"],
+        "summary": "Add Project Member",
+        "operationId": "add_project_member_api_v2_projects__project_id__members_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "title": "User Id" }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "default": "member", "title": "Role" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/members/{member_id}": {
+      "patch": {
+        "tags": ["projects"],
+        "summary": "Update Project Member Role",
+        "operationId": "update_project_member_role_api_v2_projects__project_id__members__member_id__patch",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Member Id" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectMemberUpdateRole"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ProjectResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["projects"],
+        "summary": "Remove Project Member",
+        "operationId": "remove_project_member_api_v2_projects__project_id__members__member_id__delete",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Member Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Remove Project Member Api V2 Projects  Project Id  Members  Member Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/activities": {
+      "get": {
+        "tags": ["projects"],
+        "summary": "List Project Activities",
+        "operationId": "list_project_activities_api_v2_projects__project_id__activities_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 50, "title": "Limit" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ActivityResponse" },
+                  "title": "Response List Project Activities Api V2 Projects  Project Id  Activities Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["projects"],
+        "summary": "Create Project Activity",
+        "operationId": "create_project_activity_api_v2_projects__project_id__activities_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ActivityCreate" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ActivityResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/fs": {
+      "get": {
+        "tags": ["fs"],
+        "summary": "Read Fs",
+        "operationId": "read_fs_api_v2_projects__project_id__fs_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "default": "", "title": "Path" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/FsListResponse" },
+                    { "$ref": "#/components/schemas/FsReadResponse" }
+                  ],
+                  "title": "Response Read Fs Api V2 Projects  Project Id  Fs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["fs"],
+        "summary": "Write Fs",
+        "operationId": "write_fs_api_v2_projects__project_id__fs_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/FsWriteRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Write Fs Api V2 Projects  Project Id  Fs Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["fs"],
+        "summary": "Delete Fs",
+        "description": "Delete a file or directory inside the project working directory.",
+        "operationId": "delete_fs_api_v2_projects__project_id__fs_delete",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Delete Fs Api V2 Projects  Project Id  Fs Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/fs/upload": {
+      "post": {
+        "tags": ["fs"],
+        "summary": "Upload Fs",
+        "description": "Upload a file into the project working directory.\n\nThe `path` query parameter is the relative directory where the file should\nbe stored. The uploaded file's original filename is appended to it.",
+        "operationId": "upload_fs_api_v2_projects__project_id__fs_upload_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 2000,
+              "default": "",
+              "title": "Path"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_fs_api_v2_projects__project_id__fs_upload_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Upload Fs Api V2 Projects  Project Id  Fs Upload Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/fs/download": {
+      "get": {
+        "tags": ["fs"],
+        "summary": "Download Fs",
+        "description": "Download a file from the project working directory.",
+        "operationId": "download_fs_api_v2_projects__project_id__fs_download_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/fs/copy": {
+      "post": {
+        "tags": ["fs"],
+        "summary": "Copy Fs",
+        "description": "Copy a file or directory to another path inside the project.",
+        "operationId": "copy_fs_api_v2_projects__project_id__fs_copy_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "src",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "title": "Src"
+            }
+          },
+          {
+            "name": "dst",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "title": "Dst"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Copy Fs Api V2 Projects  Project Id  Fs Copy Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/fs/move": {
+      "post": {
+        "tags": ["fs"],
+        "summary": "Move Fs",
+        "description": "Move (rename) a file or directory to another path inside the project.",
+        "operationId": "move_fs_api_v2_projects__project_id__fs_move_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "src",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "title": "Src"
+            }
+          },
+          {
+            "name": "dst",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "title": "Dst"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Move Fs Api V2 Projects  Project Id  Fs Move Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/fs/compress": {
+      "post": {
+        "tags": ["fs"],
+        "summary": "Compress Fs",
+        "description": "Compress a file or directory into a zip archive inside the project.",
+        "operationId": "compress_fs_api_v2_projects__project_id__fs_compress_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "title": "Path"
+            }
+          },
+          {
+            "name": "archive",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "title": "Archive"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Compress Fs Api V2 Projects  Project Id  Fs Compress Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/fs/extract": {
+      "post": {
+        "tags": ["fs"],
+        "summary": "Extract Fs",
+        "description": "Extract a zip archive inside the project working directory.",
+        "operationId": "extract_fs_api_v2_projects__project_id__fs_extract_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "archive",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "title": "Archive"
+            }
+          },
+          {
+            "name": "dest",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 2000,
+              "default": "",
+              "title": "Dest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Extract Fs Api V2 Projects  Project Id  Fs Extract Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/git/status": {
+      "get": {
+        "tags": ["git"],
+        "summary": "Git Status",
+        "operationId": "git_status_api_v2_projects__project_id__git_status_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GitStatusResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/git/branches": {
+      "get": {
+        "tags": ["git"],
+        "summary": "Git Branches",
+        "operationId": "git_branches_api_v2_projects__project_id__git_branches_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/GitBranchResponse" },
+                  "title": "Response Git Branches Api V2 Projects  Project Id  Git Branches Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/git/log": {
+      "get": {
+        "tags": ["git"],
+        "summary": "Git Log",
+        "operationId": "git_log_api_v2_projects__project_id__git_log_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 20, "title": "Limit" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/GitCommitResponse" },
+                  "title": "Response Git Log Api V2 Projects  Project Id  Git Log Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/git/diff": {
+      "get": {
+        "tags": ["git"],
+        "summary": "Git Diff",
+        "operationId": "git_diff_api_v2_projects__project_id__git_diff_get",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          },
+          {
+            "name": "staged",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "boolean", "default": false, "title": "Staged" }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/GitDiffResponse" },
+                  "title": "Response Git Diff Api V2 Projects  Project Id  Git Diff Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/projects/{project_id}/git/commit": {
+      "post": {
+        "tags": ["git"],
+        "summary": "Git Commit",
+        "operationId": "git_commit_api_v2_projects__project_id__git_commit_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Project Id" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/GitCommitRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": { "type": "string" },
+                  "title": "Response Git Commit Api V2 Projects  Project Id  Git Commit Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/providers/": {
+      "get": {
+        "tags": ["providers"],
+        "summary": "List providers and their models",
+        "operationId": "list_providers_api_v2_providers__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [{ "OAuth2PasswordBearer": [] }]
+      },
+      "post": {
+        "tags": ["providers"],
+        "summary": "Add a provider (models fetched from /models when omitted)",
+        "operationId": "create_provider_api_v2_providers__post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ProviderUpsertRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        },
+        "security": [{ "OAuth2PasswordBearer": [] }]
+      }
+    },
+    "/api/v2/providers/{key}": {
+      "put": {
+        "tags": ["providers"],
+        "summary": "Update a provider's endpoint, key, or models",
+        "operationId": "update_provider_api_v2_providers__key__put",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Key" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ProviderUpsertRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["providers"],
+        "summary": "Delete a provider and its models",
+        "operationId": "delete_provider_api_v2_providers__key__delete",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Key" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/providers/fetch-models": {
+      "post": {
+        "tags": ["providers"],
+        "summary": "Probe {base_url}/models for a provider",
+        "operationId": "fetch_models_api_v2_providers_fetch_models_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/FetchModelsRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/FetchModelsResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        },
+        "security": [{ "OAuth2PasswordBearer": [] }]
+      }
+    },
+    "/api/v2/providers/models/{model_key}/context": {
+      "post": {
+        "tags": ["providers"],
+        "summary": "Set a model's context window (e.g. K3 256K/512K/1M tiers)",
+        "operationId": "set_model_context_api_v2_providers_models__model_key__context_post",
+        "security": [{ "OAuth2PasswordBearer": [] }],
+        "parameters": [
+          {
+            "name": "model_key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Model Key" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ModelContextRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/providers/select": {
+      "post": {
+        "tags": ["providers"],
+        "summary": "Switch the global default model (restarts running workers)",
+        "operationId": "select_model_api_v2_providers_select_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SelectModelRequest" }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SelectModelResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        },
+        "security": [{ "OAuth2PasswordBearer": [] }]
+      }
+    },
+    "/px/v1/{path}": {
+      "post": {
+        "tags": ["keyproxy"],
+        "summary": "Proxy",
+        "description": "Forward a provider API call with the resolved real key.",
+        "operationId": "proxy_px_v1__path__post",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Path" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": ["keyproxy"],
+        "summary": "Proxy",
+        "description": "Forward a provider API call with the resolved real key.",
+        "operationId": "proxy_px_v1__path__post",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Path" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["keyproxy"],
+        "summary": "Proxy",
+        "description": "Forward a provider API call with the resolved real key.",
+        "operationId": "proxy_px_v1__path__post",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Path" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["keyproxy"],
+        "summary": "Proxy",
+        "description": "Forward a provider API call with the resolved real key.",
+        "operationId": "proxy_px_v1__path__post",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Path" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["keyproxy"],
+        "summary": "Proxy",
+        "description": "Forward a provider API call with the resolved real key.",
+        "operationId": "proxy_px_v1__path__post",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Path" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": { "application/json": { "schema": {} } }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
               }
             }
           }
@@ -650,6 +3291,94 @@
   },
   "components": {
     "schemas": {
+      "ActivityCreate": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "pattern": "^(message_sent|file_edited|file_deleted|file_uploaded|file_downloaded|command_run|session_created|session_forked|commit_pushed|review_submitted)$",
+            "title": "Type"
+          },
+          "payload": {
+            "anyOf": [
+              { "type": "string", "maxLength": 4000 },
+              { "type": "null" }
+            ],
+            "title": "Payload"
+          }
+        },
+        "type": "object",
+        "required": ["type"],
+        "title": "ActivityCreate"
+      },
+      "ActivityResponse": {
+        "properties": {
+          "id": { "type": "string", "title": "Id" },
+          "project_id": { "type": "string", "title": "Project Id" },
+          "user_id": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "User Id"
+          },
+          "username": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Username"
+          },
+          "display_name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Display Name"
+          },
+          "type": { "type": "string", "title": "Type" },
+          "payload": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Payload"
+          },
+          "created_at": { "type": "string", "title": "Created At" }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "user_id",
+          "username",
+          "display_name",
+          "type",
+          "payload",
+          "created_at"
+        ],
+        "title": "ActivityResponse"
+      },
+      "AdminUsageDailyPoint": {
+        "properties": {
+          "date": { "type": "string", "title": "Date" },
+          "user_id": { "type": "string", "title": "User Id" },
+          "username": { "type": "string", "title": "Username" },
+          "provider_key": { "type": "string", "title": "Provider Key" },
+          "model": { "type": "string", "title": "Model" },
+          "source": { "type": "string", "title": "Source" },
+          "input_tokens": { "type": "integer", "title": "Input Tokens" },
+          "output_tokens": { "type": "integer", "title": "Output Tokens" }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "user_id",
+          "username",
+          "provider_key",
+          "model",
+          "source",
+          "input_tokens",
+          "output_tokens"
+        ],
+        "title": "AdminUsageDailyPoint",
+        "description": "One day of aggregated usage for a (user, provider, model, source) bucket."
+      },
+      "Body_upload_fs_api_v2_projects__project_id__fs_upload_post": {
+        "properties": {
+          "file": { "type": "string", "format": "binary", "title": "File" }
+        },
+        "type": "object",
+        "required": ["file"],
+        "title": "Body_upload_fs_api_v2_projects__project_id__fs_upload_post"
+      },
       "Body_upload_session_file_api_sessions__session_id__files_post": {
         "properties": {
           "file": { "type": "string", "format": "binary", "title": "File" }
@@ -676,6 +3405,14 @@
               { "type": "null" }
             ],
             "title": "Capabilities"
+          },
+          "display_name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Display Name"
+          },
+          "default_effort": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Default Effort"
           },
           "name": {
             "type": "string",
@@ -709,6 +3446,12 @@
             "type": "string",
             "title": "Path",
             "description": "Path to config file"
+          },
+          "redacted": {
+            "type": "boolean",
+            "title": "Redacted",
+            "description": "Whether provider API keys were redacted",
+            "default": false
           }
         },
         "type": "object",
@@ -726,11 +3469,120 @@
             "type": "boolean",
             "title": "Create Dir",
             "default": false
+          },
+          "team_id": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Team Id"
           }
         },
         "type": "object",
         "title": "CreateSessionRequest",
         "description": "Create session request."
+      },
+      "FetchModelsRequest": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "kimi",
+              "openai_legacy",
+              "openai_responses",
+              "anthropic",
+              "google_genai",
+              "gemini",
+              "vertexai"
+            ],
+            "title": "Type",
+            "default": "openai_legacy"
+          },
+          "base_url": { "type": "string", "title": "Base Url" },
+          "api_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Api Key"
+          },
+          "provider_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Provider Key"
+          }
+        },
+        "type": "object",
+        "required": ["base_url"],
+        "title": "FetchModelsRequest"
+      },
+      "FetchModelsResponse": {
+        "properties": {
+          "models": {
+            "items": { "$ref": "#/components/schemas/ProviderModelSpec" },
+            "type": "array",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": ["models"],
+        "title": "FetchModelsResponse"
+      },
+      "ForkSessionRequest": {
+        "properties": {
+          "turn_index": {
+            "anyOf": [
+              { "type": "integer", "minimum": 0.0 },
+              { "type": "null" }
+            ],
+            "title": "Turn Index"
+          }
+        },
+        "type": "object",
+        "title": "ForkSessionRequest",
+        "description": "Fork session request."
+      },
+      "FsEntry": {
+        "properties": {
+          "name": { "type": "string", "title": "Name" },
+          "path": { "type": "string", "title": "Path" },
+          "type": { "type": "string", "title": "Type" },
+          "size": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Size"
+          }
+        },
+        "type": "object",
+        "required": ["name", "path", "type"],
+        "title": "FsEntry"
+      },
+      "FsListResponse": {
+        "properties": {
+          "entries": {
+            "items": { "$ref": "#/components/schemas/FsEntry" },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": ["entries"],
+        "title": "FsListResponse"
+      },
+      "FsReadResponse": {
+        "properties": {
+          "content": { "type": "string", "title": "Content" },
+          "path": { "type": "string", "title": "Path" }
+        },
+        "type": "object",
+        "required": ["content", "path"],
+        "title": "FsReadResponse"
+      },
+      "FsWriteRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Path"
+          },
+          "content": { "type": "string", "title": "Content" }
+        },
+        "type": "object",
+        "required": ["path", "content"],
+        "title": "FsWriteRequest"
       },
       "GenerateTitleRequest": {
         "properties": {
@@ -753,6 +3605,49 @@
         "required": ["title"],
         "title": "GenerateTitleResponse",
         "description": "Generate title response."
+      },
+      "GitBranchResponse": {
+        "properties": {
+          "name": { "type": "string", "title": "Name" },
+          "current": { "type": "boolean", "title": "Current" }
+        },
+        "type": "object",
+        "required": ["name", "current"],
+        "title": "GitBranchResponse"
+      },
+      "GitCommitRequest": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": ["message"],
+        "title": "GitCommitRequest"
+      },
+      "GitCommitResponse": {
+        "properties": {
+          "hash": { "type": "string", "title": "Hash" },
+          "short_hash": { "type": "string", "title": "Short Hash" },
+          "message": { "type": "string", "title": "Message" },
+          "author": { "type": "string", "title": "Author" },
+          "date": { "type": "string", "title": "Date" }
+        },
+        "type": "object",
+        "required": ["hash", "short_hash", "message", "author", "date"],
+        "title": "GitCommitResponse"
+      },
+      "GitDiffResponse": {
+        "properties": {
+          "path": { "type": "string", "title": "Path" },
+          "diff": { "type": "string", "title": "Diff" }
+        },
+        "type": "object",
+        "required": ["path", "diff"],
+        "title": "GitDiffResponse"
       },
       "GitDiffStats": {
         "properties": {
@@ -826,6 +3721,40 @@
         "title": "GitFileDiff",
         "description": "Single file git diff statistics"
       },
+      "GitStatusResponse": {
+        "properties": {
+          "branch": { "type": "string", "title": "Branch" },
+          "ahead": { "type": "integer", "title": "Ahead" },
+          "behind": { "type": "integer", "title": "Behind" },
+          "modified": {
+            "items": { "type": "string" },
+            "type": "array",
+            "title": "Modified"
+          },
+          "staged": {
+            "items": { "type": "string" },
+            "type": "array",
+            "title": "Staged"
+          },
+          "untracked": {
+            "items": { "type": "string" },
+            "type": "array",
+            "title": "Untracked"
+          },
+          "clean": { "type": "boolean", "title": "Clean" }
+        },
+        "type": "object",
+        "required": [
+          "branch",
+          "ahead",
+          "behind",
+          "modified",
+          "staged",
+          "untracked",
+          "clean"
+        ],
+        "title": "GitStatusResponse"
+      },
       "GlobalConfig": {
         "properties": {
           "default_model": {
@@ -850,6 +3779,47 @@
         "title": "GlobalConfig",
         "description": "Global configuration snapshot for frontend."
       },
+      "GoalCreateRequest": {
+        "properties": {
+          "objective": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Objective"
+          },
+          "criteria": {
+            "anyOf": [
+              { "type": "string", "maxLength": 4000 },
+              { "type": "null" }
+            ],
+            "title": "Criteria"
+          },
+          "max_turns": {
+            "anyOf": [
+              { "type": "integer", "exclusiveMinimum": 0.0 },
+              { "type": "null" }
+            ],
+            "title": "Max Turns"
+          },
+          "max_tokens": {
+            "anyOf": [
+              { "type": "integer", "exclusiveMinimum": 0.0 },
+              { "type": "null" }
+            ],
+            "title": "Max Tokens"
+          },
+          "max_seconds": {
+            "anyOf": [
+              { "type": "integer", "maximum": 86400.0, "minimum": 60.0 },
+              { "type": "null" }
+            ],
+            "title": "Max Seconds"
+          }
+        },
+        "type": "object",
+        "required": ["objective"],
+        "title": "GoalCreateRequest"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -861,9 +3831,54 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HistoryPage": {
+        "properties": {
+          "events": {
+            "items": { "type": "string" },
+            "type": "array",
+            "title": "Events"
+          },
+          "oldest_line": { "type": "integer", "title": "Oldest Line" },
+          "has_more": { "type": "boolean", "title": "Has More" },
+          "source": { "type": "string", "title": "Source", "default": "" },
+          "turn_base": { "type": "integer", "title": "Turn Base", "default": 0 }
+        },
+        "type": "object",
+        "required": ["events", "oldest_line", "has_more"],
+        "title": "HistoryPage",
+        "description": "One page of replayable history events (newest first-page or older)."
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": { "type": "string", "format": "email", "title": "Email" },
+          "password": { "type": "string", "title": "Password" }
+        },
+        "type": "object",
+        "required": ["email", "password"],
+        "title": "LoginRequest"
+      },
       "ModelCapability": {
         "type": "string",
         "enum": ["image_in", "video_in", "thinking", "always_thinking"]
+      },
+      "ModelContextRequest": {
+        "properties": {
+          "max_context_size": {
+            "type": "integer",
+            "maximum": 10000000.0,
+            "minimum": 1024.0,
+            "title": "Max Context Size"
+          },
+          "restart_running_sessions": {
+            "type": "boolean",
+            "title": "Restart Running Sessions",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": ["max_context_size"],
+        "title": "ModelContextRequest",
+        "description": "Set a model's context window size.\n\nK3 example: 262144 (Moderato) / 524288 / 1048576 (Allegretto+ 1M). The\nusable ceiling depends on the subscription tier of the account behind the\nprovider key."
       },
       "OpenInRequest": {
         "properties": {
@@ -899,6 +3914,279 @@
         "title": "OpenInResponse",
         "description": "Open path response."
       },
+      "ProjectCreate": {
+        "properties": {
+          "team_id": { "type": "string", "title": "Team Id" },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Slug"
+          },
+          "description": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ],
+            "title": "Description"
+          },
+          "work_dir": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ],
+            "title": "Work Dir"
+          },
+          "git_repo_url": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ],
+            "title": "Git Repo Url"
+          },
+          "default_model": {
+            "anyOf": [
+              { "type": "string", "maxLength": 100 },
+              { "type": "null" }
+            ],
+            "title": "Default Model"
+          }
+        },
+        "type": "object",
+        "required": ["team_id", "name", "slug"],
+        "title": "ProjectCreate"
+      },
+      "ProjectMemberResponse": {
+        "properties": {
+          "id": { "type": "string", "title": "Id" },
+          "user_id": { "type": "string", "title": "User Id" },
+          "username": { "type": "string", "title": "Username" },
+          "display_name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Display Name"
+          },
+          "role": { "type": "string", "title": "Role" },
+          "joined_at": { "type": "string", "title": "Joined At" }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "username",
+          "display_name",
+          "role",
+          "joined_at"
+        ],
+        "title": "ProjectMemberResponse"
+      },
+      "ProjectMemberUpdateRole": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "pattern": "^(owner|admin|member)$",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": ["role"],
+        "title": "ProjectMemberUpdateRole"
+      },
+      "ProjectResponse": {
+        "properties": {
+          "id": { "type": "string", "title": "Id" },
+          "team_id": { "type": "string", "title": "Team Id" },
+          "name": { "type": "string", "title": "Name" },
+          "slug": { "type": "string", "title": "Slug" },
+          "description": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Description"
+          },
+          "work_dir": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Work Dir"
+          },
+          "git_repo_url": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Git Repo Url"
+          },
+          "default_model": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Default Model"
+          },
+          "created_by": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Created By"
+          },
+          "members": {
+            "items": { "$ref": "#/components/schemas/ProjectMemberResponse" },
+            "type": "array",
+            "title": "Members"
+          },
+          "created_at": { "type": "string", "title": "Created At" }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "team_id",
+          "name",
+          "slug",
+          "description",
+          "work_dir",
+          "git_repo_url",
+          "default_model",
+          "created_by",
+          "members",
+          "created_at"
+        ],
+        "title": "ProjectResponse"
+      },
+      "ProjectUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              { "type": "string", "maxLength": 100, "minLength": 1 },
+              { "type": "null" }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ],
+            "title": "Description"
+          },
+          "work_dir": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ],
+            "title": "Work Dir"
+          },
+          "git_repo_url": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ],
+            "title": "Git Repo Url"
+          },
+          "default_model": {
+            "anyOf": [
+              { "type": "string", "maxLength": 100 },
+              { "type": "null" }
+            ],
+            "title": "Default Model"
+          }
+        },
+        "type": "object",
+        "title": "ProjectUpdate"
+      },
+      "ProviderInfo": {
+        "properties": {
+          "key": { "type": "string", "title": "Key" },
+          "type": { "type": "string", "title": "Type" },
+          "base_url": { "type": "string", "title": "Base Url" },
+          "has_api_key": { "type": "boolean", "title": "Has Api Key" },
+          "models": {
+            "items": { "$ref": "#/components/schemas/ProviderModelSpec" },
+            "type": "array",
+            "title": "Models"
+          },
+          "model_keys": {
+            "items": { "type": "string" },
+            "type": "array",
+            "title": "Model Keys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "type",
+          "base_url",
+          "has_api_key",
+          "models",
+          "model_keys"
+        ],
+        "title": "ProviderInfo"
+      },
+      "ProviderKeyResponse": {
+        "properties": {
+          "provider_key": { "type": "string", "title": "Provider Key" },
+          "has_api_key": { "type": "boolean", "title": "Has Api Key" },
+          "created_at": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": ["provider_key", "has_api_key"],
+        "title": "ProviderKeyResponse"
+      },
+      "ProviderKeyUpsertRequest": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Api Key"
+          }
+        },
+        "type": "object",
+        "required": ["api_key"],
+        "title": "ProviderKeyUpsertRequest"
+      },
+      "ProviderListResponse": {
+        "properties": {
+          "default_model": { "type": "string", "title": "Default Model" },
+          "default_thinking": {
+            "type": "boolean",
+            "title": "Default Thinking"
+          },
+          "providers": {
+            "items": { "$ref": "#/components/schemas/ProviderInfo" },
+            "type": "array",
+            "title": "Providers"
+          }
+        },
+        "type": "object",
+        "required": ["default_model", "default_thinking", "providers"],
+        "title": "ProviderListResponse"
+      },
+      "ProviderModelSpec": {
+        "properties": {
+          "model": { "type": "string", "title": "Model" },
+          "max_context_size": {
+            "type": "integer",
+            "title": "Max Context Size",
+            "default": 262144
+          },
+          "capabilities": {
+            "anyOf": [
+              { "items": { "type": "string" }, "type": "array" },
+              { "type": "null" }
+            ],
+            "title": "Capabilities"
+          },
+          "display_name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Display Name"
+          }
+        },
+        "type": "object",
+        "required": ["model"],
+        "title": "ProviderModelSpec",
+        "description": "A model served by a provider."
+      },
       "ProviderType": {
         "type": "string",
         "enum": [
@@ -913,6 +4201,136 @@
           "_scripted_echo",
           "_chaos"
         ]
+      },
+      "ProviderUpsertRequest": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Key"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "kimi",
+              "openai_legacy",
+              "openai_responses",
+              "anthropic",
+              "google_genai",
+              "gemini",
+              "vertexai"
+            ],
+            "title": "Type"
+          },
+          "base_url": { "type": "string", "minLength": 1, "title": "Base Url" },
+          "api_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Api Key"
+          },
+          "models": {
+            "anyOf": [
+              {
+                "items": { "$ref": "#/components/schemas/ProviderModelSpec" },
+                "type": "array"
+              },
+              { "type": "null" }
+            ],
+            "title": "Models"
+          },
+          "custom_headers": {
+            "anyOf": [
+              {
+                "additionalProperties": { "type": "string" },
+                "type": "object"
+              },
+              { "type": "null" }
+            ],
+            "title": "Custom Headers"
+          },
+          "reasoning_key": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Reasoning Key"
+          }
+        },
+        "type": "object",
+        "required": ["key", "type", "base_url"],
+        "title": "ProviderUpsertRequest"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "email": { "type": "string", "format": "email", "title": "Email" },
+          "username": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 6,
+            "title": "Password"
+          },
+          "display_name": {
+            "anyOf": [
+              { "type": "string", "maxLength": 100 },
+              { "type": "null" }
+            ],
+            "title": "Display Name"
+          }
+        },
+        "type": "object",
+        "required": ["email", "username", "password"],
+        "title": "RegisterRequest"
+      },
+      "SelectModelRequest": {
+        "properties": {
+          "default_model": { "type": "string", "title": "Default Model" },
+          "default_thinking": {
+            "anyOf": [{ "type": "boolean" }, { "type": "null" }],
+            "title": "Default Thinking"
+          },
+          "restart_running_sessions": {
+            "type": "boolean",
+            "title": "Restart Running Sessions",
+            "default": true
+          },
+          "force_restart_busy_sessions": {
+            "type": "boolean",
+            "title": "Force Restart Busy Sessions",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": ["default_model"],
+        "title": "SelectModelRequest"
+      },
+      "SelectModelResponse": {
+        "properties": {
+          "default_model": { "type": "string", "title": "Default Model" },
+          "default_thinking": {
+            "type": "boolean",
+            "title": "Default Thinking"
+          },
+          "restarted_session_ids": {
+            "anyOf": [
+              { "items": { "type": "string" }, "type": "array" },
+              { "type": "null" }
+            ],
+            "title": "Restarted Session Ids"
+          },
+          "skipped_busy_session_ids": {
+            "anyOf": [
+              { "items": { "type": "string" }, "type": "array" },
+              { "type": "null" }
+            ],
+            "title": "Skipped Busy Session Ids"
+          }
+        },
+        "type": "object",
+        "required": ["default_model", "default_thinking"],
+        "title": "SelectModelResponse"
       },
       "Session": {
         "properties": {
@@ -960,6 +4378,22 @@
             "type": "boolean",
             "title": "Archived",
             "description": "Whether the session is archived",
+            "default": false
+          },
+          "owner_id": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Owner Id",
+            "description": "UUID of the user who created the session"
+          },
+          "team_id": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Team Id",
+            "description": "UUID of the team this session belongs to"
+          },
+          "shared": {
+            "type": "boolean",
+            "title": "Shared",
+            "description": "Whether the session is shared with team members",
             "default": false
           }
         },
@@ -1014,6 +4448,165 @@
         "title": "SessionStatus",
         "description": "Runtime status of a web session."
       },
+      "TeamCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Slug"
+          },
+          "description": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": ["name", "slug"],
+        "title": "TeamCreate"
+      },
+      "TeamMemberResponse": {
+        "properties": {
+          "id": { "type": "string", "title": "Id" },
+          "user_id": { "type": "string", "title": "User Id" },
+          "username": { "type": "string", "title": "Username" },
+          "display_name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Display Name"
+          },
+          "role": { "type": "string", "title": "Role" },
+          "joined_at": { "type": "string", "title": "Joined At" }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "user_id",
+          "username",
+          "display_name",
+          "role",
+          "joined_at"
+        ],
+        "title": "TeamMemberResponse"
+      },
+      "TeamMemberUpdateRole": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "pattern": "^(owner|admin|member)$",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": ["role"],
+        "title": "TeamMemberUpdateRole"
+      },
+      "TeamProviderKeyResponse": {
+        "properties": {
+          "provider_key": { "type": "string", "title": "Provider Key" },
+          "has_api_key": { "type": "boolean", "title": "Has Api Key" }
+        },
+        "type": "object",
+        "required": ["provider_key", "has_api_key"],
+        "title": "TeamProviderKeyResponse"
+      },
+      "TeamProviderKeyUpsertRequest": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Api Key"
+          }
+        },
+        "type": "object",
+        "required": ["api_key"],
+        "title": "TeamProviderKeyUpsertRequest"
+      },
+      "TeamResponse": {
+        "properties": {
+          "id": { "type": "string", "title": "Id" },
+          "name": { "type": "string", "title": "Name" },
+          "slug": { "type": "string", "title": "Slug" },
+          "description": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Description"
+          },
+          "timezone": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Timezone"
+          },
+          "owner_id": { "type": "string", "title": "Owner Id" },
+          "members": {
+            "items": { "$ref": "#/components/schemas/TeamMemberResponse" },
+            "type": "array",
+            "title": "Members"
+          },
+          "created_at": { "type": "string", "title": "Created At" }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "description",
+          "timezone",
+          "owner_id",
+          "members",
+          "created_at"
+        ],
+        "title": "TeamResponse"
+      },
+      "TeamUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              { "type": "string", "maxLength": 100, "minLength": 1 },
+              { "type": "null" }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ],
+            "title": "Description"
+          },
+          "timezone": {
+            "anyOf": [
+              { "type": "string", "maxLength": 64 },
+              { "type": "null" }
+            ],
+            "title": "Timezone",
+            "description": "IANA display timezone for team usage statistics (e.g. Asia/Shanghai). Empty string clears it back to UTC."
+          }
+        },
+        "type": "object",
+        "title": "TeamUpdate"
+      },
+      "TokenResponse": {
+        "properties": {
+          "access_token": { "type": "string", "title": "Access Token" },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "bearer"
+          },
+          "user": { "$ref": "#/components/schemas/UserResponse" }
+        },
+        "type": "object",
+        "required": ["access_token", "user"],
+        "title": "TokenResponse"
+      },
       "UpdateConfigTomlRequest": {
         "properties": {
           "content": {
@@ -1038,6 +4631,22 @@
             "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Error",
             "description": "Error message if failed"
+          },
+          "restarted_session_ids": {
+            "anyOf": [
+              { "items": { "type": "string" }, "type": "array" },
+              { "type": "null" }
+            ],
+            "title": "Restarted Session Ids",
+            "description": "IDs of restarted sessions"
+          },
+          "skipped_busy_session_ids": {
+            "anyOf": [
+              { "items": { "type": "string" }, "type": "array" },
+              { "type": "null" }
+            ],
+            "title": "Skipped Busy Session Ids",
+            "description": "IDs of busy sessions that were skipped"
           }
         },
         "type": "object",
@@ -1113,6 +4722,19 @@
             "anyOf": [{ "type": "boolean" }, { "type": "null" }],
             "title": "Archived",
             "description": "Archive or unarchive the session"
+          },
+          "shared": {
+            "anyOf": [{ "type": "boolean" }, { "type": "null" }],
+            "title": "Shared",
+            "description": "Share with team members"
+          },
+          "shared_with": {
+            "anyOf": [
+              { "items": { "type": "string" }, "type": "array" },
+              { "type": "null" }
+            ],
+            "title": "Shared With",
+            "description": "List of user IDs explicitly allowed"
           }
         },
         "type": "object",
@@ -1130,6 +4752,109 @@
         "title": "UploadSessionFileResponse",
         "description": "Upload file response."
       },
+      "UsageDailyPoint": {
+        "properties": {
+          "date": { "type": "string", "title": "Date" },
+          "provider_key": { "type": "string", "title": "Provider Key" },
+          "model": { "type": "string", "title": "Model" },
+          "source": { "type": "string", "title": "Source" },
+          "input_tokens": { "type": "integer", "title": "Input Tokens" },
+          "output_tokens": { "type": "integer", "title": "Output Tokens" }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "provider_key",
+          "model",
+          "source",
+          "input_tokens",
+          "output_tokens"
+        ],
+        "title": "UsageDailyPoint",
+        "description": "One day of aggregated usage for a (provider, model, source) bucket."
+      },
+      "UsageSummary": {
+        "properties": {
+          "provider_key": { "type": "string", "title": "Provider Key" },
+          "source": { "type": "string", "title": "Source" },
+          "input_tokens": { "type": "integer", "title": "Input Tokens" },
+          "output_tokens": { "type": "integer", "title": "Output Tokens" },
+          "total_tokens": { "type": "integer", "title": "Total Tokens" },
+          "quota_tokens": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Quota Tokens"
+          },
+          "remaining_tokens": {
+            "anyOf": [{ "type": "integer" }, { "type": "null" }],
+            "title": "Remaining Tokens"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_key",
+          "source",
+          "input_tokens",
+          "output_tokens",
+          "total_tokens"
+        ],
+        "title": "UsageSummary"
+      },
+      "UserProfileUpdate": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              { "type": "string", "maxLength": 100 },
+              { "type": "null" }
+            ],
+            "title": "Display Name"
+          },
+          "avatar_url": {
+            "anyOf": [
+              { "type": "string", "maxLength": 500 },
+              { "type": "null" }
+            ],
+            "title": "Avatar Url"
+          }
+        },
+        "type": "object",
+        "title": "UserProfileUpdate"
+      },
+      "UserResponse": {
+        "properties": {
+          "id": { "type": "string", "title": "Id" },
+          "email": { "type": "string", "title": "Email" },
+          "username": { "type": "string", "title": "Username" },
+          "display_name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Display Name"
+          },
+          "avatar_url": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Avatar Url"
+          },
+          "role": { "type": "string", "title": "Role" },
+          "created_at": { "type": "string", "title": "Created At" }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "username",
+          "display_name",
+          "avatar_url",
+          "role",
+          "created_at"
+        ],
+        "title": "UserResponse"
+      },
+      "UserRoleUpdate": {
+        "properties": {
+          "role": { "type": "string", "minLength": 1, "title": "Role" }
+        },
+        "type": "object",
+        "required": ["role"],
+        "title": "UserRoleUpdate"
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -1143,6 +4868,45 @@
         "type": "object",
         "required": ["loc", "msg", "type"],
         "title": "ValidationError"
+      },
+      "cran_code__web__api_v2__users__UserResponse": {
+        "properties": {
+          "id": { "type": "string", "title": "Id" },
+          "email": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Email"
+          },
+          "username": { "type": "string", "title": "Username" },
+          "display_name": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Display Name"
+          },
+          "avatar_url": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Avatar Url"
+          },
+          "role": { "type": "string", "title": "Role" },
+          "created_at": { "type": "string", "title": "Created At" }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "username",
+          "display_name",
+          "avatar_url",
+          "role",
+          "created_at"
+        ],
+        "title": "UserResponse"
+      }
+    },
+    "securitySchemes": {
+      "OAuth2PasswordBearer": {
+        "type": "oauth2",
+        "flows": {
+          "password": { "scopes": {}, "tokenUrl": "/api/v2/auth/login" }
+        }
       }
     }
   }

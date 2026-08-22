@@ -65,3 +65,7 @@ export const formatRelativeTime = (date: Date): string => {
     }
   }
 };
+
+/** The browser's IANA timezone (e.g. "Asia/Shanghai"), for tz-aware usage APIs. */
+export const getBrowserTimeZone = (): string =>
+  Intl.DateTimeFormat().resolvedOptions().timeZone;

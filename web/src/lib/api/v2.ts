@@ -70,6 +70,8 @@ export interface TeamRes {
   name: string;
   slug: string;
   description: string | null;
+  /** IANA timezone used to bucket the team's usage by local date (null = UTC). */
+  timezone: string | null;
   owner_id: string;
   members: TeamMemberRes[];
   created_at: string;
@@ -88,6 +90,14 @@ export interface TeamCreateReq {
   name: string;
   slug: string;
   description?: string;
+}
+
+export interface TeamUpdateReq {
+  name?: string;
+  slug?: string;
+  description?: string;
+  /** IANA timezone (e.g. "Asia/Shanghai"); empty string clears back to UTC. */
+  timezone?: string;
 }
 
 export interface ProjectRes {
@@ -278,19 +288,23 @@ export const v2Api = {
         { method: "DELETE" },
       ),
     meUsage: () => _fetch<UsageSummaryRes[]>("/users/me/usage"),
-    meUsageDaily: (days = 30) =>
-      _fetch<UsageDailyPointRes[]>(`/users/me/usage/daily?days=${days}`),
+    meUsageDaily: (days = 30, tz?: string) =>
+      _fetch<UsageDailyPointRes[]>(
+        `/users/me/usage/daily?days=${days}${tz ? `&tz=${encodeURIComponent(tz)}` : ""}`,
+      ),
   },
   admin: {
-    usage: (days = 30) =>
-      _fetch<AdminUsageDailyPointRes[]>(`/admin/usage?days=${days}`),
+    usage: (days = 30, tz?: string) =>
+      _fetch<AdminUsageDailyPointRes[]>(
+        `/admin/usage?days=${days}${tz ? `&tz=${encodeURIComponent(tz)}` : ""}`,
+      ),
   },
   teams: {
     list: () => _fetch<TeamRes[]>("/teams"),
     create: (data: TeamCreateReq) =>
       _fetch<TeamRes>("/teams", { method: "POST", body: JSON.stringify(data) }),
     get: (id: string) => _fetch<TeamRes>(`/teams/${id}`),
-    update: (id: string, data: Partial<TeamCreateReq>) =>
+    update: (id: string, data: TeamUpdateReq) =>
       _fetch<TeamRes>(`/teams/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),

@@ -16,6 +16,12 @@ if ! curl -sf -o openapi.json "$API_URL"; then
 fi
 
 echo "Removing old API client..."
+# v2.ts is a hand-written client (the OpenAPI spec does not fully cover v2
+# semantics); preserve it across regeneration.
+V2_CLIENT_BACKUP="$(mktemp)"
+if [ -f src/lib/api/v2.ts ]; then
+    cp src/lib/api/v2.ts "$V2_CLIENT_BACKUP"
+fi
 rm -rf src/lib/api
 
 echo "Generating TypeScript client..."
@@ -45,7 +51,14 @@ $DOCKER_CMD run --rm \
     -i /local/openapi.json \
     -g typescript-fetch \
     -o /local/src/lib/api \
-    --additional-properties=supportsES6=true,npmVersion=10.9.0,typescriptThreePlus=true
+    --additional-properties=supportsES6=true,npmVersion=10.9.0,typescriptThreePlus=true \
+    --skip-validate-spec
+
+# Restore the hand-written v2 client
+if [ -s "$V2_CLIENT_BACKUP" ]; then
+    cp "$V2_CLIENT_BACKUP" src/lib/api/v2.ts
+fi
+rm -f "$V2_CLIENT_BACKUP"
 
 # Fix ownership if docker created files as root
 if [ -n "$(find src/lib/api -user root 2>/dev/null)" ]; then

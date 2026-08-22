@@ -15,6 +15,9 @@ Name | Type
 `workDir` | string
 `sessionDir` | string
 `archived` | boolean
+`ownerId` | string
+`teamId` | string
+`shared` | boolean
 
 ## Example
 
@@ -31,6 +34,9 @@ const example = {
   "workDir": null,
   "sessionDir": null,
   "archived": null,
+  "ownerId": null,
+  "teamId": null,
+  "shared": null,
 } satisfies Session
 
 console.log(example)

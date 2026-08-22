@@ -9,6 +9,7 @@ Name | Type
 ------------ | -------------
 `content` | string
 `path` | string
+`redacted` | boolean
 
 ## Example
 
@@ -19,6 +20,7 @@ import type { ConfigToml } from ''
 const example = {
   "content": null,
   "path": null,
+  "redacted": null,
 } satisfies ConfigToml
 
 console.log(example)

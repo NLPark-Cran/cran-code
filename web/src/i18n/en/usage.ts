@@ -20,4 +20,5 @@ export default {
   emptyTitle: "No usage data yet",
   emptyHint: "Your token usage will appear here after you start chatting.",
   loadFailed: "Failed to load usage data",
+  timezoneCaption: "Timezone: {{tz}}",
 } as const;

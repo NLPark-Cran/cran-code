@@ -15,4 +15,9 @@ export default {
   emptyTitle: "No teams yet",
   emptyDesc: "Create your first team to start collaborating",
   loadDataFailed: "Failed to load data",
+  timezoneLabel: "Team timezone",
+  timezoneDesc: "Used to bucket team usage by local calendar date.",
+  timezoneDefault: "Default (UTC)",
+  timezoneUpdated: "Timezone updated",
+  timezoneUpdateFailed: "Failed to update timezone",
 } as const;

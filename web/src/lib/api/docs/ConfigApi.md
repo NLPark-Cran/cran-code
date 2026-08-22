@@ -17,7 +17,7 @@ All URIs are relative to *http://localhost*
 
 Get cran-code config.toml
 
-Get cran-code config.toml.
+Get cran-code config.toml (provider API keys redacted).
 
 ### Example
 

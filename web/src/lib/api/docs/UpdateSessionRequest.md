@@ -9,6 +9,8 @@ Name | Type
 ------------ | -------------
 `title` | string
 `archived` | boolean
+`shared` | boolean
+`sharedWith` | Array&lt;string&gt;
 
 ## Example
 
@@ -19,6 +21,8 @@ import type { UpdateSessionRequest } from ''
 const example = {
   "title": null,
   "archived": null,
+  "shared": null,
+  "sharedWith": null,
 } satisfies UpdateSessionRequest
 
 console.log(example)

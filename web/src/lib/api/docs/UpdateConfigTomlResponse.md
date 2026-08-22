@@ -9,6 +9,8 @@ Name | Type
 ------------ | -------------
 `success` | boolean
 `error` | string
+`restartedSessionIds` | Array&lt;string&gt;
+`skippedBusySessionIds` | Array&lt;string&gt;
 
 ## Example
 
@@ -19,6 +21,8 @@ import type { UpdateConfigTomlResponse } from ''
 const example = {
   "success": null,
   "error": null,
+  "restartedSessionIds": null,
+  "skippedBusySessionIds": null,
 } satisfies UpdateConfigTomlResponse
 
 console.log(example)

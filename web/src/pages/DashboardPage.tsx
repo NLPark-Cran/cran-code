@@ -44,7 +44,7 @@ import {
 } from "@/lib/api/v2";
 import { EmptyState } from "@/components/empty-state";
 import Layout from "@/components/Layout";
-import { formatRelativeTime } from "@/hooks/utils";
+import { formatRelativeTime, getBrowserTimeZone } from "@/hooks/utils";
 
 const RECENT_SESSIONS_LIMIT = 6;
 
@@ -81,7 +81,8 @@ export default function DashboardPage() {
         await Promise.allSettled([
           v2Api.teams.list(),
           apiClient.sessions.listSessionsApiSessionsGet({ limit: 100 }),
-          v2Api.users.meUsageDaily(1),
+          // tz-aware: days=1 with tz means the local calendar "today".
+          v2Api.users.meUsageDaily(1, getBrowserTimeZone()),
           v2Api.providers.list(),
         ]);
       if (cancelled) return;
@@ -124,7 +125,7 @@ export default function DashboardPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!createName.trim() || !createSlug.trim()) return;
+    if (!(createName.trim() && createSlug.trim())) return;
     setCreateLoading(true);
     setCreateError(null);
     try {
@@ -236,15 +237,15 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Status cards row */}
+          {/* Status cards row — compact strips */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-2">
+            <Card className="gap-2 py-3">
+              <CardHeader className="pb-0">
                 <CardDescription className="flex items-center gap-1.5">
                   <Activity className="h-3.5 w-3.5" />
                   {t("dashboard:runningSessions")}
                 </CardDescription>
-                <CardTitle className="text-2xl tabular-nums">
+                <CardTitle className="text-xl tabular-nums">
                   {runningCount}
                 </CardTitle>
               </CardHeader>
@@ -252,13 +253,13 @@ export default function DashboardPage() {
                 {t("dashboard:totalSessions", { count: sessions.length })}
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="pb-2">
+            <Card className="gap-2 py-3">
+              <CardHeader className="pb-0">
                 <CardDescription className="flex items-center gap-1.5">
                   <Coins className="h-3.5 w-3.5" />
                   {t("dashboard:todayTokens")}
                 </CardDescription>
-                <CardTitle className="text-2xl tabular-nums">
+                <CardTitle className="text-xl tabular-nums">
                   {compact(todayTotals.input + todayTotals.output)}
                 </CardTitle>
               </CardHeader>
@@ -269,13 +270,13 @@ export default function DashboardPage() {
                 })}
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="pb-2">
+            <Card className="gap-2 py-3">
+              <CardHeader className="pb-0">
                 <CardDescription className="flex items-center gap-1.5">
                   <Server className="h-3.5 w-3.5" />
                   {t("dashboard:providers")}
                 </CardDescription>
-                <CardTitle className="text-2xl tabular-nums">
+                <CardTitle className="text-xl tabular-nums">
                   {providerData?.providers.length ?? "—"}
                 </CardTitle>
               </CardHeader>
@@ -287,13 +288,13 @@ export default function DashboardPage() {
                   : "—"}
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="pb-2">
+            <Card className="gap-2 py-3">
+              <CardHeader className="pb-0">
                 <CardDescription className="flex items-center gap-1.5">
                   <HeartPulse className="h-3.5 w-3.5" />
                   {t("dashboard:systemStatus")}
                 </CardDescription>
-                <CardTitle className="flex items-center gap-2 text-lg">
+                <CardTitle className="flex items-center gap-2 text-base">
                   <span
                     className={`inline-block size-2.5 rounded-full ${
                       systemOk ? "bg-emerald-500" : "bg-destructive"
