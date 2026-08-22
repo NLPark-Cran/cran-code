@@ -62,7 +62,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = ["cran_code"]
-source-exclude = ["examples/**/*", "tests/**/*", "src/kimi_cli/deps/**/*"]
+source-exclude = ["examples/**/*", "tests/**/*", "src/cran_code/deps/**/*"]
 
 [tool.uv.workspace]
 members = [
@@ -97,7 +97,7 @@ select = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["E501"]
 "tests_e2e/**/*.py" = ["E501"]
-"src/kimi_cli/web/api/**/*.py" = ["B008"]  # FastAPI Depends() is standard usage
+"src/cran_code/web/api/**/*.py" = ["B008"]  # FastAPI Depends() is standard usage
 
 [tool.pyright]
 typeCheckingMode = "standard"
@@ -108,7 +108,7 @@ include = [
     "tests_ai/scripts/**/*.py",
     "tests_e2e/**/*.py",
 ]
-strict = ["src/kimi_cli/**/*.py"]
+strict = ["src/cran_code/**/*.py"]
 
 [tool.ty.environment]
 python-version = "3.14"

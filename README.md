@@ -1,177 +1,71 @@
-# Kimi CLI
+# Cran Code · 猹询码
 
-[![Commit Activity](https://img.shields.io/github/commit-activity/w/MoonshotAI/kimi-cli)](https://github.com/MoonshotAI/kimi-cli/graphs/commit-activity)
-[![Checks](https://img.shields.io/github/check-runs/MoonshotAI/kimi-cli/main)](https://github.com/MoonshotAI/kimi-cli/actions)
-[![Version](https://img.shields.io/pypi/v/kimi-cli)](https://pypi.org/project/kimi-cli/)
-[![Downloads](https://img.shields.io/pypi/dw/kimi-cli)](https://pypistats.org/packages/kimi-cli)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/MoonshotAI/kimi-cli)
+> 面向高校教学与团队协作场景的 AI Coding 平台 —— 基于 MoonshotAI/kimi-cli 深度演进的 Web 多用户版本。
 
-[Kimi Code](https://www.kimi.com/code/) | [Documentation](https://moonshotai.github.io/kimi-cli/en/) | [文档](https://moonshotai.github.io/kimi-cli/zh/)
+**生产环境**: <https://crys.tt2.li> · **团队**: NLPark-Cran（杭州电子科技大学）
 
-> [!IMPORTANT]
-> **Kimi CLI is evolving into [Kimi Code CLI](https://github.com/MoonshotAI/kimi-code)** — the next-generation terminal AI agent from the same team. Installing Kimi Code CLI automatically migrates your configuration and sessions. This project will be gradually wound down; the docs and existing installations remain available.
+Cran Code 把终端 AI agent 变成一个**多人协作的 Web 平台**：团队成员在浏览器里创建会话、驱动 agent 完成真实工程任务（读写文件、执行命令、部署服务），平台统一管理账号、团队、API Key、配额与审计。
 
-Kimi CLI is an AI agent that runs in the terminal, helping you complete software development tasks and terminal operations. It can read and edit code, execute shell commands, search and fetch web pages, and autonomously plan and adjust actions during execution.
+## 核心能力
 
-## Getting Started
+- **多用户平台**：v2 JWT 账号体系 + 管理员角色；团队/项目/成员管理；会话共享与协作编辑（Yjs）
+- **Key 体系与配额**：个人/团队/共享三级 key 解析，内置 `/px/v1` key 代理（签名 `cwk_` 令牌、自动续期），按用户/团队配额与用量计量页
+- **Goal 模式**：给会话设一个结构化目标，agent 跨多轮自治推进直至完成/阻塞/暂停，支持 turn/token/时长预算（默认 30 轮安全上限）
+- **Swarm 可视化**：子代理（前台/后台）生命周期实时面板 + 后台任务完成通知
+- **完整工程工具链**：24 个内置工具（shell/文件/web/子代理/计划模式/后台任务…）、MCP 扩展、skills 体系、hooks
+- **长会话可靠性**：上下文压缩（第一人称交接笔记式）、媒体 blob-ref 外置、分页重放 + 流式碎片合并、断连恢复
+- **多主题界面**：石墨靛蓝灰 / 朱砂粉金 / 青碧三套主题（浅色+深色），全量中文/English i18n
+- **会话治理**：fork/分叉、归档、AI 生成标题、用量统计页、控制台仪表盘
 
-See [Getting Started](https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html) for how to install and start using Kimi CLI.
+## 架构一览
 
-## Key Features
-
-### Shell command mode
-
-Kimi CLI is not only a coding agent, but also a shell. You can switch the shell command mode by pressing `Ctrl-X`. In this mode, you can directly run shell commands without leaving Kimi CLI.
-
-![](./docs/media/shell-mode.gif)
-
-> [!NOTE]
-> Built-in shell commands like `cd` are not supported yet.
-
-### VS Code extension
-
-Kimi CLI can be integrated with [Visual Studio Code](https://code.visualstudio.com/) via the [Kimi Code VS Code Extension](https://marketplace.visualstudio.com/items?itemName=moonshot-ai.kimi-code).
-
-![VS Code Extension](./docs/media/vscode.png)
-
-### IDE integration via ACP
-
-Kimi CLI supports [Agent Client Protocol] out of the box. You can use it together with any ACP-compatible editor or IDE.
-
-[Agent Client Protocol]: https://github.com/agentclientprotocol/agent-client-protocol
-
-To use Kimi CLI with ACP clients, make sure to run Kimi CLI in the terminal and send `/login` to complete the login first. Then, you can configure your ACP client to start Kimi CLI as an ACP agent server with command `kimi acp`.
-
-For example, to use Kimi CLI with [Zed](https://zed.dev/) or [JetBrains](https://blog.jetbrains.com/ai/2025/12/bring-your-own-ai-agent-to-jetbrains-ides/), add the following configuration to your `~/.config/zed/settings.json` or `~/.jetbrains/acp.json` file:
-
-```json
-{
-  "agent_servers": {
-    "Kimi CLI": {
-      "type": "custom",
-      "command": "kimi",
-      "args": ["acp"],
-      "env": {}
-    }
-  }
-}
+```
+浏览器 ──WS──▶ FastAPI (SessionProcess) ──JSONRPC/stdio──▶ worker (KimiSoul + kosong → LLM provider)
+                     │
+                     ├─ wire.jsonl（事件日志，重放来源）      ├─ context.jsonl（模型上下文，blob-ref 外置媒体）
+                     ├─ goal.json / subagents/ / blobs/     └─ ~/.cran/cran.db（sqlite：用户/团队/key/配额）
 ```
 
-Then you can create Kimi CLI threads in IDE's agent panel.
+- 后端：`src/cran_code`（Python 3.14，FastAPI + 每会话独立 worker 子进程）
+- 前端：`web/src`（React 19 + Vite 7 + Tailwind 4 + shadcn）
+- 上游基线：kimi-cli v1.49.0 / kosong 0.56.0（通过 `git merge upstream/main` 持续同步）
 
-![](./docs/media/acp-integration.gif)
+## 快速开始
 
-### Zsh integration
+```bash
+# 环境（需要 uv + Node 20+）
+uv lock && uv sync
+cd web && npm install && cd ..
 
-You can use Kimi CLI together with Zsh, to empower your shell experience with AI agent capabilities.
+# 本地开发（不要占用 5496 生产端口）
+uv run cran-code web --port 5494          # 后端
+cd web && npm run dev                     # 前端（代理到 5494）
 
-Install the [zsh-kimi-cli](https://github.com/MoonshotAI/zsh-kimi-cli) plugin via:
-
-```sh
-git clone https://github.com/MoonshotAI/zsh-kimi-cli.git \
-  ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/kimi-cli
+# 冒烟
+uv run pytest tests/web/ -q               # 后端 web 层全绿
+cd web && npx tsc -b --noEmit             # 前端类型 0 错误
 ```
 
-> [!NOTE]
-> If you are using a plugin manager other than Oh My Zsh, you may need to refer to the plugin's README for installation instructions.
+## 文档
 
-Then add `kimi-cli` to your Zsh plugin list in `~/.zshrc`:
+| 文档 | 内容 |
+|---|---|
+| [AGENTS.md](AGENTS.md) | AI agent/开发者总纲（第一入口） |
+| [docs/dev/architecture.md](docs/dev/architecture.md) | 架构与数据流、安全基线 |
+| [docs/dev/conventions.md](docs/dev/conventions.md) | 开发规范（命名/测试/提交/模式库） |
+| [docs/dev/deploy.md](docs/dev/deploy.md) | 部署 SOP（验证清单与回滚） |
+| [docs/dev/troubleshooting.md](docs/dev/troubleshooting.md) | 故障索引（症状→根因→修复） |
+| [docs/dev/goal-mode.md](docs/dev/goal-mode.md) | Goal 模式设计 |
+| [docs/dev/changelog.md](docs/dev/changelog.md) | 里程碑归档 |
 
-```sh
-plugins=(... kimi-cli)
-```
+`docs/en|zh/` 为上游 kimi-cli 用户文档存档（VitePress），其中 `KIMI_*` 环境变量等内容对应上游 CLI，本平台以 `CRAN_*` 为准（见 conventions.md 配置清单）。
 
-After restarting Zsh, you can switch to agent mode by pressing `Ctrl-X`.
+## 安全
 
-### MCP support
+- v2 管理端点强制 `require_admin`；SSRF 检查；worker 环境只经 `_build_worker_env` 注入；key 代理仅 loopback；敏感路径禁读写
+- 密钥永不入库（`~/.cran/config.toml`、`server.env`、`sk-*`）
+- 安全研究请见 [SECURITY.md](SECURITY.md)
 
-Kimi CLI supports MCP (Model Context Protocol) tools.
+## 致谢
 
-**`kimi mcp` sub-command group**
-
-You can manage MCP servers with `kimi mcp` sub-command group. For example:
-
-```sh
-# Add streamable HTTP server:
-kimi mcp add --transport http context7 https://mcp.context7.com/mcp --header "CONTEXT7_API_KEY: ctx7sk-your-key"
-
-# Add streamable HTTP server with OAuth authorization:
-kimi mcp add --transport http --auth oauth linear https://mcp.linear.app/mcp
-
-# Add stdio server:
-kimi mcp add --transport stdio chrome-devtools -- npx chrome-devtools-mcp@latest
-
-# List added MCP servers:
-kimi mcp list
-
-# Remove an MCP server:
-kimi mcp remove chrome-devtools
-
-# Authorize an MCP server:
-kimi mcp auth linear
-```
-
-**Ad-hoc MCP configuration**
-
-Kimi CLI also supports ad-hoc MCP server configuration via CLI option.
-
-Given an MCP config file in the well-known MCP config format like the following:
-
-```json
-{
-  "mcpServers": {
-    "context7": {
-      "url": "https://mcp.context7.com/mcp",
-      "headers": {
-        "CONTEXT7_API_KEY": "YOUR_API_KEY"
-      }
-    },
-    "chrome-devtools": {
-      "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest"]
-    }
-  }
-}
-```
-
-Run `kimi` with `--mcp-config-file` option to connect to the specified MCP servers:
-
-```sh
-kimi --mcp-config-file /path/to/mcp.json
-```
-
-### More
-
-See more features in the [Documentation](https://moonshotai.github.io/kimi-cli/en/).
-
-## Development
-
-To develop Kimi CLI, run:
-
-```sh
-git clone https://github.com/MoonshotAI/kimi-cli.git
-cd kimi-cli
-
-make prepare  # prepare the development environment
-```
-
-Then you can start working on Kimi CLI.
-
-Refer to the following commands after you make changes:
-
-```sh
-uv run kimi  # run Kimi CLI
-
-make format  # format code
-make check  # run linting and type checking
-make test  # run tests
-make test-kimi-cli  # run Kimi CLI tests only
-make test-kosong  # run kosong tests only
-make test-pykaos  # run pykaos tests only
-make build-web  # build the web UI and sync it into the package (requires Node.js/npm)
-make build  # build python packages
-make build-bin  # build standalone binary
-make help  # show all make targets
-```
-
-Note: `make build` and `make build-bin` automatically run `make build-web` to embed the web UI.
+基于 [MoonshotAI/kimi-cli](https://github.com/MoonshotAI/kimi-cli)（Apache-2.0）演进；持续跟踪上游与 [kimi-code](https://github.com/MoonshotAI/kimi-code) 的能力（Goal 模式等为其设计的移植实现）。
