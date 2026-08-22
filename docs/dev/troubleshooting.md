@@ -59,3 +59,13 @@
 - **服务重启后 502 几十秒**：正常（启动慢），等 10-20s 再 curl。
 - **uv 重装后代码没变**：忘了 `--refresh`。
 - **前端改动没生效**：静态文件要同步两个目录（仓库 + 已安装工具目录），并确认 bundle hash。
+
+## 安全：路径规范化与鉴权一致性（2026-08-23 审计，对标 kimi-code 0.25.0 两例 CVE 级修复）
+
+**结论**：中间件与路由都用 ASGI `scope["path"]`（uvicorn 已解码 percent-encoding），解释一致 → 无 `%2F` 鉴权绕过。符号链接逃逸由 `resolve()` + `is_relative_to()` 在所有 fs/会话文件端点强制拦截。
+
+**实际修复**：SPA 兜底原先把 `//api/*`、`/../api/*` 这类非规范化路径回退成 index.html（200），现在统一规范化后判定，命中 `/api/` 前缀的一律 404（`web/app.py::SPAStaticFiles`）。
+
+**回归测试**：`tests/web/test_security_regressions.py`（raw_path 级，httpx 会规范化 `//` 和 `%2e`，测试必须用 `raw_path` 构造）。
+
+**已知信任模型假设**（非 bug，勿"修复"）：worker 以服务用户身份执行 shell（root），多用户隔离依赖配额/审批/团队边界而非 OS 沙箱；`create_session` 接受任意 work_dir 是平台设计（用户自带项目目录）。如未来开放不可信用户，需先做 OS 级隔离。
