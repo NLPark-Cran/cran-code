@@ -55,7 +55,7 @@ docs/dev/                 # 开发分册（见下）
 
 ## 当前状态（2026-08-23）
 
-- 最新部署 bundle：`index-DlEgMa01.js`（后端与前端均已上线）。
+- 最新部署 bundle：`index-DDDDmJr3.js`（后端与前端均已上线）。
 - 已上线大特性：Goal 模式（P1+P2）、Swarm 可视化、媒体 blob-ref、千问办公风 v1（紫色，将被多主题系统取代）。
 - 进行中：多主题系统（石墨靛蓝灰默认/朱砂粉金/青碧 × 浅深双色，头部快捷切换+设置页，localStorage 持久化）；kimi-code 借鉴（WaitFor、read-before-write、长输出折叠）。
 - 仓库卫生：origin 只保留 main（33 个上游镜像分支 + crina 已清理；crina 独有文档已拣入 main）。

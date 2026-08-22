@@ -93,3 +93,4 @@ cd web && npx tsc -b --noEmit        # 前端类型
 cd web && npx vitest run             # 前端单测（i18n parity）
 cd web && npx biome check            # 前端 lint（对比基线）
 ```
+- OpenAPI 客户端再生成：先起本地后端（`uv run cran-code web --port 5495`，**5494 是保留的上游 kimi-cli 端口**），再 `cd web && npm run generate`；脚本会保留手写的 `src/lib/api/v2.ts`。

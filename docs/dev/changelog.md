@@ -67,3 +67,9 @@
 - 多主题系统：石墨靛蓝灰（默认）/朱砂粉金/青碧 × 浅色+深色 六组合；头部快捷切换 + 设置页外观 tab；localStorage 持久化（cran-color-theme）；毛玻璃 header/侧栏；登录页背景随主题。
 - read-before-write 纪律（移植 kimi-code 0.38.0）：WriteFile/StrReplaceFile 拒改未读文件；工具描述快照刷新为绿。
 - WaitFor 评估结论：TaskOutput(block=true, timeout) 已等价，不重复造轮子；长输出折叠前端 SmartTool 已有。
+
+## 2026-08-23 — 时区化用量统计 + 图表修复 + 控制台集成
+- 用量日桶支持 IANA 时区（`/users/me/usage/daily` 与 `/admin/usage` 加 `tz` 参数；修复"今日"实为"UTC 最近 24h"的问题）；`teams.timezone` 列（ensure_column 幂等迁移）+ TeamPage 时区选择器（owner/admin）。
+- 图表根因修复：SVG `preserveAspectRatio="none"` 拉伸文字 → 标签改 HTML 覆盖层；x 轴稀疏到 ≤8 个 MM-DD；数值标签拥挤时隐藏；分段色改语义 token（暗色可见）。
+- 控制台统计卡片压扁；用量页团队区显示生效时区并链接团队页。
+- generate-api.sh 修复：保留手写 v2.ts、跳过 /px catch-all 的重复 operationId 校验；注意 5494 是保留的上游 kimi-cli 端口，本地 cran 后端用 5495 生成客户端。
