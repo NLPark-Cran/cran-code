@@ -23,4 +23,9 @@ export default {
   kbSendMessage: "Send message",
   kbNewLine: "New line in chat",
   kbToggleSidebar: "Toggle sidebar",
+  appearanceTab: "Appearance",
+  colorTheme: "Color theme",
+  themeGraphite: "Graphite Ink",
+  themeCinnabar: "Cinnabar Gold",
+  themeTeal: "Teal Breeze",
 } as const;

@@ -5,6 +5,18 @@
     <link rel="icon" type="image/png" href="/logo.png?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <title>Cran Code Web UI</title>
+    <script>
+      // Apply the persisted color theme before first paint (no flash).
+      // Dark mode (.dark) stays managed by the useTheme hook.
+      (function () {
+        try {
+          var t = localStorage.getItem("cran-color-theme");
+          if (t === "graphite" || t === "cinnabar" || t === "teal") {
+            document.documentElement.setAttribute("data-theme", t);
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

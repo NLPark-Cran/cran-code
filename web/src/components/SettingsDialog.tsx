@@ -23,8 +23,13 @@ import {
   DEFAULT_KEYBINDINGS,
   type EditorSettings,
 } from "@/stores/settings";
-import { RotateCcw, Keyboard, Code, Settings2 } from "lucide-react";
+import { RotateCcw, Keyboard, Code, Settings2, Paintbrush } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  COLOR_THEMES,
+  useColorTheme,
+} from "@/hooks/use-color-theme";
+import { COLOR_THEME_LABEL_KEY, ThemeSwatch } from "@/components/ThemeSwitcher";
 
 const KB_LABEL_KEYS: Record<string, string> = {
   save: "settings:kbSaveFile",
@@ -44,7 +49,8 @@ export default function SettingsDialog({
 }: SettingsDialogProps) {
   const { editor, updateEditor, resetEditor } = useSettingsStore();
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<"editor" | "keybindings">("editor");
+  const { colorTheme, setColorTheme } = useColorTheme();
+  const [activeTab, setActiveTab] = useState<"appearance" | "editor" | "keybindings">("appearance");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -57,6 +63,19 @@ export default function SettingsDialog({
         </DialogHeader>
 
         <div className="flex border-b">
+          <button
+            type="button"
+            onClick={() => setActiveTab("appearance")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 transition-colors",
+              activeTab === "appearance"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Paintbrush className="h-3.5 w-3.5" />
+            {t("settings:appearanceTab")}
+          </button>
           <button
             type="button"
             onClick={() => setActiveTab("editor")}
@@ -84,6 +103,32 @@ export default function SettingsDialog({
             {t("settings:keybindingsTab")}
           </button>
         </div>
+
+        {activeTab === "appearance" && (
+          <div className="space-y-4 mt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm">{t("settings:colorTheme")}</span>
+              <div className="flex gap-1.5">
+                {COLOR_THEMES.map((theme) => (
+                  <button
+                    key={theme}
+                    type="button"
+                    onClick={() => setColorTheme(theme)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors",
+                      colorTheme === theme
+                        ? "border-primary bg-primary/5 text-foreground"
+                        : "border-border text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                    )}
+                  >
+                    <ThemeSwatch theme={theme} />
+                    {t(COLOR_THEME_LABEL_KEY[theme])}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {activeTab === "editor" && (
           <div className="space-y-4 mt-4">

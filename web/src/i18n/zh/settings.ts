@@ -23,4 +23,9 @@ export default {
   kbSendMessage: "发送消息",
   kbNewLine: "聊天中换行",
   kbToggleSidebar: "切换侧边栏",
+  appearanceTab: "外观",
+  colorTheme: "主题色",
+  themeGraphite: "石墨靛蓝",
+  themeCinnabar: "朱砂粉金",
+  themeTeal: "青碧",
 } as const;

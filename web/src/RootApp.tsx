@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import App from "./App";
 import { useAuthStore } from "./stores/auth";
 import { useTheme } from "./hooks/use-theme";
+import { useColorTheme } from "./hooks/use-color-theme";
 
 // Lazy-load heavy pages to reduce initial bundle
 const LoginPage = lazy(() => import("./pages/LoginPage"));
@@ -28,6 +29,7 @@ function PageSpinner() {
 /** Initialize theme for every route (not just /chat which uses App.tsx) */
 function GlobalTheme() {
   useTheme();
+  useColorTheme();
   return null;
 }
 

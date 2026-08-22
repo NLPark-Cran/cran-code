@@ -95,7 +95,7 @@ export const SubagentActivity = memo(
         <CollapsibleContent
           className={cn(
             "mt-1.5 space-y-0.5 border-l-2 border-border pl-3",
-            "data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-top-1 outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
+            "data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-top-1 outline-none duration-200 data-[state=closed]:animate-out data-[state=open]:animate-in",
           )}
         >
           {steps.map((step, index) => (
