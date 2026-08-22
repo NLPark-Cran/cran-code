@@ -1159,6 +1159,128 @@ async def list_session_subagents(
     return [asdict(record) for record in store.list_instances()]
 
 
+# ---------------------------------------------------------------------------
+# Goal mode (P2 web UX)
+# ---------------------------------------------------------------------------
+
+
+class GoalCreateRequest(BaseModel):
+    objective: str = Field(min_length=1, max_length=4000)
+    criteria: str | None = Field(default=None, max_length=4000)
+    max_turns: int | None = Field(default=None, gt=0)
+    max_tokens: int | None = Field(default=None, gt=0)
+    max_seconds: int | None = Field(default=None, ge=60, le=86400)
+
+
+async def _get_goal_store_for_user(
+    session_id: UUID, current_user: CurrentUser | None
+) -> tuple[JointSession, Any]:
+    """Shared access check + goal store construction for goal endpoints."""
+    from cran_code.soul.goal import GoalStore
+
+    session = get_session_or_404(session_id)
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    return session, GoalStore(session.cran_code_session.dir)
+
+
+@router.get("/{session_id}/goal", summary="Get the session goal snapshot")
+async def get_session_goal(
+    session_id: UUID,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> dict[str, Any]:
+    _, store = await _get_goal_store_for_user(session_id, current_user)
+    record = store.load()
+    return {"goal": record.model_dump(mode="json") if record is not None else None}
+
+
+@router.post("/{session_id}/goal", summary="Create a goal for the session")
+async def create_session_goal(
+    session_id: UUID,
+    request: GoalCreateRequest,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> dict[str, Any]:
+    """User-initiated goal creation (no model approval needed — this IS the user).
+
+    The goal becomes active immediately; the worker picks it up at the next
+    turn boundary (goal.json is the IPC between web main process and worker).
+    """
+    from cran_code.soul.goal import GoalBudgets, GoalExistsError
+
+    _, store = await _get_goal_store_for_user(session_id, current_user)
+    try:
+        record = store.create(
+            request.objective.strip(),
+            criteria=request.criteria,
+            budgets=GoalBudgets(
+                max_turns=request.max_turns,
+                max_tokens=request.max_tokens,
+                max_seconds=request.max_seconds,
+            ),
+        )
+    except GoalExistsError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A goal already exists for this session",
+        ) from None
+    return {"goal": record.model_dump(mode="json")}
+
+
+@router.post("/{session_id}/goal/pause", summary="Pause the session goal")
+async def pause_session_goal(
+    session_id: UUID,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> dict[str, Any]:
+    from cran_code.soul.goal import GoalNotFoundError, GoalTransitionError
+
+    _, store = await _get_goal_store_for_user(session_id, current_user)
+    try:
+        record = store.pause("Paused by user")
+    except GoalNotFoundError:
+        raise HTTPException(status_code=404, detail="No goal") from None
+    except GoalTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    return {"goal": record.model_dump(mode="json")}
+
+
+@router.post("/{session_id}/goal/resume", summary="Resume the session goal")
+async def resume_session_goal(
+    session_id: UUID,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> dict[str, Any]:
+    """Resume a paused/blocked goal. The driver continues at the next turn."""
+    from cran_code.soul.goal import GoalNotFoundError, GoalTransitionError
+
+    _, store = await _get_goal_store_for_user(session_id, current_user)
+    try:
+        record = store.resume()
+    except GoalNotFoundError:
+        raise HTTPException(status_code=404, detail="No goal") from None
+    except GoalTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    return {"goal": record.model_dump(mode="json")}
+
+
+@router.delete("/{session_id}/goal", summary="Cancel the session goal")
+async def delete_session_goal(
+    session_id: UUID,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> dict[str, Any]:
+    from cran_code.soul.goal import GoalNotFoundError
+
+    _, store = await _get_goal_store_for_user(session_id, current_user)
+    try:
+        store.cancel()
+    except GoalNotFoundError:
+        raise HTTPException(status_code=404, detail="No goal") from None
+    return {"goal": None}
+
+
 @router.post("/{session_id}/fork", summary="Fork a session at a specific turn")
 async def fork_session_endpoint(
     session_id: UUID,

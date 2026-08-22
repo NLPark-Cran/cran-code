@@ -20,6 +20,7 @@ import type { Session } from "@/lib/api/models";
 export type { SlashCommandDef };
 import { toast } from "sonner";
 import { ChatWorkspaceHeader } from "./components/chat-workspace-header";
+import { GoalBanner } from "./components/goal-banner";
 import { ChatConversation } from "./components/chat-conversation";
 import { ChatPromptComposer } from "./components/chat-prompt-composer";
 import { ApprovalDialog } from "./components/approval-dialog";
@@ -315,6 +316,7 @@ export const ChatWorkspace = memo(function ChatWorkspaceComponent({
 
         <div className="relative flex min-h-0 flex-1 overflow-hidden">
           <div className="flex min-w-0 flex-1 flex-col">
+            <GoalBanner sessionId={selectedSessionId} />
             <div className="min-h-0 flex-1 overflow-hidden">
               <ChatConversation
                 messages={messages}

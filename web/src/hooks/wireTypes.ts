@@ -3,6 +3,8 @@
  * Based on the JSON-RPC 2.0 event stream format from stdio.jsonl
  */
 
+import type { GoalChange, GoalSnapshot } from "@/stores/goal";
+
 // Base JSON-RPC 2.0 message types
 export type JsonRpcRequest = {
   jsonrpc: "2.0";
@@ -323,6 +325,20 @@ export type SteerInputEvent = {
   };
 };
 
+/**
+ * GoalUpdated reports a lifecycle/status transition of the session goal
+ * (goal mode). `snapshot` is the full goal record after the transition,
+ * or null when the goal was cleared. `change` is "budget" when the driver
+ * blocked the goal because a budget was exhausted.
+ */
+export type GoalUpdatedWire = {
+  type: "GoalUpdated";
+  payload: {
+    snapshot: GoalSnapshot | null;
+    change: GoalChange;
+  };
+};
+
 export type PlanDisplayEvent = {
   type: "PlanDisplay";
   payload: {
@@ -354,6 +370,7 @@ export type WireEvent =
   | SubagentEventWire
   | SubagentStatusWire
   | NotificationWire
+  | GoalUpdatedWire
   | SteerInputEvent
   | PlanDisplayEvent;
 

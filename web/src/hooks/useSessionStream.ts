@@ -134,6 +134,7 @@ import {
   type SubagentEventWire,
   type SubagentStatusWire,
   type NotificationWire,
+  type GoalUpdatedWire,
   type PlanDisplayEvent,
   extractEvent,
 } from "./wireTypes";
@@ -146,6 +147,7 @@ import {
   type SwarmSnapshotItem,
   useSwarmStore,
 } from "@/stores/swarm";
+import { type GoalSnapshot, useGoalStore } from "@/stores/goal";
 import { v4 as uuidV4 } from "uuid";
 
 // Regex patterns moved to top level for performance
@@ -2165,6 +2167,28 @@ export function useSessionStream(
           break;
         }
 
+        case "GoalUpdated": {
+          const goalPayload = (event as GoalUpdatedWire).payload;
+          if (goalPayload.change === "completed") {
+            // Completion is transient: the record is cleared right after the
+            // event. Toast the final objective, then clear — don't rely on
+            // the trailing null snapshot arriving in order.
+            if (!isReplay) {
+              const objective = goalPayload.snapshot?.objective;
+              toast.success(
+                objective
+                  ? i18n.t("chat:goalCompleted", { objective })
+                  : i18n.t("chat:goalCompletedGeneric"),
+              );
+            }
+            useGoalStore.getState().clear();
+          } else {
+            // snapshot is null for "cleared" → store becomes empty.
+            useGoalStore.getState().setFromSnapshot(goalPayload.snapshot);
+          }
+          break;
+        }
+
         case "Notification": {
           // Surface terminal background-task notifications as toasts; do not
           // add them to the message timeline. Skip during replay to avoid a
@@ -3729,6 +3753,7 @@ export function useSessionStream(
     setMessages([]);
     useToolEventsStore.getState().clearTodoItems();
     useSwarmStore.getState().clear();
+    useGoalStore.getState().clear();
 
     // Auto-connect if we have a valid sessionId
     if (sessionId) {
@@ -3766,6 +3791,33 @@ export function useSessionStream(
         const data = (await response.json()) as SwarmSnapshotItem[];
         if (cancelled || sessionIdLiveRef.current !== sessionAtStart) return;
         useSwarmStore.getState().hydrate(Array.isArray(data) ? data : []);
+      } catch {
+        // Network or parse error: keep the store as-is (empty).
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  // Hydrate the session goal snapshot alongside the swarm snapshot.
+  // Same failure tolerance: 404/403/network leave the store empty and the
+  // live `GoalUpdated` stream keeps it up to date from then on.
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    const sessionAtStart = sessionId;
+    (async () => {
+      try {
+        const basePath = getApiBaseUrl();
+        const response = await fetch(
+          `${basePath}/api/sessions/${encodeURIComponent(sessionAtStart)}/goal`,
+          { headers: { ...getAuthHeader() } },
+        );
+        if (!response.ok) return;
+        const data = (await response.json()) as { goal?: GoalSnapshot | null };
+        if (cancelled || sessionIdLiveRef.current !== sessionAtStart) return;
+        useGoalStore.getState().setFromSnapshot(data.goal ?? null);
       } catch {
         // Network or parse error: keep the store as-is (empty).
       }

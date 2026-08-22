@@ -678,6 +678,12 @@ class WireServer:
                 runtime.session.dir,
                 token_counter=lambda: soul.context.token_count,
             )
+            # Re-sync tool visibility every prompt: the goal may have been
+            # created/paused/resumed via the REST API while this worker was
+            # running (goal.json is the IPC between web main process and worker).
+            toolset = getattr(soul.agent, "toolset", None)
+            if isinstance(toolset, KimiToolset):
+                sync_goal_tool_visibility(toolset, driver.store.load() is not None)
             user_input = driver.prepare_turn_input(user_input)
         is_continuation = False
 
