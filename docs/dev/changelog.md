@@ -59,3 +59,11 @@
 ## 2026-08-18 — 千问办公风视觉收敛
 - 设计 token：品牌紫主色（light #615CED / dark 浅紫）、冷灰画布 #f6f7fb、圆角 0.75rem、更软边框、分层柔和阴影、紫色 ring/sidebar 强调。
 - 登录页：CSS 紫蓝径向背景 + rounded-2xl 悬浮卡片 + 渐变品牌标题；全站经 token 自动继承。
+
+## 2026-08-23 — 工程化 + 安全加固 + 多主题系统 + read-before-write
+- 安全审计（对标 kimi-code 0.25.0）：无 %-encoding 鉴权绕过（中间件/路由同用 ASGI 解码 path）；符号链接逃逸已被 resolve()+is_relative_to 拦截；修复 SPA 兜底吞掉非规范化 /api 路径的问题；新增 tests/web/test_security_regressions.py（6 例）。
+- 分支精简：origin 删除 33 个上游镜像分支；crina 分支保留（独有文档已拣入 main）。
+- 工程化：README 全量重写（反映平台现状）；AGENTS.md 刷新为抗 compact 记忆锚点；conventions.md 扩充为完整工程规范（结构规范/模式库/测试配方/配置清单/行为纪律）；pyright strict 配置修正为 src/cran_code。
+- 多主题系统：石墨靛蓝灰（默认）/朱砂粉金/青碧 × 浅色+深色 六组合；头部快捷切换 + 设置页外观 tab；localStorage 持久化（cran-color-theme）；毛玻璃 header/侧栏；登录页背景随主题。
+- read-before-write 纪律（移植 kimi-code 0.38.0）：WriteFile/StrReplaceFile 拒改未读文件；工具描述快照刷新为绿。
+- WaitFor 评估结论：TaskOutput(block=true, timeout) 已等价，不重复造轮子；长输出折叠前端 SmartTool 已有。
