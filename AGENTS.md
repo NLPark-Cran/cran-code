@@ -52,10 +52,9 @@ docs/dev/                 # 开发分册（见下）
 
 ## 当前状态（2026-08-18）
 
-- 最新部署 bundle：`index-DI1Bxj_L.js`（后端与前端均已上线）。
+- 最新部署 bundle：`index-DlEgMa01.js`（后端与前端均已上线）。
 - 上游同步：已与 MoonshotAI/kimi-cli main 齐平（merge commit 250ad162 之后无 behind）。
-- 进行中里程碑：千问办公风视觉收敛。
-- 已完成并上线：媒体 blob-ref 外置、swarm 可视化、Goal 模式（P1 核心 + P2 Web UX，设计见 docs/dev/goal-mode.md）。
+- 本轮里程碑全部完成并上线：媒体 blob-ref 外置、swarm 可视化、Goal 模式（P1+P2，设计见 docs/dev/goal-mode.md）、千问办公风视觉收敛。
 - 我的 CLI 环境注意：子 agent 与主会话共用同一 Kimi 订阅配额，大批量 agent 工作可能撞上周期上限（403）。
 
 ## 快速开始（本地开发）

@@ -55,3 +55,7 @@
 - P1：`soul/goal.py`（GoalRecord/GoalStore/GoalDriver/预算/注入 prompt）+ 4 个 root-only 工具 + GoalUpdated wire 事件 + WireServer driver 循环（续跑/MaxSteps 续驱/错误停车/恢复降级）+ 默认 30 轮安全上限。
 - P2：REST GET/POST/DELETE /goal + pause/resume；worker 每个 prompt 重同步工具可见性（goal.json 即 IPC）；前端 goal store + GoalBanner（状态/统计/暂停/恢复/取消）+ 完成 toast。
 - 设计文档：docs/dev/goal-mode.md（移植自 kimi-code GOAL.md）。
+
+## 2026-08-18 — 千问办公风视觉收敛
+- 设计 token：品牌紫主色（light #615CED / dark 浅紫）、冷灰画布 #f6f7fb、圆角 0.75rem、更软边框、分层柔和阴影、紫色 ring/sidebar 强调。
+- 登录页：CSS 紫蓝径向背景 + rounded-2xl 悬浮卡片 + 渐变品牌标题；全站经 token 自动继承。
