@@ -50,3 +50,8 @@
 - Driver 接入 `WireServer._handle_prompt`：turn 边界注入 reminder（active 全量 / paused·blocked 轻量），turn 后记账续跑；错误/取消 → pause 后返回原 JSONRPC 映射；MaxStepsReached 计入完成 turn。
 - wire 事件 `GoalUpdated`（snapshot + change；预算耗尽阻塞用 change="budget"）；会话加载时 active→paused 降级（`KimiCLI.create`，stop_reason="session restarted"）；fork 不继承 goal.json。
 - 测试：tests/core/test_goal.py 37 例 + fork 用例；tests/core 失败数与已知基线一致（30F+5E）。
+
+## 2026-08-18 — Goal 模式（P1 核心 + P2 Web UX）
+- P1：`soul/goal.py`（GoalRecord/GoalStore/GoalDriver/预算/注入 prompt）+ 4 个 root-only 工具 + GoalUpdated wire 事件 + WireServer driver 循环（续跑/MaxSteps 续驱/错误停车/恢复降级）+ 默认 30 轮安全上限。
+- P2：REST GET/POST/DELETE /goal + pause/resume；worker 每个 prompt 重同步工具可见性（goal.json 即 IPC）；前端 goal store + GoalBanner（状态/统计/暂停/恢复/取消）+ 完成 toast。
+- 设计文档：docs/dev/goal-mode.md（移植自 kimi-code GOAL.md）。
