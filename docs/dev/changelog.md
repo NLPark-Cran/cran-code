@@ -43,3 +43,10 @@
 - wire 新事件 SubagentStatus（实例创建/状态变更时由 SubagentStore 单一 choke point 发射，前台后台均覆盖；shell/ACP 默认忽略）。
 - GET /api/sessions/{id}/subagents 快照端点（meta.json 直读，鉴权同 fork）。
 - 前端：zustand swarm store + 会话切换时快照水合（竞态安全）+ chat header SwarmPanel（运行数徽章/状态点/步数/相对时间）；Notification 事件接 toast（重放时不刷）。
+
+## 2026-07-27 — Goal 模式 P1（后端核心）
+- `soul/goal.py`：`GoalStore`（原子写 `<session_dir>/goal.json`）+ 状态机（active/paused/blocked，complete 瞬态清除）、turns/tokens/active_seconds 统计、预算检查（≥75% 压力提示）、`GoalDriver`（传输层无关、可单测）。无显式 turns 预算时默认 30 轮封顶（`DEFAULT_GOAL_TURN_BUDGET`，cran-code 偏离上游以保护配额）。
+- 工具 `tools/goal/`：CreateGoal（审批门控）/GetGoal/UpdateGoal/SetGoalBudget，root-only；UpdateGoal+SetGoalBudget 无 goal 时隐藏（wire initialize + 工具迁移时双向同步）。
+- Driver 接入 `WireServer._handle_prompt`：turn 边界注入 reminder（active 全量 / paused·blocked 轻量），turn 后记账续跑；错误/取消 → pause 后返回原 JSONRPC 映射；MaxStepsReached 计入完成 turn。
+- wire 事件 `GoalUpdated`（snapshot + change；预算耗尽阻塞用 change="budget"）；会话加载时 active→paused 降级（`KimiCLI.create`，stop_reason="session restarted"）；fork 不继承 goal.json。
+- 测试：tests/core/test_goal.py 37 例 + fork 用例；tests/core 失败数与已知基线一致（30F+5E）。

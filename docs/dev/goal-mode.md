@@ -16,7 +16,19 @@ Goal 是 runtime 持有的结构化状态（不是聊天文本）：用户描述
 
 恢复语义：session 恢复时 `active` 降级为 `paused`（旧进程不可能还活着，禁止重启后偷偷烧配额）。fork 不继承 goal（goal.json 不随 fork 复制）。
 
-## P1 后端核心
+## P1 后端核心 ✅ 已实现（2026-07-27）
+
+实现文件映射：
+
+| 文件 | 内容 |
+|---|---|
+| `src/cran_code/soul/goal.py` | `GoalRecord`/`GoalBudgets`/`GoalStats`（pydantic）、`GoalStore`（load/save/clear + 全部状态迁移，原子写 `<session_dir>/goal.json`）、预算检查（`budget_exceeded`/`budget_pressure` ≥75%）、提示词构建（`build_goal_reminder`/`build_light_reminder`/`build_continuation_prompt`）、`GoalDriver`（无 JSONRPC 依赖、可单测）、`sync_goal_tool_visibility`、`DEFAULT_GOAL_TURN_BUDGET = 30`（cran-code 偏离上游：无显式 turns 预算时默认 30 轮兜底保护配额） |
+| `src/cran_code/tools/goal/` | `CreateGoal`（yolo/afk 外走审批；已有 goal 时拒绝）、`GetGoal`、`UpdateGoal`（complete 清记录并提示写简短收尾；blocked 必填 reason；active=resume）、`SetGoalBudget`（正整数/60–86400 秒校验）。全部 root-only |
+| `src/cran_code/wire/types.py` | `GoalUpdated { snapshot: dict \| null, change }` 事件，已注册进 `Event` union；budget 触发的 blocked 用 `change="budget"` |
+| `src/cran_code/wire/server.py` | `_handle_prompt` 内嵌 driver 循环（turn 前注入 reminder，turn 后记账/查预算/续跑；`MaxStepsReached` 计入完成 turn 继续驱动；`RunCancelled`/`APIStatusError`/`ChatProviderError`/`LLMNotSet`/`LLMNotSupported`/未知异常 → `pause_on_error` 后返回原 JSONRPC 映射）；initialize 时 `_sync_goal_tool_visibility` |
+| `src/cran_code/app.py` | `KimiCLI.create` 加载会话时 `restore_downgrade`（active→paused，stop_reason="session restarted"）+ 工具可见性同步（web worker 与 shell CLI 共用的唯一汇聚点，故选此处而非 WireServer） |
+| `src/cran_code/agents/default/agent.yaml` | 注册 4 个 goal 工具（subagent 通过角色检查隔离，不单独剔除） |
+| `tests/core/test_goal.py`（37 例）+ `tests/core/test_session_fork.py::TestForkGoal` | store CRUD/迁移矩阵/统计/预算/reminder 内容/driver 假 runner 循环（complete 停止、错误暂停、默认 30 轮封顶、budget blocked）/工具行为（校验、root-only、无 goal 报错）/fork 不复制 goal.json/restore 降级 |
 
 ### 存储：`soul/goal.py` + `<session_dir>/goal.json`
 

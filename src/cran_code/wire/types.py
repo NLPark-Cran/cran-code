@@ -330,6 +330,31 @@ class SubagentStatus(BaseModel):
     """The background task ID, if this instance is/was running in background."""
 
 
+class GoalUpdated(BaseModel):
+    """
+    A lifecycle/status update for the session goal (goal mode).
+
+    Emitted best-effort on every goal transition (create/update/complete/pause/
+    block/resume/clear/budget-block) so the web UI can render a goal banner.
+    `change` is "budget" when the driver blocked the goal because a budget was
+    exhausted; the snapshot's status is "blocked" in that case.
+    """
+
+    snapshot: dict[str, Any] | None
+    """The full goal record after the transition, or None when the goal was cleared."""
+    change: Literal[
+        "created",
+        "updated",
+        "completed",
+        "paused",
+        "blocked",
+        "resumed",
+        "cleared",
+        "budget",
+    ]
+    """What kind of transition happened."""
+
+
 class ApprovalResponse(BaseModel):
     """
     Indicates that an approval request has been resolved.
@@ -576,6 +601,7 @@ type Event = (
     | ApprovalResponse
     | SubagentEvent
     | SubagentStatus
+    | GoalUpdated
     | PlanDisplay
     | BtwBegin
     | BtwEnd
@@ -727,6 +753,7 @@ __all__ = [
     "ApprovalResponse",
     "SubagentEvent",
     "SubagentStatus",
+    "GoalUpdated",
     "PlanDisplay",
     "BtwBegin",
     "BtwEnd",

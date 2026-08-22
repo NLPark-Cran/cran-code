@@ -14,6 +14,7 @@ from kosong.utils.typing import JsonType
 from cran_code.approval_runtime import ApprovalRuntime
 from cran_code.constant import USER_AGENT
 from cran_code.soul import LLMNotSet, LLMNotSupported, MaxStepsReached, RunCancelled, Soul, run_soul
+from cran_code.soul.goal import GoalDriver, GoalStore, sync_goal_tool_visibility
 from cran_code.soul.kimisoul import KimiSoul
 from cran_code.soul.toolset import KimiToolset, WireExternalTool
 from cran_code.utils.aioqueue import Queue, QueueShutDown
@@ -534,6 +535,7 @@ class WireServer:
         if toolset is not None:
             self._sync_ask_user_tool_visibility(toolset)
             self._sync_plan_mode_tool_visibility(toolset)
+            self._sync_goal_tool_visibility(toolset)
 
         self._initialized = True
         if self._approval_runtime is not None:
@@ -601,6 +603,13 @@ class WireServer:
                 "Hide plan mode tools: client does not support plan mode",
             )
 
+    def _sync_goal_tool_visibility(self, toolset: KimiToolset) -> None:
+        """Hide goal mutation tools (UpdateGoal/SetGoalBudget) when no goal exists."""
+        if not isinstance(self._soul, KimiSoul):
+            return
+        has_goal = GoalStore(self._soul.runtime.session.dir).load() is not None
+        sync_goal_tool_visibility(toolset, has_goal)
+
     def _apply_wire_client_info(self, client: ClientInfo | None) -> None:
         if client is not None:
             from cran_code.telemetry import set_client_info
@@ -658,30 +667,68 @@ class WireServer:
 
         self._cancel_event = asyncio.Event()
         runtime = self._soul.runtime if isinstance(self._soul, KimiSoul) else None
+
+        # Goal mode: wrap the single turn with the autonomous driver loop.
+        driver: GoalDriver | None = None
+        user_input = msg.params.user_input
+        if runtime is not None:
+            soul = self._soul
+            assert isinstance(soul, KimiSoul)
+            driver = GoalDriver(
+                runtime.session.dir,
+                token_counter=lambda: soul.context.token_count,
+            )
+            user_input = driver.prepare_turn_input(user_input)
+        is_continuation = False
+
         try:
-            await run_soul(
-                self._soul,
-                msg.params.user_input,
-                self._stream_wire_messages,
-                self._cancel_event,
-                runtime.session.wire_file if runtime else None,
-                runtime,
-            )
-            return JSONRPCSuccessResponse(
-                id=msg.id,
-                result={"status": Statuses.FINISHED},
-            )
+            while True:
+                max_steps: MaxStepsReached | None = None
+                try:
+                    await run_soul(
+                        self._soul,
+                        user_input,
+                        self._stream_wire_messages,
+                        self._cancel_event,
+                        runtime.session.wire_file if runtime else None,
+                        runtime,
+                        skip_user_prompt_hook=is_continuation,
+                    )
+                except MaxStepsReached as e:
+                    # Max steps counts as a completed turn; keep driving below.
+                    max_steps = e
+                if driver is not None:
+                    continuation = driver.after_turn()
+                    if continuation is not None:
+                        user_input = continuation
+                        is_continuation = True
+                        continue
+                if max_steps is not None:
+                    return JSONRPCSuccessResponse(
+                        id=msg.id,
+                        result={"status": Statuses.MAX_STEPS_REACHED, "steps": max_steps.n_steps},
+                    )
+                return JSONRPCSuccessResponse(
+                    id=msg.id,
+                    result={"status": Statuses.FINISHED},
+                )
         except LLMNotSet:
+            if driver is not None:
+                driver.pause_on_error("LLM is not set")
             return JSONRPCErrorResponse(
                 id=msg.id,
                 error=JSONRPCErrorObject(code=ErrorCodes.LLM_NOT_SET, message="LLM is not set"),
             )
         except LLMNotSupported as e:
+            if driver is not None:
+                driver.pause_on_error(str(e))
             return JSONRPCErrorResponse(
                 id=msg.id,
                 error=JSONRPCErrorObject(code=ErrorCodes.LLM_NOT_SUPPORTED, message=str(e)),
             )
         except APIStatusError as e:
+            if driver is not None:
+                driver.pause_on_error(f"API status error {e.status_code}")
             if e.status_code == 401 and _is_oauth_session(runtime):
                 return JSONRPCErrorResponse(
                     id=msg.id,
@@ -698,6 +745,8 @@ class WireServer:
                 error=JSONRPCErrorObject(code=ErrorCodes.CHAT_PROVIDER_ERROR, message=str(e)),
             )
         except ChatProviderError as e:
+            if driver is not None:
+                driver.pause_on_error(str(e))
             return JSONRPCErrorResponse(
                 id=msg.id,
                 error=JSONRPCErrorObject(code=ErrorCodes.CHAT_PROVIDER_ERROR, message=str(e)),
@@ -708,11 +757,15 @@ class WireServer:
                 result={"status": Statuses.MAX_STEPS_REACHED, "steps": e.n_steps},
             )
         except RunCancelled:
+            if driver is not None:
+                driver.pause_on_error("interrupted by user")
             return JSONRPCSuccessResponse(
                 id=msg.id,
                 result={"status": Statuses.CANCELLED},
             )
         except Exception as e:
+            if driver is not None:
+                driver.pause_on_error(f"{type(e).__name__}: {e}")
             logger.exception("Unexpected error in prompt handler")
             return JSONRPCErrorResponse(
                 id=msg.id,

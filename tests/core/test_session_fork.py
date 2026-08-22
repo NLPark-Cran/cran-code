@@ -580,3 +580,34 @@ class TestTruncateContextAlignment:
         assert "real 0" in texts
         assert "real 1" in texts
         assert "real 2" not in texts
+
+
+# ---------------------------------------------------------------------------
+# Tests: goal mode
+# ---------------------------------------------------------------------------
+
+
+class TestForkGoal:
+    async def test_fork_does_not_copy_goal_file(self, isolated_share_dir: Path, work_dir: KaosPath):
+        """goal.json is runtime state of the source session and must not be inherited."""
+        from cran_code.session import Session
+        from cran_code.soul.goal import GOAL_FILE_NAME, GoalStore
+
+        source = await Session.create(work_dir)
+        _write_wire_file(source.dir, ["turn 0"])
+        _write_context_file(source.dir, ["turn 0"])
+        GoalStore(source.dir).create("finish the refactor")
+
+        new_id = await fork_session(
+            source_session_dir=source.dir,
+            work_dir=work_dir,
+            turn_index=None,
+            title_prefix="Fork",
+            source_title="My Session",
+        )
+
+        new_session = await Session.find(work_dir, new_id)
+        assert new_session is not None
+        assert (source.dir / GOAL_FILE_NAME).exists()
+        assert not (new_session.dir / GOAL_FILE_NAME).exists()
+        assert GoalStore(new_session.dir).load() is None

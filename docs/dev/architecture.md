@@ -35,6 +35,7 @@ Cran Code = MoonshotAI/kimi-cli (Python) 的 fork + 自建 Web 多用户层。�
 | `web/auth_v1.py` / `auth_v2/jwt.py` | v1 桥接（含 local 合成用户）/ v2 JWT（30 天） | `is_active` 在多处校验 |
 | `packages/kosong/` | LLM 抽象层（vendored 上游包） | 版本号跟随上游；`kimi_cli`→`cran_code` 改写规范见 conventions.md |
 | `web/src/` | React 19 + Vite 7 + Tailwind 4 + shadcn 前端 | i18n 全量（zh 默认）；新字符串必须双语 |
+| `soul/goal.py` + `tools/goal/` | Goal 模式 P1：goal.json 存储/状态机/预算、`GoalDriver` 多轮自治循环、4 个 root-only 工具 | 无显式 turns 预算时默认 30 轮封顶；恢复时 active→paused 降级在 `KimiCLI.create` |
 
 ## Key 体系与流量路径
 
