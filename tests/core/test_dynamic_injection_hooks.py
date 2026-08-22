@@ -88,6 +88,10 @@ def _make_compactable_soul() -> Any:
     soul._agent = MagicMock()
     soul._agent.system_prompt = "sys"
 
+    # Required by the post-compaction StatusUpdate emission (soul.status).
+    soul._approval = MagicMock()
+    soul._plan_mode = False
+
     loop_control = MagicMock()
     loop_control.max_retries_per_step = 1
     soul._loop_control = loop_control

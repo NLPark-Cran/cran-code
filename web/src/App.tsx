@@ -433,7 +433,7 @@ function App() {
                 elementRef={sidebarElementRef}
                 panelRef={sidebarPanelRef}
                 onResize={handleSidebarResize}
-                className={cn("relative min-h-0 border-r pl-0.5 pr-2 overflow-hidden")}
+                className={cn("relative min-h-0 border-r bg-background/50 pl-0.5 pr-2 overflow-hidden backdrop-blur-md")}
               >
                 {/* Collapsed sidebar - vertical strip with logo and expand button */}
                 <div

@@ -132,6 +132,9 @@ import {
   type SessionStatusPayload,
   type StepRetryEvent,
   type SubagentEventWire,
+  type SubagentStatusWire,
+  type NotificationWire,
+  type GoalUpdatedWire,
   type PlanDisplayEvent,
   extractEvent,
 } from "./wireTypes";
@@ -140,6 +143,11 @@ import { toast } from "sonner";
 import i18n from "@/i18n";
 import { cranCliVersion } from "@/lib/version";
 import { handleToolResult, useToolEventsStore, type TodoItem } from "@/features/tool/store";
+import {
+  type SwarmSnapshotItem,
+  useSwarmStore,
+} from "@/stores/swarm";
+import { type GoalSnapshot, useGoalStore } from "@/stores/goal";
 import { v4 as uuidV4 } from "uuid";
 
 // Regex patterns moved to top level for performance
@@ -157,6 +165,35 @@ const NEWLINE_REGEX = /\r?\n/;
 const MEDIA_TAG_PATH_REGEX = /<(?:image|video)\s+[^>]*path="([^"]*\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/uploads\/([^"]+))"/g;
 const BROWSER_URL_PROTOCOLS = new Set(["http:", "https:", "data:", "blob:"]);
 const WIRE_PROTOCOL_VERSION = "1.10";
+
+/** Map a Notification wire event to a brief localized toast (never during replay). */
+function showNotificationToast(payload: NotificationWire["payload"]): void {
+  const inner = payload.payload ?? {};
+  const description = inner.description || payload.title || payload.body;
+  if (!description) return;
+  const rawStatus = inner.status ?? "";
+  const statusKey =
+    rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+  const statusLabel = rawStatus
+    ? i18n.t(`chat:taskStatus${statusKey}`, { defaultValue: rawStatus })
+    : "";
+  const message = statusLabel
+    ? i18n.t("chat:taskNotification", { description, status: statusLabel })
+    : description;
+  switch (payload.severity) {
+    case "success":
+      toast.success(message);
+      break;
+    case "error":
+      toast.error(message);
+      break;
+    case "warning":
+      toast.warning(message);
+      break;
+    default:
+      toast.info(message);
+  }
+}
 
 type StepRetryPayload = StepRetryEvent["payload"];
 
@@ -334,6 +371,8 @@ type UseSessionStreamReturn = {
   isLoadingOlder: boolean;
   /** Fetch and prepend the next older history page */
   loadOlderHistory: () => Promise<void>;
+  /** Exact count of the most recent older-history prepend (consumed by the list) */
+  lastPrependCountRef: React.RefObject<number>;
   /** Whether waiting for the first response after sending a prompt */
   isAwaitingFirstResponse: boolean;
   /** Current context usage (0-1) */
@@ -522,6 +561,12 @@ export function useSessionStream(
     messageSinkRef.current(action);
   }, []);
 
+  // Live session id mirror (stale-closure guard for async history fetches)
+  const sessionIdLiveRef = useRef(sessionId);
+  useEffect(() => {
+    sessionIdLiveRef.current = sessionId;
+  }, [sessionId]);
+
   // Fresh mirror of the scalar UI states that processEvent may mutate.
   // The isolated older-history fold snapshots/restores these synchronously.
   const scalarStateRef = useRef({
@@ -532,6 +577,23 @@ export function useSessionStream(
     planMode,
     isAwaitingFirstResponse,
   });
+  /** True while the isolated older-history fold runs (suppresses mirroring) */
+  const foldingRef = useRef(false);
+  /**
+   * Keep the scalar mirror in sync at mutation time (guarded during folds).
+   * The passive useEffect below remains as a render-commit backstop.
+   */
+  const mirrorScalar = useCallback(
+    <K extends keyof typeof scalarStateRef.current>(
+      key: K,
+      value: (typeof scalarStateRef.current)[K],
+    ) => {
+      if (!foldingRef.current) {
+        scalarStateRef.current[key] = value;
+      }
+    },
+    [],
+  );
   useEffect(() => {
     scalarStateRef.current = {
       status,
@@ -545,8 +607,9 @@ export function useSessionStream(
 
   const setAwaitingFirstResponse = useCallback((value: boolean) => {
     awaitingFirstResponseRef.current = value;
+    mirrorScalar("isAwaitingFirstResponse", value);
     setIsAwaitingFirstResponse(value);
-  }, []);
+  }, [mirrorScalar]);
   const clearAwaitingFirstResponse = useCallback(() => {
     if (!awaitingFirstResponseRef.current) {
       return;
@@ -653,15 +716,18 @@ export function useSessionStream(
         case "busy": {
           if (!awaitingIdleRef.current) {
             setStatus("streaming");
+            mirrorScalar("status", "streaming");
           }
           break;
         }
         case "restarting": {
           setStatus("submitted");
+          mirrorScalar("status", "submitted");
           break;
         }
         case "error": {
           setStatus("error");
+          mirrorScalar("status", "error");
           setAwaitingFirstResponse(false);
           awaitingIdleRef.current = false;
           completeStreamingMessages();
@@ -671,6 +737,7 @@ export function useSessionStream(
         case "stopped":
         case "idle": {
           setStatus("ready");
+          mirrorScalar("status", "ready");
           setAwaitingFirstResponse(false);
           awaitingIdleRef.current = false;
           completeStreamingMessages();
@@ -688,6 +755,7 @@ export function useSessionStream(
     [
       completeStreamingMessages,
       interruptStaleToolCalls,
+      mirrorScalar,
       normalizeSessionStatus,
       onSessionStatus,
       setAwaitingFirstResponse,
@@ -1168,6 +1236,10 @@ export function useSessionStream(
     setContextUsage(0);
     setTokenUsage(null);
     setPlanMode(false);
+    mirrorScalar("currentStep", 0);
+    mirrorScalar("contextUsage", 0);
+    mirrorScalar("tokenUsage", null);
+    mirrorScalar("planMode", false);
     setError(null);
     setSessionStatus(null);
     lastStatusSeqRef.current = null;
@@ -1191,6 +1263,8 @@ export function useSessionStream(
     replayFinishRef.current = null;
     // Reset paginated history state
     oldestLineCursorRef.current = null;
+    historySourceRef.current = null;
+    lastPrependCountRef.current = 0;
     setHasMoreHistory(false);
     isLoadingOlderRef.current = false;
     setIsLoadingOlder(false);
@@ -1202,7 +1276,7 @@ export function useSessionStream(
     } else if (slashCommandsLenRef.current > 0) {
       usingCachedCommandsRef.current = true;
     }
-  }, [resetStepState, setAwaitingFirstResponse]);
+  }, [mirrorScalar, resetStepState, setAwaitingFirstResponse]);
 
   // Process a SubagentEvent: accumulate inner events into parent Agent tool's subagentSteps
   const processSubagentEvent = useCallback(
@@ -1213,6 +1287,10 @@ export function useSessionStream(
       agentId?: string,
       subagentType?: string,
     ) => {
+      // Track live step activity for the swarm panel (keyed by agent_id).
+      if (agentId) {
+        useSwarmStore.getState().touchActivity(agentId);
+      }
       setMessages((prev) => {
         // Find the parent Agent tool message by toolCallId
         const parentIdx = prev.findIndex(
@@ -1426,10 +1504,12 @@ export function useSessionStream(
 
         case "StepBegin": {
           setCurrentStep(event.payload.n);
+          mirrorScalar("currentStep", event.payload.n);
           clearStepRetryStatus();
           resetStepState(true);
           if (!isReplay) {
             setStatus("streaming");
+            mirrorScalar("status", "streaming");
           }
           break;
         }
@@ -1440,6 +1520,7 @@ export function useSessionStream(
           if (!isReplay) {
             clearAwaitingFirstResponse();
             setStatus("streaming");
+            mirrorScalar("status", "streaming");
           }
           break;
         }
@@ -2080,23 +2161,65 @@ export function useSessionStream(
           break;
         }
 
+        case "SubagentStatus": {
+          const statusPayload = (event as SubagentStatusWire).payload;
+          useSwarmStore.getState().upsertFromStatus(statusPayload);
+          break;
+        }
+
+        case "GoalUpdated": {
+          const goalPayload = (event as GoalUpdatedWire).payload;
+          if (goalPayload.change === "completed") {
+            // Completion is transient: the record is cleared right after the
+            // event. Toast the final objective, then clear — don't rely on
+            // the trailing null snapshot arriving in order.
+            if (!isReplay) {
+              const objective = goalPayload.snapshot?.objective;
+              toast.success(
+                objective
+                  ? i18n.t("chat:goalCompleted", { objective })
+                  : i18n.t("chat:goalCompletedGeneric"),
+              );
+            }
+            useGoalStore.getState().clear();
+          } else {
+            // snapshot is null for "cleared" → store becomes empty.
+            useGoalStore.getState().setFromSnapshot(goalPayload.snapshot);
+          }
+          break;
+        }
+
+        case "Notification": {
+          // Surface terminal background-task notifications as toasts; do not
+          // add them to the message timeline. Skip during replay to avoid a
+          // toast storm when reconnecting to a long-lived session.
+          if (!isReplay) {
+            showNotificationToast((event as NotificationWire).payload);
+          }
+          break;
+        }
+
         case "StatusUpdate": {
           clearStepRetryStatus();
           const nextContextUsage = event.payload.context_usage;
           if (typeof nextContextUsage === "number") {
             // Clamp to the valid [0, 1] range so a backend bug cannot render
             // impossible percentages such as 727.5%.
-            setContextUsage(Math.max(0, Math.min(1, nextContextUsage)));
+            const clampedUsage = Math.max(0, Math.min(1, nextContextUsage));
+            setContextUsage(clampedUsage);
+            mirrorScalar("contextUsage", clampedUsage);
           }
 
           const nextTokenUsage = event.payload.token_usage;
           if (nextTokenUsage) {
             setTokenUsage(nextTokenUsage);
+            mirrorScalar("tokenUsage", nextTokenUsage);
           }
 
           const nextPlanMode = event.payload.plan_mode;
           if (typeof nextPlanMode === "boolean") {
             setPlanMode(nextPlanMode);
+            mirrorScalar("planMode", nextPlanMode);
           }
 
           // If we have a message_id, create a special message to display it
@@ -2115,6 +2238,7 @@ export function useSessionStream(
           if (pendingClearRef.current) {
             pendingClearRef.current = false;
             setContextUsage(0);
+            mirrorScalar("contextUsage", 0);
             setMessages((prev) => {
               let lastUserMsgIndex = -1;
               for (let i = prev.length - 1; i >= 0; i--) {
@@ -2233,8 +2357,10 @@ export function useSessionStream(
           setAwaitingFirstResponse(false);
           if (awaitingIdleRef.current) {
             setStatus("submitted");
+            mirrorScalar("status", "submitted");
           } else {
             setStatus("ready");
+            mirrorScalar("status", "ready");
           }
           break;
         }
@@ -2288,7 +2414,6 @@ export function useSessionStream(
               : prev;
             // Find insertion point: right before the kept messages
             const insertIndex = withoutIndicator.findIndex((m) => kept.some((k) => k.id === m.id));
-            const before = insertIndex >= 0 ? withoutIndicator.slice(0, insertIndex) : withoutIndicator;
             const after = insertIndex >= 0 ? withoutIndicator.slice(insertIndex) : [];
             const result: LiveMessage[] = [...after];
             if (summary && (summary.humanTurns.length > 0 || summary.aiTurns.length > 0)) {
@@ -2365,6 +2490,7 @@ export function useSessionStream(
       updateMessageById,
       setAwaitingFirstResponse,
       processSubagentEvent,
+      mirrorScalar,
     ],
   );
 
@@ -2462,6 +2588,7 @@ export function useSessionStream(
   const foldOlderEvents = useCallback(
     (
       events: { event: WireEvent; rpcMessageId?: string | number | null }[],
+      turnBase: number,
     ): LiveMessage[] => {
       const snapshot = {
         currentThinking: currentThinkingRef.current,
@@ -2489,6 +2616,7 @@ export function useSessionStream(
       messageSinkRef.current = (action) => {
         folded = typeof action === "function" ? action(folded) : action;
       };
+      foldingRef.current = true;
       // Fresh fold state
       currentThinkingRef.current = "";
       currentTextRef.current = "";
@@ -2502,7 +2630,9 @@ export function useSessionStream(
       compactionMessageIdRef.current = null;
       compactionSummaryRef.current = null;
       mcpLoadingMessageIdRef.current = null;
-      turnCounterRef.current = 0;
+      // H1: seed the fold's turn counter with the page's absolute base so
+      // folded messages carry session-absolute turnIndex values.
+      turnCounterRef.current = turnBase;
       pendingClearRef.current = false;
 
       try {
@@ -2510,6 +2640,7 @@ export function useSessionStream(
           processEvent(item.event, true, item.rpcMessageId ?? undefined);
         }
       } finally {
+        foldingRef.current = false;
         messageSinkRef.current = setMessagesInternal;
         currentThinkingRef.current = snapshot.currentThinking;
         currentTextRef.current = snapshot.currentText;
@@ -2542,11 +2673,20 @@ export function useSessionStream(
     [processEvent, setAwaitingFirstResponse],
   );
 
+  /** Wire source file of the current history pagination (L1 guard) */
+  const historySourceRef = useRef<string | null>(null);
+  /** Exact count of the most recent prepend, consumed by the message list (L6) */
+  const lastPrependCountRef = useRef(0);
+
   /** Fetch and prepend the next older history page. */
   const loadOlderHistory = useCallback(async () => {
     if (!sessionId) return;
     const cursor = oldestLineCursorRef.current;
     if (isLoadingOlderRef.current || cursor === null) return;
+    // M3: capture connection/session identity; bail out if either changed
+    // while the fetch was in flight.
+    const sessionAtStart = sessionId;
+    const wsAtStart = wsRef.current;
     isLoadingOlderRef.current = true;
     setIsLoadingOlder(true);
     try {
@@ -2562,17 +2702,40 @@ export function useSessionStream(
         events?: string[];
         oldest_line?: number;
         has_more?: boolean;
+        turn_base?: number;
+        source?: string;
       };
+      if (
+        sessionIdLiveRef.current !== sessionAtStart ||
+        wsRef.current !== wsAtStart
+      ) {
+        return; // session or connection changed mid-fetch: drop the page
+      }
+      // L1: a different source means the line cursor is no longer valid
+      if (
+        typeof data.source === "string" &&
+        historySourceRef.current !== null &&
+        data.source !== historySourceRef.current
+      ) {
+        oldestLineCursorRef.current = null;
+        setHasMoreHistory(false);
+        return;
+      }
+      if (typeof data.source === "string") {
+        historySourceRef.current = data.source;
+      }
       const rawEvents = data.events ?? [];
       const parsed = rawEvents
         .map(parseRawHistoryEvent)
         .filter((item): item is NonNullable<typeof item> => item !== null);
-      const folded = foldOlderEvents(parsed);
+      const turnBase = typeof data.turn_base === "number" ? data.turn_base : 0;
+      const folded = foldOlderEvents(parsed, turnBase);
       oldestLineCursorRef.current =
         typeof data.oldest_line === "number" ? data.oldest_line : null;
       setHasMoreHistory(Boolean(data.has_more) && rawEvents.length > 0);
       if (folded.length > 0) {
-        // Prepend as a block before the current first message
+        // Prepend as a block before the current first message (L6: exact count)
+        lastPrependCountRef.current = folded.length;
         setMessagesInternal((prev) => [...folded, ...prev]);
       }
     } catch (err) {
@@ -2653,6 +2816,7 @@ export function useSessionStream(
           setError(err);
           onError?.(err);
           setStatus("error");
+          mirrorScalar("status", "error");
           clearStepRetryStatus();
           setAwaitingFirstResponse(false);
           awaitingIdleRef.current = false;
@@ -2701,6 +2865,7 @@ export function useSessionStream(
           );
           finishReplayWhenDrained(() => {
             setStatus("ready");
+            mirrorScalar("status", "ready");
             clearStepRetryStatus();
             setAwaitingFirstResponse(false);
             awaitingIdleRef.current = false;
@@ -2721,6 +2886,7 @@ export function useSessionStream(
             isReplayingRef.current = false;
             setIsReplayingHistory(false);
             setStatus("ready");
+            mirrorScalar("status", "ready");
             awaitingIdleRef.current = false;
           });
           return;
@@ -2733,9 +2899,15 @@ export function useSessionStream(
             "[SessionStream] History loaded, waiting for environment...",
           );
           // Paginated replay: params tell us whether older pages exist and
-          // where the next page starts (raw wire-line cursor).
+          // where the next page starts (raw wire-line cursor). turn_base is
+          // the session-absolute turn index of this page's first turn.
           const historyParams = message.params as
-            | { has_more_history?: boolean; oldest_line?: number }
+            | {
+                has_more_history?: boolean;
+                oldest_line?: number;
+                turn_base?: number;
+                source?: string;
+              }
             | undefined;
           oldestLineCursorRef.current =
             typeof historyParams?.oldest_line === "number"
@@ -2747,7 +2919,29 @@ export function useSessionStream(
               historyParams?.oldest_line !== null &&
               historyParams.oldest_line > 0,
           );
+          // L1: cursors are only valid within the same wire source file
+          historySourceRef.current =
+            typeof historyParams?.source === "string"
+              ? historyParams.source
+              : null;
+          const turnBase =
+            typeof historyParams?.turn_base === "number"
+              ? historyParams.turn_base
+              : 0;
           finishReplayWhenDrained(() => {
+            // H1: replayed messages were folded with page-relative turn
+            // indices (turnCounterRef seeded at 0). Shift them to absolute
+            // indices so fork turnIndex is correct on multi-page sessions.
+            if (turnBase > 0) {
+              turnCounterRef.current += turnBase;
+              setMessagesInternal((prev) =>
+                prev.map((m) =>
+                  m.turnIndex !== undefined
+                    ? { ...m, turnIndex: m.turnIndex + turnBase }
+                    : m,
+                ),
+              );
+            }
             isReplayingRef.current = false;
             // Keep status as "submitted" - input stays disabled until session_status
             setStatus((current) => (current === "ready" ? current : "submitted"));
@@ -2806,7 +3000,7 @@ export function useSessionStream(
             };
             const approvalRpcId =
               message.id ?? (approvalEvent.payload.id as string | number);
-            if (isReplayingRef.current) {
+            if (isReplayingRef.current || isReplayQueueActive()) {
               enqueueReplayEvent(approvalEvent, approvalRpcId);
             } else {
               processEvent(approvalEvent, false, approvalRpcId);
@@ -2821,7 +3015,7 @@ export function useSessionStream(
             };
             const questionRpcId =
               message.id ?? (questionEvent.payload.id as string | number);
-            if (isReplayingRef.current) {
+            if (isReplayingRef.current || isReplayQueueActive()) {
               enqueueReplayEvent(questionEvent, questionRpcId);
             } else {
               processEvent(questionEvent, false, questionRpcId);
@@ -2833,7 +3027,7 @@ export function useSessionStream(
         // Process event
         const event = extractEvent(message);
         if (event) {
-          if (isReplayingRef.current) {
+          if (isReplayingRef.current || isReplayQueueActive()) {
             enqueueReplayEvent(event);
           } else {
             processEvent(event, false);
@@ -2850,6 +3044,7 @@ export function useSessionStream(
     [
       processEvent,
       enqueueReplayEvent,
+      isReplayQueueActive,
       finishReplayWhenDrained,
       onError,
       setAwaitingFirstResponse,
@@ -2857,6 +3052,7 @@ export function useSessionStream(
       completeStreamingMessages,
       sendInitialize,
       clearStepRetryStatus,
+      mirrorScalar,
     ],
   );
 
@@ -3556,6 +3752,8 @@ export function useSessionStream(
     resetStateRef.current(true);
     setMessages([]);
     useToolEventsStore.getState().clearTodoItems();
+    useSwarmStore.getState().clear();
+    useGoalStore.getState().clear();
 
     // Auto-connect if we have a valid sessionId
     if (sessionId) {
@@ -3574,6 +3772,60 @@ export function useSessionStream(
       disconnectRef.current();
     };
   }, [sessionId, setMessages]);
+
+  // Hydrate the swarm agent snapshot when the session changes.
+  // Failures (404/403/network/empty) leave the store empty — the live
+  // `SubagentStatus` stream will populate it as events arrive.
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    const sessionAtStart = sessionId;
+    (async () => {
+      try {
+        const basePath = getApiBaseUrl();
+        const response = await fetch(
+          `${basePath}/api/sessions/${encodeURIComponent(sessionAtStart)}/subagents`,
+          { headers: { ...getAuthHeader() } },
+        );
+        if (!response.ok) return;
+        const data = (await response.json()) as SwarmSnapshotItem[];
+        if (cancelled || sessionIdLiveRef.current !== sessionAtStart) return;
+        useSwarmStore.getState().hydrate(Array.isArray(data) ? data : []);
+      } catch {
+        // Network or parse error: keep the store as-is (empty).
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  // Hydrate the session goal snapshot alongside the swarm snapshot.
+  // Same failure tolerance: 404/403/network leave the store empty and the
+  // live `GoalUpdated` stream keeps it up to date from then on.
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    const sessionAtStart = sessionId;
+    (async () => {
+      try {
+        const basePath = getApiBaseUrl();
+        const response = await fetch(
+          `${basePath}/api/sessions/${encodeURIComponent(sessionAtStart)}/goal`,
+          { headers: { ...getAuthHeader() } },
+        );
+        if (!response.ok) return;
+        const data = (await response.json()) as { goal?: GoalSnapshot | null };
+        if (cancelled || sessionIdLiveRef.current !== sessionAtStart) return;
+        useGoalStore.getState().setFromSnapshot(data.goal ?? null);
+      } catch {
+        // Network or parse error: keep the store as-is (empty).
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
 
   // Cleanup on unmount
   useEffect(
@@ -3604,6 +3856,7 @@ export function useSessionStream(
     hasMoreHistory,
     isLoadingOlder,
     loadOlderHistory,
+    lastPrependCountRef,
     sendMessage,
     respondToApproval,
     respondToQuestion,

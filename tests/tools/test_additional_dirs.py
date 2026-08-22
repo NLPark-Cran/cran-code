@@ -20,6 +20,7 @@ from cran_code.tools.file.replace import Edit, StrReplaceFile
 from cran_code.tools.file.replace import Params as ReplaceParams
 from cran_code.tools.file.write import Params as WriteParams
 from cran_code.tools.file.write import WriteFile
+from cran_code.tools.file.read_tracker import mark_read
 from tests.conftest import tool_call_context
 
 
@@ -149,6 +150,7 @@ async def test_replace_in_additional_dir(
         replace_tool = StrReplaceFile(runtime_with_additional_dir, approval)
         target = additional_dir / "code.py"
         await target.write_text("old_value = 1\n")
+        mark_read(target)
 
         result = await replace_tool(
             ReplaceParams(

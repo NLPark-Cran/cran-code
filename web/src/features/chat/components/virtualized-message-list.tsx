@@ -52,6 +52,8 @@ export type VirtualizedMessageListProps = {
   isLoadingOlder?: boolean;
   /** Fetch and prepend the next older history page */
   onLoadOlderHistory?: () => Promise<void>;
+  /** Exact count of the most recent older-history prepend */
+  lastPrependCountRef?: React.RefObject<number>;
 };
 
 export type VirtualizedMessageListHandle = {
@@ -189,6 +191,7 @@ function VirtualizedMessageListComponent(
     hasMoreHistory = false,
     isLoadingOlder = false,
     onLoadOlderHistory,
+    lastPrependCountRef,
   }: VirtualizedMessageListProps,
   ref: React.Ref<VirtualizedMessageListHandle>,
 ) {
@@ -224,20 +227,24 @@ function VirtualizedMessageListComponent(
   }, [conversationKey]);
 
   // Prepend detection: first message id changed without conversation switch
-  // → an older page was prepended. Decrement firstItemIndex by the number
-  // of new items so the viewport stays anchored (no scroll jump).
+  // → an older page was prepended. Decrement firstItemIndex by the exact
+  // prepended count (L6, provided by the stream hook) so the viewport stays
+  // anchored; fall back to the length delta when unavailable.
   useEffect(() => {
     const firstId = listItems[0]?.message.id ?? null;
     const prevFirstId = prevFirstIdRef.current;
     if (prevFirstId !== null && firstId !== null && firstId !== prevFirstId) {
-      const prepended = listItems.length - prevLengthRef.current;
+      const exact = lastPrependCountRef?.current ?? 0;
+      const prepended =
+        exact > 0 ? exact : listItems.length - prevLengthRef.current;
+      if (lastPrependCountRef) lastPrependCountRef.current = 0;
       if (prepended > 0) {
         setFirstItemIndex((value) => value - prepended);
       }
     }
     prevFirstIdRef.current = firstId;
     prevLengthRef.current = listItems.length;
-  }, [listItems]);
+  }, [listItems, lastPrependCountRef]);
 
   // During the initial replay we suppress auto-scroll entirely and jump to
   // the bottom exactly once, when replay/history completes.

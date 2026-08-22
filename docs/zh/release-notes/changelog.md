@@ -4,6 +4,8 @@
 
 ## 未发布
 
+- Kosong: Stop sending an empty `anthropic-beta` header when no beta features are declared — adaptive thinking removes the interleaved-thinking beta, which previously left an empty header value that some backends reject
+
 Cran Code 分支在上游 1.49.0 基础上的变更：
 
 - 模型：支持 Kimi K3（`k3`，最高 1M 上下文，思考程度仅支持 `max`）与 `kimi-for-coding-highspeed`（K2.7 Code 的 6 倍速变体）。两者均获得 `thinking` 能力；kosong 0.55.0 不再显式发送 `reasoning_effort`，因此 K3 将使用服务端默认思考程度

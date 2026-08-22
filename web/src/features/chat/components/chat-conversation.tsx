@@ -43,6 +43,7 @@ type ChatConversationProps = {
   hasMoreHistory?: boolean;
   isLoadingOlder?: boolean;
   onLoadOlderHistory?: () => Promise<void>;
+  lastPrependCountRef?: React.RefObject<number>;
 };
 
 export function ChatConversation({
@@ -61,6 +62,7 @@ export function ChatConversation({
   hasMoreHistory = false,
   isLoadingOlder = false,
   onLoadOlderHistory,
+  lastPrependCountRef,
 }: ChatConversationProps) {
   const { t } = useTranslation();
   const listRef = useRef<VirtualizedMessageListHandle>(null);
@@ -200,6 +202,7 @@ export function ChatConversation({
             hasMoreHistory={hasMoreHistory}
             isLoadingOlder={isLoadingOlder}
             onLoadOlderHistory={onLoadOlderHistory}
+            lastPrependCountRef={lastPrependCountRef}
           />
         </div>
       )}

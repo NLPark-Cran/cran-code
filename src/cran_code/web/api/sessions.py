@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import bisect
 import json
 import mimetypes
 import os
@@ -279,28 +280,40 @@ _MEDIA_DATA_URL_RE = re.compile(
 
 
 class _WireIndex:
-    """Byte offsets of every line start + last compaction marker line."""
+    """Byte offsets of every line start + last compaction marker + turn lines."""
 
-    __slots__ = ("offsets", "compaction_line")
+    __slots__ = ("offsets", "compaction_line", "turn_lines")
 
-    def __init__(self, offsets: list[int], compaction_line: int) -> None:
+    def __init__(
+        self, offsets: list[int], compaction_line: int, turn_lines: list[int]
+    ) -> None:
         self.offsets = offsets
         self.compaction_line = compaction_line
+        # 1-based line numbers of TurnBegin records (used to snap page
+        # boundaries to turn starts and to compute session-absolute turn
+        # indices for fork).
+        self.turn_lines = turn_lines
 
 
-# (path, mtime) -> index; rebuilt when the file changes. One entry per
-# actively-viewed session — tiny compared to the files themselves.
-_wire_index_cache: dict[str, tuple[float, _WireIndex]] = {}
+# (path) -> (stat signature, index); rebuilt when the file changes. One entry
+# per actively-viewed session — tiny compared to the files themselves.
+_wire_index_cache: dict[str, tuple[tuple[float, int, int], _WireIndex]] = {}
 
 
 def _wire_index(wire_file: Path) -> _WireIndex:
     stat = wire_file.stat()
+    # mtime+size+inode: a same-mtime file replacement (cp -p) must not reuse
+    # stale offsets.
+    signature = (stat.st_mtime, stat.st_size, stat.st_ino)
     cache_key = str(wire_file)
     cached = _wire_index_cache.get(cache_key)
-    if cached is not None and cached[0] == stat.st_mtime:
+    if cached is not None and cached[0] == signature:
         return cached[1]
     offsets: list[int] = []
+    turn_lines: list[int] = []
     compaction_line = 0
+    turn_marker = b'"type": "TurnBegin"'
+    markers = [m.encode() for m in _COMPACTION_MARKER_TYPES]
     with open(wire_file, "rb") as f:
         while True:
             pos = f.tell()
@@ -308,12 +321,14 @@ def _wire_index(wire_file: Path) -> _WireIndex:
             if not line:
                 break
             offsets.append(pos)
-            if any(marker.encode() in line for marker in _COMPACTION_MARKER_TYPES):
+            if turn_marker in line:
+                turn_lines.append(len(offsets))
+            elif any(marker in line for marker in markers):
                 compaction_line = len(offsets)  # 1-based line number
-    index = _WireIndex(offsets, compaction_line)
+    index = _WireIndex(offsets, compaction_line, turn_lines)
     if len(_wire_index_cache) > 64:
         _wire_index_cache.clear()
-    _wire_index_cache[cache_key] = (stat.st_mtime, index)
+    _wire_index_cache[cache_key] = (signature, index)
     return index
 
 
@@ -478,6 +493,12 @@ class HistoryPage(BaseModel):
     oldest_line: int
     """0-based raw line index of the oldest line included (next page cursor)."""
     has_more: bool
+    source: str = ""
+    """Which wire file the page came from (wire.annotated.jsonl / wire.jsonl);
+    a change invalidates cursors."""
+    turn_base: int = 0
+    """Number of TurnBegin records strictly before this page (session-
+    absolute turn index of the page's first turn)."""
 
 
 def _history_page(
@@ -486,7 +507,9 @@ def _history_page(
     """Read one page of history events (runs in thread).
 
     ``before_line=None`` returns the NEWEST page (used for initial replay);
-    otherwise the page of raw lines preceding ``before_line``.
+    otherwise the page of raw lines preceding ``before_line``. The page start
+    snaps forward to the nearest turn boundary so a page never begins in the
+    middle of a turn (which would strand tool cards / subagent steps).
     """
     annotated_file = session_dir / "wire.annotated.jsonl"
     wire_file = session_dir / "wire.jsonl"
@@ -499,8 +522,20 @@ def _history_page(
         return None
     end = total if before_line is None else max(0, min(before_line, total))
     start = max(0, end - limit)
+    # Snap forward to the first TurnBegin at/after start (1-based compare).
+    if start > 0 and index.turn_lines:
+        snap_idx = bisect.bisect_left(index.turn_lines, start + 1)
+        if snap_idx < len(index.turn_lines) and index.turn_lines[snap_idx] <= end:
+            start = index.turn_lines[snap_idx] - 1
+    turn_base = bisect.bisect_left(index.turn_lines, start + 1) if index.turn_lines else 0
     events = _parse_wire_window(source, index, start + 1, end + 1)
-    return HistoryPage(events=events, oldest_line=start, has_more=start > 0)
+    return HistoryPage(
+        events=events,
+        oldest_line=start,
+        has_more=start > 0,
+        source=source.name,
+        turn_base=turn_base,
+    )
 
 
 async def replay_history(ws: WebSocket, session_dir: Path) -> HistoryPage | None:
@@ -1096,6 +1131,154 @@ def extract_first_turn_from_wire(session_dir: Path) -> tuple[str, str] | None:
     if user_message and assistant_response_parts:
         return (user_message, "".join(assistant_response_parts))
     return None
+
+
+@router.get("/{session_id}/subagents", summary="List subagent instances of a session")
+async def list_session_subagents(
+    session_id: UUID,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> list[dict[str, Any]]:
+    """Snapshot of subagent instances (swarm overview), read from meta.json files.
+
+    Live updates stream over the WebSocket as `SubagentStatus` events; this
+    endpoint provides the initial state on page load / reconnect.
+    """
+    from dataclasses import asdict
+
+    from cran_code.subagents.store import SubagentStore
+
+    session = get_session_or_404(session_id)
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    store = SubagentStore(session.cran_code_session)
+    return [asdict(record) for record in store.list_instances()]
+
+
+# ---------------------------------------------------------------------------
+# Goal mode (P2 web UX)
+# ---------------------------------------------------------------------------
+
+
+class GoalCreateRequest(BaseModel):
+    objective: str = Field(min_length=1, max_length=4000)
+    criteria: str | None = Field(default=None, max_length=4000)
+    max_turns: int | None = Field(default=None, gt=0)
+    max_tokens: int | None = Field(default=None, gt=0)
+    max_seconds: int | None = Field(default=None, ge=60, le=86400)
+
+
+async def _get_goal_store_for_user(
+    session_id: UUID, current_user: CurrentUser | None
+) -> tuple[JointSession, Any]:
+    """Shared access check + goal store construction for goal endpoints."""
+    from cran_code.soul.goal import GoalStore
+
+    session = get_session_or_404(session_id)
+    if not can_access_session(
+        session.cran_code_session.state, current_user, await get_user_team_ids(current_user)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    return session, GoalStore(session.cran_code_session.dir)
+
+
+@router.get("/{session_id}/goal", summary="Get the session goal snapshot")
+async def get_session_goal(
+    session_id: UUID,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> dict[str, Any]:
+    _, store = await _get_goal_store_for_user(session_id, current_user)
+    record = store.load()
+    return {"goal": record.model_dump(mode="json") if record is not None else None}
+
+
+@router.post("/{session_id}/goal", summary="Create a goal for the session")
+async def create_session_goal(
+    session_id: UUID,
+    request: GoalCreateRequest,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> dict[str, Any]:
+    """User-initiated goal creation (no model approval needed — this IS the user).
+
+    The goal becomes active immediately; the worker picks it up at the next
+    turn boundary (goal.json is the IPC between web main process and worker).
+    """
+    from cran_code.soul.goal import GoalBudgets, GoalExistsError
+
+    _, store = await _get_goal_store_for_user(session_id, current_user)
+    try:
+        record = store.create(
+            request.objective.strip(),
+            criteria=request.criteria,
+            budgets=GoalBudgets(
+                max_turns=request.max_turns,
+                max_tokens=request.max_tokens,
+                max_seconds=request.max_seconds,
+            ),
+        )
+    except GoalExistsError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A goal already exists for this session",
+        ) from None
+    return {"goal": record.model_dump(mode="json")}
+
+
+@router.post("/{session_id}/goal/pause", summary="Pause the session goal")
+async def pause_session_goal(
+    session_id: UUID,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> dict[str, Any]:
+    from cran_code.soul.goal import GoalNotFoundError, GoalTransitionError
+
+    _, store = await _get_goal_store_for_user(session_id, current_user)
+    try:
+        record = store.pause("Paused by user")
+    except GoalNotFoundError:
+        raise HTTPException(status_code=404, detail="No goal") from None
+    except GoalTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    return {"goal": record.model_dump(mode="json")}
+
+
+@router.post("/{session_id}/goal/resume", summary="Resume the session goal")
+async def resume_session_goal(
+    session_id: UUID,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> dict[str, Any]:
+    """Resume a paused/blocked goal. The driver continues at the next turn."""
+    from cran_code.soul.goal import GoalNotFoundError, GoalTransitionError
+
+    _, store = await _get_goal_store_for_user(session_id, current_user)
+    try:
+        record = store.resume()
+    except GoalNotFoundError:
+        raise HTTPException(status_code=404, detail="No goal") from None
+    except GoalTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    return {"goal": record.model_dump(mode="json")}
+
+
+@router.delete("/{session_id}/goal", summary="Cancel the session goal")
+async def delete_session_goal(
+    session_id: UUID,
+    current_user: CurrentUser | None = Depends(get_current_user_v1),
+) -> dict[str, Any]:
+    from cran_code.soul.goal import GoalNotFoundError
+
+    _, store = await _get_goal_store_for_user(session_id, current_user)
+    try:
+        store.cancel()
+    except GoalNotFoundError:
+        raise HTTPException(status_code=404, detail="No goal") from None
+    return {"goal": None}
 
 
 @router.post("/{session_id}/fork", summary="Fork a session at a specific turn")

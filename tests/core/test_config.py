@@ -32,7 +32,7 @@ def test_default_config_dump():
             "providers": {},
             "loop_control": {
                 "max_steps_per_turn": 1000,
-                "max_retries_per_step": 3,
+                "max_retries_per_step": 10,
                 "max_ralph_iterations": 0,
                 "reserved_context_size": 50000,
                 "compaction_trigger_ratio": 0.85,

@@ -51,6 +51,16 @@ from cran_code.utils.environment import Environment
 from cran_code.wire.file import WireFile
 
 
+@pytest.fixture(autouse=True)
+def _reset_read_tracker():
+    """Isolate the read-before-write tracker between tests."""
+    from cran_code.tools.file.read_tracker import clear_read_tracker
+
+    clear_read_tracker()
+    yield
+    clear_read_tracker()
+
+
 @pytest.fixture
 def config() -> Config:
     """Create a Config instance."""

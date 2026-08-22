@@ -64,13 +64,20 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="absolute right-4 top-4">
+      {/* Soft brand wash over the canvas — follows the active theme's primary */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(80%_60%_at_50%_-10%,color-mix(in_oklab,var(--primary)_12%,transparent),transparent_70%),radial-gradient(60%_50%_at_85%_100%,color-mix(in_oklab,var(--primary)_6%,transparent),transparent_70%)]"
+      />
+      <div className="absolute right-4 top-4 z-10">
         <LanguageSwitcher />
       </div>
-      <Card className="w-full max-w-md">
+      <Card className="relative z-10 w-full max-w-md rounded-2xl border-border/60 shadow-[0_1px_2px_rgba(16,24,40,0.04),0_12px_32px_-8px_rgba(16,24,40,0.10)]">
         <CardHeader className="text-center">
           <img src="/logo.png?v=2" alt="Cran" width={40} height={40} className="mx-auto mb-2 size-10" />
-          <CardTitle className="text-2xl font-bold">{t("common:brandName")}</CardTitle>
+          <CardTitle className="bg-gradient-to-br from-primary to-ring bg-clip-text text-2xl font-bold text-transparent">
+            {t("common:brandName")}
+          </CardTitle>
           <CardDescription>{t("auth:subtitle")}</CardDescription>
         </CardHeader>
         <CardContent>

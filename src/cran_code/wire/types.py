@@ -299,6 +299,62 @@ class SubagentEvent(BaseModel):
         return event
 
 
+class SubagentStatus(BaseModel):
+    """
+    A lifecycle status update for a subagent instance.
+
+    Emitted best-effort whenever a subagent instance is created or its status
+    changes. Unlike `SubagentEvent` (which streams inner activity of a
+    foreground run), this is a lightweight side-channel that also covers
+    background agents, enabling swarm-style overviews.
+    """
+
+    agent_id: str
+    """The subagent instance ID."""
+    subagent_type: str
+    """The built-in subagent type used by this instance."""
+    description: str
+    """Short human-readable description of the instance's task."""
+    status: Literal[
+        "idle",
+        "running_foreground",
+        "running_background",
+        "completed",
+        "failed",
+        "killed",
+    ]
+    """The instance lifecycle status."""
+    updated_at: float
+    """Unix timestamp of the status change."""
+    last_task_id: str | None = None
+    """The background task ID, if this instance is/was running in background."""
+
+
+class GoalUpdated(BaseModel):
+    """
+    A lifecycle/status update for the session goal (goal mode).
+
+    Emitted best-effort on every goal transition (create/update/complete/pause/
+    block/resume/clear/budget-block) so the web UI can render a goal banner.
+    `change` is "budget" when the driver blocked the goal because a budget was
+    exhausted; the snapshot's status is "blocked" in that case.
+    """
+
+    snapshot: dict[str, Any] | None
+    """The full goal record after the transition, or None when the goal was cleared."""
+    change: Literal[
+        "created",
+        "updated",
+        "completed",
+        "paused",
+        "blocked",
+        "resumed",
+        "cleared",
+        "budget",
+    ]
+    """What kind of transition happened."""
+
+
 class ApprovalResponse(BaseModel):
     """
     Indicates that an approval request has been resolved.
@@ -544,6 +600,8 @@ type Event = (
     | ToolResult
     | ApprovalResponse
     | SubagentEvent
+    | SubagentStatus
+    | GoalUpdated
     | PlanDisplay
     | BtwBegin
     | BtwEnd
@@ -694,6 +752,8 @@ __all__ = [
     "ToolResult",
     "ApprovalResponse",
     "SubagentEvent",
+    "SubagentStatus",
+    "GoalUpdated",
     "PlanDisplay",
     "BtwBegin",
     "BtwEnd",

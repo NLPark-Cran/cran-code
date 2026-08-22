@@ -11,6 +11,13 @@ Only write entries that are worth mentioning to users.
 
 ## Unreleased
 
+- Core: Continue the turn when a tool returns image or video the model is not declared to support — omit the unsupported media with a note instead of aborting mid-task after the tool has already run (#2588)
+- Core: Include the config remedy in `LLMNotSupported` errors — tell users to add `capabilities = ["image_in"]` (or similar) to `[models.<alias>]` in `config.toml`, or set `KIMI_MODEL_CAPABILITIES` (#2588)
+- Fixed `/undo` and `/fork` truncating the conversation context at the wrong turn in sessions that had been compacted or steered, which could silently keep turns the user rewound past (or drop turns they kept).
+- ACP: `AskUserQuestion` now signals `QuestionNotSupported` instead of resolving an empty answer, so the model falls back to asking in plain text rather than seeing a phantom user dismissal
+- Shell: Fix the shell tool blocking until the full command timeout when a detached child process inherits stdout/stderr, then wrongly reporting a timeout kill. The tool now returns shortly after the shell itself exits and drains remaining pipe output for a bounded grace period
+- Kosong: Stop sending an empty `anthropic-beta` header when no beta features are declared — adaptive thinking removes the interleaved-thinking beta, which previously left an empty header value that some backends reject
+
 Cran Code fork changes on top of upstream 1.49.0:
 
 - Models: Support Kimi K3 (`k3`, up to 1M context, thinking effort `max` only) and `kimi-for-coding-highspeed` (6x-speed K2.7 Code variant). Both get the `thinking` capability; kosong 0.55.0 no longer sends an explicit `reasoning_effort`, so K3's server-side default effort applies

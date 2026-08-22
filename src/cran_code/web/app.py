@@ -238,12 +238,23 @@ def create_app(
 
     # Mount static files as fallback (must be last)
     if STATIC_DIR.exists():
+        import posixpath
+        import re as _re
+
         class SPAStaticFiles(StaticFiles):
             async def get_response(self, path: str, scope):
                 try:
                     return await super().get_response(path, scope)
                 except StarletteHTTPException as exc:
-                    if exc.status_code == 404 and not (path.startswith("api/") or path.startswith("/api/")):
+                    # Normalize repeated slashes and dot segments before the
+                    # API-prefix check, so non-normalized variants of /api/*
+                    # (e.g. //api/..., /../api/...) never fall through to the
+                    # SPA page — they must surface as real 404s.
+                    normalized = posixpath.normpath(
+                        "/" + _re.sub(r"/{2,}", "/", path).lstrip("/")
+                    )
+                    is_api = normalized.startswith("api/") or normalized.startswith("/api/")
+                    if exc.status_code == 404 and not is_api:
                         # SPA fallback: serve index.html for client-side routes
                         return FileResponse(STATIC_DIR / "index.html")
                     raise

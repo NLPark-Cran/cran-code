@@ -27,6 +27,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SessionInfoPopover } from "./session-info-popover";
+import { SwarmPanel } from "./swarm-panel";
+import { ThemeSwitcher } from "@/components/ThemeSwitcher";
 import { OpenInMenu } from "./open-in-menu";
 import { isMacOS } from "@/hooks/utils";
 
@@ -98,7 +100,7 @@ export function ChatWorkspaceHeader({
   }, [selectedSessionId, editingTitle, onRenameSession, handleCancelEdit]);
 
   return (
-    <div className="flex min-w-0 flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3 lg:pl-8">
+    <div className="flex min-w-0 flex-col gap-2 bg-background/70 px-3 py-2 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3 lg:pl-8">
       <div className="flex min-w-0 items-center gap-2">
         {onOpenSidebar ? (
           <button
@@ -165,6 +167,10 @@ export function ChatWorkspaceHeader({
               sessionId={selectedSessionId}
               session={currentSession}
             />
+
+            <SwarmPanel />
+
+            <ThemeSwitcher />
 
             {onToggleFilesPanel ? (
               <Tooltip>

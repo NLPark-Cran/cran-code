@@ -1,5 +1,7 @@
 Start a subagent instance to work on a focused task.
 
+Brief it like a colleague who just walked into the room: it does not see your conversation, so give it the context, constraints, and the exact outcome you expect. Do not delegate understanding — if the task hinges on a specific file path or line number, locate it yourself first and hand it over. Once a subagent is running, leave that scope to it: do not redo its searches or reads in parallel.
+
 The Agent tool can either create a new subagent instance or resume an existing one by `agent_id`.
 Each instance keeps its own context history under the current session, so repeated use of the same
 instance can preserve previous findings and work.

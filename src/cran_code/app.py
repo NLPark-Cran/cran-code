@@ -312,6 +312,20 @@ class KimiCLI:
 
         soul = KimiSoul(agent, context=context)
 
+        # Goal mode restore: a goal that was active in a previous process cannot
+        # still be running; downgrade it to paused so a restart never silently
+        # burns quota, and sync goal tool visibility with the restored state.
+        # Hooked here (not in WireServer) so both the web worker and the shell
+        # CLI paths get identical semantics at session load time.
+        from cran_code.soul.goal import GoalStore, sync_goal_tool_visibility
+        from cran_code.soul.toolset import KimiToolset
+
+        goal_store = GoalStore(session.dir)
+        goal_store.restore_downgrade()
+        toolset = getattr(agent, "toolset", None)  # tests may patch load_agent with a fake
+        if isinstance(toolset, KimiToolset):
+            sync_goal_tool_visibility(toolset, goal_store.load() is not None)
+
         # Activate plan mode if requested (for new sessions or --plan flag)
         if plan_mode and not soul.plan_mode:
             await soul.set_plan_mode_from_manual(True)

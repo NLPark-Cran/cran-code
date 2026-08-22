@@ -11,6 +11,11 @@ import aiofiles.os
 from kosong.message import Message
 from pydantic import ValidationError
 
+from cran_code.soul.blobstore import (
+    blobs_dir_for,
+    externalize_message_dict,
+    rehydrate_message_dict,
+)
 from cran_code.soul.compaction import estimate_text_tokens
 from cran_code.soul.message import system
 from cran_code.utils.logging import logger
@@ -20,6 +25,7 @@ from cran_code.utils.path import next_available_rotation
 class Context:
     def __init__(self, file_backend: Path):
         self._file_backend = file_backend
+        self._blobs_dir = blobs_dir_for(file_backend)
         self._history: list[Message] = []
         self._token_count: int = 0
         self._pending_token_estimate: int = 0
@@ -257,9 +263,20 @@ class Context:
         self._history.extend(messages)
         self._pending_token_estimate += estimate_text_tokens(messages)
 
+        # Serialize + externalize media blobs off the event loop (base64 decode of
+        # multi-MB payloads is non-trivial CPU + disk IO).
+        lines = await asyncio.to_thread(self._serialize_messages, messages)
         async with aiofiles.open(self._file_backend, "a", encoding="utf-8") as f:
-            for message in messages:
-                await f.write(message.model_dump_json(exclude_none=True) + "\n")
+            for line in lines:
+                await f.write(line)
+
+    def _serialize_messages(self, messages: Sequence[Message]) -> list[str]:
+        lines: list[str] = []
+        for message in messages:
+            data = message.model_dump(exclude_none=True, mode="json")
+            externalize_message_dict(data, self._blobs_dir)
+            lines.append(json.dumps(data, ensure_ascii=False) + "\n")
+        return lines
 
     async def update_token_count(self, token_count: int):
         logger.debug("Updating token count in context: {token_count}", token_count=token_count)
@@ -347,7 +364,7 @@ class Context:
             self._next_checkpoint_id = checkpoint_id + 1
             return True
         try:
-            message = Message.model_validate(line_json)
+            message = Message.model_validate(rehydrate_message_dict(line_json, self._blobs_dir))
         except ValidationError as exc:
             logger.warning(
                 "Skipping invalid context message line {line_no} in {file}: {error}",

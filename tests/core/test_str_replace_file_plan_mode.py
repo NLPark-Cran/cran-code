@@ -11,6 +11,7 @@ from kosong.tooling import ToolError, ToolReturnValue
 
 from cran_code.soul.agent import Runtime
 from cran_code.soul.approval import Approval
+from cran_code.tools.file.read_tracker import mark_read
 from cran_code.tools.file.replace import Edit, Params, StrReplaceFile
 from tests.conftest import tool_call_context
 
@@ -54,6 +55,7 @@ class TestStrReplaceFilePlanMode:
         approval = Approval(yolo=False)
         target = temp_work_dir / "other.txt"
         await target.write_text("old")
+        mark_read(target)
         plan_path = Path(str(temp_work_dir)) / "plans" / "plan.md"
 
         with tool_call_context("StrReplaceFile"):
@@ -84,6 +86,7 @@ class TestStrReplaceFilePlanMode:
         approval = Approval(yolo=True)
         target = temp_work_dir / "normal.txt"
         await target.write_text("old content")
+        mark_read(target)
 
         with tool_call_context("StrReplaceFile"):
             tool = StrReplaceFile(runtime, approval)

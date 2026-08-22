@@ -109,6 +109,7 @@ class SubagentStore:
             launch_spec=launch_spec,
         )
         self.write_instance(record)
+        _emit_status_update(record)
         return record
 
     def write_instance(self, record: AgentInstanceRecord) -> None:
@@ -158,6 +159,7 @@ class SubagentStore:
             launch_spec=current.launch_spec,
         )
         self.write_instance(record)
+        _emit_status_update(record)
         return record
 
     def list_instances(self) -> list[AgentInstanceRecord]:
@@ -182,6 +184,34 @@ class SubagentStore:
         if not instance_dir.exists():
             return
         shutil.rmtree(instance_dir)
+
+
+def _emit_status_update(record: AgentInstanceRecord) -> None:
+    """Best-effort emission of a SubagentStatus wire event.
+
+    Only fires when called inside an agent loop with an active wire (i.e. in a
+    worker process during a turn); silently no-ops everywhere else (CLI
+    bookkeeping, web main process reads, shut-down wires).
+    """
+    try:
+        from cran_code.soul import get_wire_or_none
+        from cran_code.wire.types import SubagentStatus as SubagentStatusEvent
+
+        wire = get_wire_or_none()
+        if wire is None:
+            return
+        wire.soul_side.send(
+            SubagentStatusEvent(
+                agent_id=record.agent_id,
+                subagent_type=record.subagent_type,
+                description=record.description,
+                status=record.status,
+                updated_at=record.updated_at,
+                last_task_id=record.last_task_id,
+            )
+        )
+    except Exception as exc:
+        logger.debug("SubagentStatus emission skipped: {error}", error=exc)
 
 
 def _load_instance_record(meta_path: Path) -> AgentInstanceRecord | None:

@@ -185,6 +185,9 @@ class SessionProcess:
         # otherwise they would never receive the slash-command list.
         self._pending_initialize_id: str | None = None
         self._cached_initialize_result: dict[str, Any] | None = None
+        # Deduped initialize request ids awaiting the worker's first result;
+        # they are answered from the cache as soon as it is populated.
+        self._deduped_initialize_ids: list[str] = []
         # Latest key-resolution snapshot (per worker spawn), used for usage
         # metering of direct-injected personal keys.
         self._key_info: _SessionKeyInfo | None = None
@@ -448,6 +451,7 @@ class SessionProcess:
         self._worker_initialized = False
         self._pending_initialize_id = None
         self._cached_initialize_result = None
+        self._deduped_initialize_ids.clear()
         if self._cached_initialize_message is not None:
             assert self._process.stdin is not None
             self._process.stdin.write(
@@ -524,6 +528,10 @@ class SessionProcess:
         """
         async with self._lock:
             if self.is_busy and not force:
+                return False
+            # Recheck under the lock: a concurrent prompt may have just
+            # refreshed the token via its own restart.
+            if reason == "proxy_token_refresh" and not self._needs_proxy_token_refresh():
                 return False
             started_at = time.perf_counter()
             await self._emit_status("restarting", reason=reason or "restart")
@@ -800,6 +808,15 @@ class SessionProcess:
                 ):
                     self._cached_initialize_result = cast(dict[str, Any], message.result)
                     self._pending_initialize_id = None
+                    # Answer any deduped initializes that arrived while the
+                    # worker was still initializing.
+                    for deduped_id in self._deduped_initialize_ids:
+                        await self._broadcast(
+                            JSONRPCSuccessResponse(
+                                id=deduped_id, result=self._cached_initialize_result
+                            ).model_dump_json()
+                        )
+                    self._deduped_initialize_ids.clear()
                 was_busy = self.is_busy
                 if message.id in self._in_flight_prompt_ids:
                     self._in_flight_prompt_ids.remove(message.id)
@@ -1159,7 +1176,9 @@ class SessionProcess:
         # (restart_worker acquires it; a long-idle worker's 3-day token may
         # have expired since the last prompt).
         if isinstance(in_message, JSONRPCPromptMessage) and self._needs_proxy_token_refresh():
-            await self.restart_worker(reason="proxy_token_refresh", force=True)
+            # force=False: never kill a worker that became busy in the race
+            # window; an expired token's 401 is recoverable on the next prompt.
+            await self.restart_worker(reason="proxy_token_refresh", force=False)
 
         async with self._lock:
             if isinstance(in_message, JSONRPCInitializeMessage):
@@ -1206,6 +1225,11 @@ class SessionProcess:
                             id=in_message.id, result=self._cached_initialize_result
                         ).model_dump_json()
                     )
+                else:
+                    # Worker is still initializing; queue for the cached
+                    # answer once its response arrives (otherwise this client
+                    # would wait forever for its slash commands).
+                    self._deduped_initialize_ids.append(in_message.id)
                 return
 
             # Handle in message

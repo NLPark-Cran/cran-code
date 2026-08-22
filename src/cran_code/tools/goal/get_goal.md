@@ -1,0 +1,1 @@
+Get the current goal snapshot for this session: objective, completion criteria, status, stop reason, budgets, and usage statistics (turns, tokens, active seconds). Returns a notice when no goal exists.

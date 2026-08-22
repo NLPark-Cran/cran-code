@@ -5,10 +5,22 @@
     <link rel="icon" type="image/png" href="/logo.png?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <title>Cran Code Web UI</title>
-    <script type="module" crossorigin src="/assets/index-WMFrNXEn.js"></script>
+    <script>
+      // Apply the persisted color theme before first paint (no flash).
+      // Dark mode (.dark) stays managed by the useTheme hook.
+      (function () {
+        try {
+          var t = localStorage.getItem("cran-color-theme");
+          if (t === "graphite" || t === "cinnabar" || t === "teal") {
+            document.documentElement.setAttribute("data-theme", t);
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/index-Br_GATW7.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-XaeFZCkG.js">
     <link rel="modulepreload" crossorigin href="/assets/monaco-BBNBMLRD.js">
-    <link rel="modulepreload" crossorigin href="/assets/mermaid-Cxxm3Kb8.js">
+    <link rel="modulepreload" crossorigin href="/assets/mermaid-CyFl1v6Y.js">
     <link rel="stylesheet" crossorigin href="/assets/monaco-BwKcXIZw.css">
   </head>
   <body>

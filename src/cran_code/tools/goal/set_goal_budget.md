@@ -1,0 +1,1 @@
+Set hard budget limits on the current session goal. Only use when the user explicitly states limits. At least one of `max_turns`, `max_tokens`, `max_seconds` must be provided; provided values replace the previous budgets. Budgets are checked at turn boundaries; when a budget is exhausted the goal is blocked automatically.

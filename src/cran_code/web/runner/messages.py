@@ -30,7 +30,8 @@ class JSONRPCHistoryCompleteMessage(_MessageBase):
     method: Literal["history_complete"] = "history_complete"
     id: str
     params: dict | None = None
-    """Pagination info: ``{"has_more_history": bool, "oldest_line": int}``."""
+    """Pagination info: ``has_more_history``, ``oldest_line``, ``turn_base``,
+    ``source``."""
 
 
 def new_session_status_message(status: SessionStatus) -> JSONRPCSessionStatusMessage:
@@ -39,12 +40,21 @@ def new_session_status_message(status: SessionStatus) -> JSONRPCSessionStatusMes
 
 
 def new_history_complete_message(
-    *, has_more_history: bool = False, oldest_line: int = 0
+    *,
+    has_more_history: bool = False,
+    oldest_line: int = 0,
+    turn_base: int = 0,
+    source: str = "",
 ) -> JSONRPCHistoryCompleteMessage:
     """Create a new history complete message."""
     return JSONRPCHistoryCompleteMessage(
         id=str(uuid4()),
-        params={"has_more_history": has_more_history, "oldest_line": oldest_line},
+        params={
+            "has_more_history": has_more_history,
+            "oldest_line": oldest_line,
+            "turn_base": turn_base,
+            "source": source,
+        },
     )
 
 
@@ -60,9 +70,14 @@ async def send_history_complete(ws: WebSocket, page: Any = None) -> bool:
     try:
         has_more = bool(page is not None and getattr(page, "has_more", False))
         oldest = int(getattr(page, "oldest_line", 0) or 0) if page is not None else 0
+        turn_base = int(getattr(page, "turn_base", 0) or 0) if page is not None else 0
+        source = str(getattr(page, "source", "") or "") if page is not None else ""
         await ws.send_text(
             new_history_complete_message(
-                has_more_history=has_more, oldest_line=oldest
+                has_more_history=has_more,
+                oldest_line=oldest,
+                turn_base=turn_base,
+                source=source,
             ).model_dump_json()
         )
         return True
