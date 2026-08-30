@@ -1,0 +1,19 @@
+[project]
+name = "chaxunma"
+version = "0.1.0"
+description = "猹询码：cran-code lite 服务端受限部署 Agent 运行时"
+requires-python = ">=3.12"
+dependencies = ["httpx>=0.28"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chaxunma"]
+
+[dependency-groups]
+dev = ["pytest>=8.3", "pytest-asyncio>=0.25"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
