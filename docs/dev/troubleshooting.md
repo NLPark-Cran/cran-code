@@ -69,3 +69,10 @@
 **回归测试**：`tests/web/test_security_regressions.py`（raw_path 级，httpx 会规范化 `//` 和 `%2e`，测试必须用 `raw_path` 构造）。
 
 **已知信任模型假设**（非 bug，勿"修复"）：worker 以服务用户身份执行 shell（root），多用户隔离依赖配额/审批/团队边界而非 OS 沙箱；`create_session` 接受任意 work_dir 是平台设计（用户自带项目目录）。如未来开放不可信用户，需先做 OS 级隔离。
+
+## 运维：证书过期续期失败（2026-09-07）
+
+**症状**：crys.tt2.li 证书过期（浏览器告警/无法访问）。
+**根因**：该域名的 certbot renewal 配置用了 `standalone` authenticator，续期时要独占 80 端口，与常驻 nginx 冲突 → 自动续期静默失败。
+**修复**：`certbot renew --cert-name crys.tt2.li --force-renewal --nginx`（手动续上）+ 把 `/etc/letsencrypt/renewal/crys.tt2.li.conf` 的 `authenticator = standalone` 改为 `nginx`（与其它域名一致），`systemctl reload nginx`。
+**预防**：新域名签证书一律用 `--nginx`；可用 `grep -l "standalone" /etc/letsencrypt/renewal/*.conf` 排查遗留。
