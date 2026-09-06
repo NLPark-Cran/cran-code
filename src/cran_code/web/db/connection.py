@@ -59,3 +59,5 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
         # 2026-08-23: team display timezone for usage statistics
         await _ensure_column(conn, "teams", "timezone", "VARCHAR(64)")
+        # 2026-09-07: per-user environment template (first-prompt injection)
+        await _ensure_column(conn, "users", "env_template", "TEXT")

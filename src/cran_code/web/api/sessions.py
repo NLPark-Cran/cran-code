@@ -652,6 +652,22 @@ async def get_session(
     return session
 
 
+async def _auto_git_init(work_dir: Path) -> None:
+    """Best-effort `git init` for a session's work_dir (skip home / existing repos)."""
+    try:
+        if work_dir == Path.home() or (work_dir / ".git").exists():
+            return
+        proc = await asyncio.create_subprocess_exec(
+            "git", "init", "--quiet", cwd=str(work_dir),
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+        )
+        await asyncio.wait_for(proc.wait(), timeout=10)
+        if proc.returncode == 0:
+            logger.info("Auto git-init for new session work_dir: {dir}", dir=work_dir)
+    except Exception as exc:
+        logger.debug("Auto git-init skipped for {dir}: {err}", dir=work_dir, err=exc)
+
+
 @router.post("/", summary="Create a new session")
 async def create_session(
     request: CreateSessionRequest | None = None,
@@ -693,6 +709,12 @@ async def create_session(
         work_dir = KaosPath.unsafe_from_local_path(Path.home())
     cran_code_session = await KimiCLISession.create(work_dir=work_dir)
     context_file = cran_code_session.dir / "context.jsonl"
+
+    # Git-as-default: sessions created on an explicit work_dir get a git repo
+    # automatically (version governance is a first-class work habit on this
+    # platform). Never auto-init the home directory; failures are non-fatal.
+    if request and request.work_dir:
+        await _auto_git_init(work_dir_path)
 
     # Set ownership
     from cran_code.session_state import load_session_state, save_session_state
@@ -1529,6 +1551,58 @@ Title:"""
     return GenerateTitleResponse(title=title)
 
 
+async def _maybe_inject_env_template(
+    message: str, session_dir: Path, current_user: CurrentUser | None
+) -> str:
+    """Prepend the user's environment template to the session's first prompt.
+
+    Detection: worker-written wire.jsonl is still empty (no prior turn).
+    Failures are non-fatal — the original message passes through unchanged.
+    """
+    try:
+        if current_user is None or current_user.id in ("v1_anonymous", "local"):
+            return message
+        from cran_code.wire.file import WireFile
+
+        if not WireFile(session_dir / "wire.jsonl").is_empty():
+            return message
+
+        from cran_code.web.db import AsyncSessionLocal, User
+        from sqlalchemy import select
+
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(User.env_template).where(User.id == current_user.id)
+            )
+            template = result.scalar_one_or_none()
+        if not template or not template.strip():
+            return message
+
+        data = json.loads(message)
+        params = data.get("params")
+        if not isinstance(params, dict):
+            return message
+        user_input = params.get("user_input")
+        # Never touch the file-only upload marker flow
+        if user_input == "KIMI_FILE_UPLOAD_WITHOUT_MESSAGE":
+            return message
+        block = {
+            "type": "text",
+            "text": f"<user-environment>\n{template.strip()}\n</user-environment>\n\n",
+        }
+        if isinstance(user_input, str):
+            params["user_input"] = [block, {"type": "text", "text": user_input}]
+        elif isinstance(user_input, list):
+            params["user_input"] = [block, *user_input]
+        else:
+            return message
+        logger.info("Injected env template for user {uid}", uid=current_user.id)
+        return json.dumps(data, ensure_ascii=False)
+    except Exception:
+        logger.exception("Env template injection failed; passing prompt through")
+        return message
+
+
 @router.websocket("/{session_id}/stream")
 async def session_stream(
     session_id: UUID,
@@ -1729,6 +1803,17 @@ async def session_stream(
                     pass
 
                 logger.debug(f"sending message to session {session_id}")
+                # First prompt of a session: inject the user's environment template
+                # (per-user preference, configured in settings) so agents start with
+                # the user's environment context without manual pasting.
+                try:
+                    in_message = JSONRPCInMessageAdapter.validate_json(message)
+                except ValueError:
+                    in_message = None
+                if isinstance(in_message, JSONRPCPromptMessage):
+                    message = await _maybe_inject_env_template(
+                        message, session_dir, current_user
+                    )
                 await session_process.send_message(message)
             except WebSocketDisconnect:
                 logger.debug("WebSocket disconnected")

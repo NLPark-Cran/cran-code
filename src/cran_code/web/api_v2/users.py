@@ -26,6 +26,12 @@ router = APIRouter(prefix="/api/v2/users", tags=["users"])
 class UserProfileUpdate(BaseModel):
     display_name: str | None = Field(None, max_length=100)
     avatar_url: str | None = Field(None, max_length=500)
+    env_template: str | None = Field(
+        None,
+        max_length=8000,
+        description="Environment/preference template auto-injected into a session's "
+        "first prompt. Empty string clears it.",
+    )
 
 
 class UserResponse(BaseModel):
@@ -34,6 +40,7 @@ class UserResponse(BaseModel):
     username: str
     display_name: str | None
     avatar_url: str | None
+    env_template: str | None = None
     role: str
     created_at: str
 
@@ -49,6 +56,7 @@ async def get_me(current_user: JWTUser = Depends(require_user)) -> UserResponse:
         username=current_user.username,
         display_name=current_user.display_name,
         avatar_url=current_user.avatar_url,
+        env_template=current_user.env_template,
         role=current_user.role.value,
         created_at=current_user.created_at.isoformat(),
     )
@@ -66,6 +74,8 @@ async def update_me(
             user.display_name = req.display_name
         if req.avatar_url is not None:
             user.avatar_url = req.avatar_url
+        if req.env_template is not None:
+            user.env_template = req.env_template or None
         await session.commit()
         await session.refresh(user)
         return UserResponse(
@@ -74,6 +84,7 @@ async def update_me(
             username=user.username,
             display_name=user.display_name,
             avatar_url=user.avatar_url,
+            env_template=user.env_template,
             role=user.role.value,
             created_at=user.created_at.isoformat(),
         )
@@ -146,6 +157,7 @@ async def update_user_role(
             username=user.username,
             display_name=user.display_name,
             avatar_url=user.avatar_url,
+            env_template=user.env_template,
             role=user.role.value,
             created_at=user.created_at.isoformat(),
         )

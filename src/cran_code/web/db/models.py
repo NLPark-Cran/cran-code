@@ -70,6 +70,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    env_template: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """Per-user environment/preference template, injected into a session's first prompt."""
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, native_enum=False),
         default=UserRole.user,
