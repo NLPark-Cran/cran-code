@@ -73,3 +73,12 @@
 - 图表根因修复：SVG `preserveAspectRatio="none"` 拉伸文字 → 标签改 HTML 覆盖层；x 轴稀疏到 ≤8 个 MM-DD；数值标签拥挤时隐藏；分段色改语义 token（暗色可见）。
 - 控制台统计卡片压扁；用量页团队区显示生效时区并链接团队页。
 - generate-api.sh 修复：保留手写 v2.ts、跳过 /px catch-all 的重复 operationId 校验；注意 5494 是保留的上游 kimi-cli 端口，本地 cran 后端用 5495 生成客户端。
+
+## 2026-09-07 — 证书事故修复 + 底座快赢（环境模板/git 必备/脱敏/bug 包）
+- 运维：crys.tt2.li 证书续期（根因 standalone 续期器与 nginx 抢 80 端口；已改 nginx authenticator）。
+- 每用户环境模板：`users.env_template` + PATCH /users/me + 会话首 prompt 注入 `<user-environment>`（wire 空时一次性注入，匿名/文件上传流不受影响）+ 设置页"环境"tab。
+- 会话创建自动 `git init`（显式 work_dir；跳过 home 与已有仓库）。
+- 机密脱敏：`lib/redact.ts` + RedactedText/RedactedCodeBlock，工具卡片默认遮蔽 PAT/sk-/cwk_/Bearer/key=value 类机密，点击揭示。
+- Teams 页并行加载改 allSettled（局部失败不再整页报错）；GitPanel 对非 git 目录显示友好空态。
+- 决策：上游冻结 1.49 基线（1.50 已转入 kimi-code 迁移轨道，1118 提交分叉，不再 merge；后续只 cherry-pick 安全修复）。
+- 洛书项目启动：github.com/NLPark-Cran/luoshu（定位/素材/ADR 001 壳选型 Tauri + ADR 002 记忆架构）。
