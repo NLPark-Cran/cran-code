@@ -31,6 +31,12 @@ export interface UserProfileUpdate {
      * @memberof UserProfileUpdate
      */
     avatarUrl?: string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof UserProfileUpdate
+     */
+    envTemplate?: string | null;
 }
 
 /**
@@ -52,6 +58,7 @@ export function UserProfileUpdateFromJSONTyped(json: any, ignoreDiscriminator: b
         
         'displayName': json['display_name'] == null ? undefined : json['display_name'],
         'avatarUrl': json['avatar_url'] == null ? undefined : json['avatar_url'],
+        'envTemplate': json['env_template'] == null ? undefined : json['env_template'],
     };
 }
 
@@ -68,6 +75,7 @@ export function UserProfileUpdateToJSONTyped(value?: UserProfileUpdate | null, i
         
         'display_name': value['displayName'],
         'avatar_url': value['avatarUrl'],
+        'env_template': value['envTemplate'],
     };
 }
 

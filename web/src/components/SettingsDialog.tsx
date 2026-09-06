@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -23,8 +25,10 @@ import {
   DEFAULT_KEYBINDINGS,
   type EditorSettings,
 } from "@/stores/settings";
-import { RotateCcw, Keyboard, Code, Settings2, Paintbrush } from "lucide-react";
+import { RotateCcw, Keyboard, Code, Settings2, Paintbrush, SquareTerminal, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { v2Api } from "@/lib/api/v2";
+import { useAuthStore } from "@/stores/auth";
 import {
   COLOR_THEMES,
   useColorTheme,
@@ -50,7 +54,47 @@ export default function SettingsDialog({
   const { editor, updateEditor, resetEditor } = useSettingsStore();
   const { t } = useTranslation();
   const { colorTheme, setColorTheme } = useColorTheme();
-  const [activeTab, setActiveTab] = useState<"appearance" | "editor" | "keybindings">("appearance");
+  const { user, setUser } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<"appearance" | "environment" | "editor" | "keybindings">("appearance");
+
+  const [envTemplate, setEnvTemplate] = useState("");
+  const [envLoading, setEnvLoading] = useState(false);
+  const [envSaving, setEnvSaving] = useState(false);
+
+  // Prefill the env template from a fresh profile fetch when the tab opens
+  // (the persisted auth-store user may predate the env_template field).
+  useEffect(() => {
+    if (!(open && activeTab === "environment")) return;
+    let cancelled = false;
+    setEnvLoading(true);
+    v2Api.users
+      .me()
+      .then((profile) => {
+        if (!cancelled) setEnvTemplate(profile.env_template ?? "");
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setEnvLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, activeTab]);
+
+  const handleSaveEnvTemplate = async () => {
+    setEnvSaving(true);
+    try {
+      const updated = await v2Api.users.updateMe({ env_template: envTemplate });
+      if (user) setUser({ ...user, env_template: updated.env_template });
+      toast.success(t("settings:envTemplateSaved"));
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : t("settings:envTemplateSaveFailed"),
+      );
+    } finally {
+      setEnvSaving(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -75,6 +119,19 @@ export default function SettingsDialog({
           >
             <Paintbrush className="h-3.5 w-3.5" />
             {t("settings:appearanceTab")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("environment")}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-2 text-sm border-b-2 transition-colors",
+              activeTab === "environment"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <SquareTerminal className="h-3.5 w-3.5" />
+            {t("settings:environmentTab")}
           </button>
           <button
             type="button"
@@ -126,6 +183,40 @@ export default function SettingsDialog({
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "environment" && (
+          <div className="space-y-3 mt-4">
+            <div className="space-y-1">
+              <span className="text-sm font-medium">{t("settings:envTemplateLabel")}</span>
+              <p className="text-xs text-muted-foreground">
+                {t("settings:envTemplateHint")}
+              </p>
+            </div>
+            {envLoading ? (
+              <div className="flex h-24 items-center justify-center">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <Textarea
+                rows={8}
+                value={envTemplate}
+                onChange={(e) => setEnvTemplate(e.target.value)}
+                placeholder={t("settings:envTemplatePlaceholder")}
+                className="font-mono text-xs"
+              />
+            )}
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={handleSaveEnvTemplate}
+                disabled={envLoading || envSaving}
+              >
+                {envSaving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                {t("common:save")}
+              </Button>
             </div>
           </div>
         )}

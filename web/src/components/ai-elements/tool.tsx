@@ -39,6 +39,8 @@ import { createContext, isValidElement, useCallback, useMemo, useState } from "r
 import { isMacOS } from "@/hooks/utils";
 import { useVideoThumbnail } from "@/hooks/useVideoThumbnail";
 import { CodeBlock } from "./code-block";
+import { RedactedCodeBlock, RedactedText } from "@/components/redacted";
+import { redactSecrets } from "@/lib/redact";
 import {
   DisplayContent,
   type DisplayItem,
@@ -217,7 +219,7 @@ export const ToolHeader = ({
           title={fullUrl ? (isMacOS() ? "⌘+Click to open URL" : "Ctrl+Click to open URL") : undefined}
           onClick={fullUrl ? handleParamClick : undefined}
         >
-          ({primaryParam})
+          ({redactSecrets(primaryParam)})
         </span>
       )}
       <span className="ml-0.5">{getStatusIcon(state)}</span>
@@ -370,7 +372,7 @@ const ShortParam = ({ param }: { param: TreeParam }) => (
       {param.valueType === "string" ? (
         <>
           <span className="text-muted-foreground/50">&quot;</span>
-          {param.value}
+          <RedactedText text={param.value} />
           <span className="text-muted-foreground/50">&quot;</span>
         </>
       ) : (
@@ -413,14 +415,14 @@ const LongParam = ({ param }: { param: TreeParam }) => {
         />
         {!expanded && (
           <span className="text-foreground/40 truncate group-hover:text-foreground/60">
-            {preview}
+            {redactSecrets(preview)}
             {cleanValue.length > 80 ? "..." : ""}
           </span>
         )}
       </div>
       {expanded && (
         <div className="ml-4">
-          <CodeBlock code={cleanValue} language={language} />
+          <RedactedCodeBlock code={cleanValue} language={language} />
         </div>
       )}
     </div>
@@ -636,15 +638,18 @@ export const ToolOutput = ({
 
     if (typeof output === "object" && !isValidElement(output)) {
       Output = (
-        <CodeBlock code={JSON.stringify(output, null, 2)} language="json" />
+        <RedactedCodeBlock
+          code={JSON.stringify(output, null, 2)}
+          language="json"
+        />
       );
     } else if (typeof output === "string") {
       if (output.length > 200) {
-        Output = <CodeBlock code={output} language="text" />;
+        Output = <RedactedCodeBlock code={output} language="text" />;
       } else {
         Output = (
           <pre className="whitespace-pre-wrap text-xs text-foreground/80">
-            {output}
+            <RedactedText text={output} />
           </pre>
         );
       }
@@ -661,7 +666,11 @@ export const ToolOutput = ({
             isError ? "text-destructive" : "",
           )}
         >
-          {errorText && <div className="text-destructive">{errorText}</div>}
+          {errorText && (
+            <div className="text-destructive">
+              <RedactedText text={errorText} />
+            </div>
+          )}
           {Output}
         </div>
       </div>

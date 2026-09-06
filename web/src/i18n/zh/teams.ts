@@ -20,4 +20,5 @@ export default {
   timezoneDefault: "默认（UTC）",
   timezoneUpdated: "时区已更新",
   timezoneUpdateFailed: "时区更新失败",
+  projectsLoadFailed: "项目列表加载失败",
 } as const;

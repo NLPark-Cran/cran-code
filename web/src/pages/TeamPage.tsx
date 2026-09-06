@@ -73,6 +73,7 @@ export default function TeamPage() {
   const [projects, setProjects] = useState<ProjectRes[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -87,18 +88,28 @@ export default function TeamPage() {
     if (!teamId) return;
     setLoading(true);
     setError(null);
-    try {
-      const [teamData, projectsData] = await Promise.all([
-        v2Api.teams.get(teamId),
-        v2Api.projects.list(teamId),
-      ]);
-      setTeam(teamData);
-      setProjects(projectsData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("teams:loadDataFailed"));
-    } finally {
-      setLoading(false);
+    setProjectsError(null);
+    // Independent fetches: a failing projects list (e.g. a transient 401)
+    // must not blank the whole page behind a raw error banner.
+    const [teamRes, projectsRes] = await Promise.allSettled([
+      v2Api.teams.get(teamId),
+      v2Api.projects.list(teamId),
+    ]);
+    if (teamRes.status === "fulfilled") {
+      setTeam(teamRes.value);
+    } else {
+      setError(
+        teamRes.reason instanceof Error
+          ? teamRes.reason.message
+          : t("teams:loadDataFailed"),
+      );
     }
+    if (projectsRes.status === "fulfilled") {
+      setProjects(projectsRes.value);
+    } else {
+      setProjectsError(t("teams:projectsLoadFailed"));
+    }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -289,7 +300,9 @@ export default function TeamPage() {
             {/* Projects */}
             <div>
               <h2 className="text-lg font-semibold mb-4">{t("project:listTitle")}</h2>
-              {projects.length === 0 ? (
+              {projectsError ? (
+                <p className="text-sm text-muted-foreground">{projectsError}</p>
+              ) : projects.length === 0 ? (
                 <Card className="border-dashed">
                   <CardContent className="py-8">
                     <EmptyState

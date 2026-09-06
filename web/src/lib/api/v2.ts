@@ -56,6 +56,8 @@ export interface UserProfile {
   display_name: string | null;
   avatar_url: string | null;
   role: string;
+  /** Free-form env text auto-injected into each new session's first prompt. */
+  env_template: string | null;
   created_at: string;
 }
 
@@ -264,7 +266,12 @@ export const v2Api = {
   },
   users: {
     me: () => _fetch<UserProfile>("/users/me"),
-    updateMe: (data: { display_name?: string; avatar_url?: string }) =>
+    updateMe: (data: {
+      display_name?: string;
+      avatar_url?: string;
+      /** IANA-free env text; empty string clears it. */
+      env_template?: string;
+    }) =>
       _fetch<UserProfile>("/users/me", {
         method: "PATCH",
         body: JSON.stringify(data),

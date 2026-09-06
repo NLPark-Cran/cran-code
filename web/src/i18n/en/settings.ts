@@ -28,4 +28,10 @@ export default {
   themeGraphite: "Graphite Ink",
   themeCinnabar: "Cinnabar Gold",
   themeTeal: "Teal Breeze",
+  environmentTab: "Environment",
+  envTemplateLabel: "Environment template",
+  envTemplateHint: "Saved into the first message of every new session as a <user-environment> block. Leave empty to disable.",
+  envTemplatePlaceholder: "e.g. OS: Ubuntu 24.04\nPython: 3.12",
+  envTemplateSaved: "Environment template saved",
+  envTemplateSaveFailed: "Failed to save environment template",
 } as const;

@@ -33,4 +33,6 @@ export default {
   copyError: "Copy error",
   somethingWentWrong: "Something went wrong",
   unexpectedErrorOccurred: "An unexpected error occurred",
+  showSecret: "Show secret",
+  hideSecret: "Hide secret",
 } as const;

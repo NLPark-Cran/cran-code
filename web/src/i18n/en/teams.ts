@@ -20,4 +20,5 @@ export default {
   timezoneDefault: "Default (UTC)",
   timezoneUpdated: "Timezone updated",
   timezoneUpdateFailed: "Failed to update timezone",
+  projectsLoadFailed: "Failed to load projects",
 } as const;

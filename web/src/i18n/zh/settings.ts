@@ -28,4 +28,10 @@ export default {
   themeGraphite: "石墨靛蓝",
   themeCinnabar: "朱砂粉金",
   themeTeal: "青碧",
+  environmentTab: "环境",
+  envTemplateLabel: "环境模板",
+  envTemplateHint: "保存后，将在每个新会话的首条消息中自动注入为 <user-environment> 块。留空表示不注入。",
+  envTemplatePlaceholder: "例如：OS: Ubuntu 24.04\nPython: 3.12",
+  envTemplateSaved: "环境模板已保存",
+  envTemplateSaveFailed: "环境模板保存失败",
 } as const;

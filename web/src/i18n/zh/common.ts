@@ -33,4 +33,6 @@ export default {
   copyError: "复制错误信息",
   somethingWentWrong: "出错了",
   unexpectedErrorOccurred: "发生意外错误",
+  showSecret: "显示密钥",
+  hideSecret: "隐藏密钥",
 } as const;

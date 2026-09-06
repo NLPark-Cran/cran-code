@@ -32,7 +32,15 @@ export default function GitPanel({ projectId }: GitPanelProps) {
       setStatus(s);
       setCommits(c);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("project:gitLoadFailed"));
+      const message = err instanceof Error ? err.message : t("project:gitLoadFailed");
+      // A non-git work_dir is a normal state, not an error to scream about.
+      if (message.includes("not a git repository")) {
+        setError(null);
+        setStatus(null);
+        setCommits([]);
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -77,6 +85,15 @@ export default function GitPanel({ projectId }: GitPanelProps) {
 
   if (error) {
     return <p className="text-sm text-destructive">{error}</p>;
+  }
+
+  if (!status) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <GitBranch className="h-4 w-4" />
+        {t("project:notGitRepo")}
+      </div>
+    );
   }
 
   return (

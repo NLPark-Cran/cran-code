@@ -42,6 +42,7 @@ export default {
   confirmDeleteFile: 'Delete "{{name}}"?',
   promptExtract: "Extract to directory (leave empty for same directory):",
   gitLoadFailed: "Failed to load git data",
+  notGitRepo: "Not a git repository",
   commitPlaceholder: "Commit message...",
   commitFailed: "Commit failed",
   commit: "Commit",

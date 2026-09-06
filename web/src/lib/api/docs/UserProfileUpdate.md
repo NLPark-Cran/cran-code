@@ -8,6 +8,7 @@ Name | Type
 ------------ | -------------
 `displayName` | string
 `avatarUrl` | string
+`envTemplate` | string
 
 ## Example
 
@@ -18,6 +19,7 @@ import type { UserProfileUpdate } from ''
 const example = {
   "displayName": null,
   "avatarUrl": null,
+  "envTemplate": null,
 } satisfies UserProfileUpdate
 
 console.log(example)

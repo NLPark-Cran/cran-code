@@ -54,6 +54,12 @@ export interface CranCodeWebApiV2UsersUserResponse {
      * @type {string}
      * @memberof CranCodeWebApiV2UsersUserResponse
      */
+    envTemplate?: string | null;
+    /**
+     * 
+     * @type {string}
+     * @memberof CranCodeWebApiV2UsersUserResponse
+     */
     role: string;
     /**
      * 
@@ -92,6 +98,7 @@ export function CranCodeWebApiV2UsersUserResponseFromJSONTyped(json: any, ignore
         'username': json['username'],
         'displayName': json['display_name'],
         'avatarUrl': json['avatar_url'],
+        'envTemplate': json['env_template'] == null ? undefined : json['env_template'],
         'role': json['role'],
         'createdAt': json['created_at'],
     };
@@ -113,6 +120,7 @@ export function CranCodeWebApiV2UsersUserResponseToJSONTyped(value?: CranCodeWeb
         'username': value['username'],
         'display_name': value['displayName'],
         'avatar_url': value['avatarUrl'],
+        'env_template': value['envTemplate'],
         'role': value['role'],
         'created_at': value['createdAt'],
     };

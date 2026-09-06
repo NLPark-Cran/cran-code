@@ -42,6 +42,7 @@ export default {
   confirmDeleteFile: "确定删除“{{name}}”吗？",
   promptExtract: "解压到目录（留空则解压到当前目录）：",
   gitLoadFailed: "加载 Git 数据失败",
+  notGitRepo: "该目录不是 Git 仓库",
   commitPlaceholder: "提交信息…",
   commitFailed: "提交失败",
   commit: "提交",

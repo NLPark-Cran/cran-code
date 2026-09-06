@@ -11,6 +11,7 @@ Name | Type
 `username` | string
 `displayName` | string
 `avatarUrl` | string
+`envTemplate` | string
 `role` | string
 `createdAt` | string
 
@@ -26,6 +27,7 @@ const example = {
   "username": null,
   "displayName": null,
   "avatarUrl": null,
+  "envTemplate": null,
   "role": null,
   "createdAt": null,
 } satisfies CranCodeWebApiV2UsersUserResponse

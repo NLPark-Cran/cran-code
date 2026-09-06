@@ -3121,7 +3121,7 @@
           }
         }
       },
-      "patch": {
+      "put": {
         "tags": ["keyproxy"],
         "summary": "Proxy",
         "description": "Forward a provider API call with the resolved real key.",
@@ -3149,7 +3149,7 @@
           }
         }
       },
-      "put": {
+      "delete": {
         "tags": ["keyproxy"],
         "summary": "Proxy",
         "description": "Forward a provider API call with the resolved real key.",
@@ -3205,7 +3205,7 @@
           }
         }
       },
-      "delete": {
+      "patch": {
         "tags": ["keyproxy"],
         "summary": "Proxy",
         "description": "Forward a provider API call with the resolved real key.",
@@ -4814,6 +4814,14 @@
               { "type": "null" }
             ],
             "title": "Avatar Url"
+          },
+          "env_template": {
+            "anyOf": [
+              { "type": "string", "maxLength": 8000 },
+              { "type": "null" }
+            ],
+            "title": "Env Template",
+            "description": "Environment/preference template auto-injected into a session's first prompt. Empty string clears it."
           }
         },
         "type": "object",
@@ -4884,6 +4892,10 @@
           "avatar_url": {
             "anyOf": [{ "type": "string" }, { "type": "null" }],
             "title": "Avatar Url"
+          },
+          "env_template": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "title": "Env Template"
           },
           "role": { "type": "string", "title": "Role" },
           "created_at": { "type": "string", "title": "Created At" }
