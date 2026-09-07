@@ -94,3 +94,9 @@ cd web && npx vitest run             # 前端单测（i18n parity）
 cd web && npx biome check            # 前端 lint（对比基线）
 ```
 - OpenAPI 客户端再生成：先起本地后端（`uv run cran-code web --port 5495`，**5494 是保留的上游 kimi-cli 端口**），再 `cd web && npm run generate`；脚本会保留手写的 `src/lib/api/v2.ts`。
+
+## Commit 身份纪律（2026-09-07 事故后确立）
+
+- 本机全局 git 身份：`NLPark-Cran <crina@tt2.li>`（agent 提交统一身份）。
+- 每个仓库必须有 repo-local `user.name`/`user.email`（clone/新建仓库后立即设置）——2026-09-07 洛书仓库漏设导致两个 commit 落入遗留全局身份 FDE-POC，已改写修复。
+- 子代理（coder subagent）产出 commit 前必须确认目标仓库的 local config 正确。
