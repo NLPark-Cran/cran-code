@@ -59,7 +59,8 @@ docs/dev/                 # 开发分册（见下）
 - 最新部署 bundle：`index-CHTQ-PFh.js`（后端与前端均已上线）。
 - 已上线大特性：Goal 模式（P1+P2）、Swarm 可视化、媒体 blob-ref、千问办公风 v1（紫色，将被多主题系统取代）。
 - 已完成并上线：媒体 blob-ref 外置、swarm 可视化、Goal 模式（P1+P2）、多主题系统（石墨/朱砂粉金/青碧）、read-before-write、时区化用量统计、环境模板自动注入、git 自动初始化、机密脱敏。
-- 进行中：洛书（github.com/NLPark-Cran/luoshu，ADR 见仓库 docs/）；陪伴记忆（ADR 002）；知识库双轨 KB 侧。
+- 进行中：洛书 MVP v2（反向隧道：云端 agent → 用户本地 loopback 的可达性是关键缺口；browser_eval 返回值；观猹登录/TokenPay）；记忆管理 UI 页；知识库双轨 KB 侧。
+- 已完成并上线：媒体 blob-ref 外置、swarm 可视化、Goal 模式（P1+P2）、多主题系统、read-before-write、时区化用量统计、环境模板自动注入、git 自动初始化、机密脱敏、陪伴记忆 MVP（memories 表 + 三工具 + 启动注入 + REST）。
 - 仓库卫生：origin 只保留 main（33 个上游镜像分支 + crina 已清理；crina 独有文档已拣入 main）。
 - 信任模型：worker 以 root 执行 shell，多用户隔离靠配额/审批/团队边界，非 OS 沙箱（见 troubleshooting.md）。
 - 我的 CLI 环境注意：子 agent 与主会话共用同一 Kimi 订阅配额，大批量 agent 工作可能撞上周期上限（403）。
