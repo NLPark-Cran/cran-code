@@ -8,6 +8,7 @@ from cran_code.web.api_v2 import (
     admin,
     auth,
     collab,
+    devices,
     fs,
     git,
     memories,
@@ -30,3 +31,4 @@ v2_router.include_router(terminal.router)
 v2_router.include_router(git.router)
 v2_router.include_router(providers.router)
 v2_router.include_router(memories.router)
+v2_router.include_router(devices.router)

@@ -402,6 +402,39 @@ class Memory(Base):
     )
 
 
+class Device(Base):
+    """A Luoshu local device registered for reverse-tunnel access (ADR 004).
+
+    The raw device token is returned exactly once at creation; only its
+    SHA-256 hex digest is stored. ``revoked`` is the delete semantics — rows
+    are kept so audit trails (last_seen_at) survive revocation.
+    """
+
+    __tablename__ = "devices"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        Index("ix_devices_user_revoked", "user_id", "revoked"),
+    )
+
+
 class UsageRecord(Base):
     """Token usage record for a single model call."""
 

@@ -6,6 +6,7 @@ from cran_code.web.db.connection import AsyncSessionLocal, engine, init_db
 from cran_code.web.db.models import (
     Activity,
     Base,
+    Device,
     Memory,
     Project,
     ProjectMember,
@@ -39,4 +40,5 @@ __all__ = [
     "ProviderGrant",
     "UsageRecord",
     "Memory",
+    "Device",
 ]
