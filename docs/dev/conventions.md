@@ -49,7 +49,7 @@
 ## 测试
 
 - 日常验证：`uv run pytest tests/web/ -q`（必须全绿）。
-- 核心改动：`uv run pytest tests/core/ -q`。**已知基线失败**（品牌/路径敏感的 inline-snapshot，非回归）：`test_skill.py`(20)、`test_skills_prompt`(2)、`test_load_agents_md`(2)、`test_default_agent`(2F+2E)、`test_agent_spec`(2F+2E)、`test_wire_message`(1F+1E)、`test_plugin_manager`(1F)、`tests/tools/test_tool_schemas`(1F+1E)。合计 30F+5E（tests/core）+ 1F+1E（tests/tools）。
+- 核心改动：`uv run pytest tests/core/ tests/tools/ -q`。**2026-09-07 起基线清零：1310 passed，0F/0E——红即真回归**（此前的品牌敏感快照已刷新为 fork 行为：`.kimi`→`.cran` 等）。
 - **已知挂起**：`tests/acp/test_protocol_v1.py`（存量问题，跑全量时排除 tests/acp）。
 - kosong 快照测试需要 `respx`（本环境未装），跳过 `packages/kosong/tests/api_snapshot_tests`。
 - 前端：`npx tsc -b --noEmit` 必须 0 错误；`npx vitest run` 全过；`npx biome check` 不超过基线（81 个存量错误，逐文件对比不得新增）。

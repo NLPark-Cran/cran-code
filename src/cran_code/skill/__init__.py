@@ -24,10 +24,10 @@ SkillType = Literal["standard", "flow"]
 SkillScope = Literal["builtin", "user", "project", "extra"]
 """Where a skill was discovered from.
 
-- ``builtin``: bundled with kimi-cli
+- ``builtin``: bundled with cran-code
 - ``user``: from the user's home (``~/.cran/skills``, ``~/.agents/skills``, ...)
 - ``project``: from the current project's working directory
-  (``<work_dir>/.kimi/skills``, ``<work_dir>/.agents/skills``, ...)
+  (``<work_dir>/.cran/skills``, ``<work_dir>/.agents/skills``, ...)
 - ``extra``: from ``extra_skill_dirs`` config or ``--skills-dir`` override
 """
 
@@ -90,7 +90,7 @@ def _get_project_brand_skills_dir_candidates(work_dir: KaosPath) -> tuple[KaosPa
     """
     Get project-level brand skills directory candidates in priority order.
 
-    Brand group: ``.kimi/skills`` > ``.claude/skills`` > ``.codex/skills``
+    Brand group: ``.cran/skills`` > ``.claude/skills`` > ``.codex/skills``
     """
     return (
         work_dir / ".cran" / "skills",
@@ -125,7 +125,7 @@ async def find_user_skills_dirs(
     The brand group comes first because brand-specific directories have
     higher specificity.  When *merge_brands* is ``False`` (default), only the
     first existing brand directory is used.  When ``True``, all existing brand
-    directories are included (priority order: kimi > claude > codex).
+    directories are included (priority order: cran > claude > codex).
     """
     dirs: list[KaosPath] = []
     if merge_brands:
@@ -161,7 +161,7 @@ async def find_project_skills_dirs(
     The brand group comes first because brand-specific directories have
     higher specificity.  When *merge_brands* is ``False`` (default), only the
     first existing brand directory is used.  When ``True``, all existing brand
-    directories are included (priority order: kimi > claude > codex).
+    directories are included (priority order: cran > claude > codex).
     """
     from cran_code.utils.path import find_project_root
 

@@ -89,12 +89,12 @@ async def load_agents_md(work_dir: KaosPath) -> str | None:
 
     For each directory on the path, the following candidates are checked in order:
 
-    1. ``.kimi/AGENTS.md``  — project-local kimi config (highest priority)
+    1. ``.cran/AGENTS.md``  — project-local cran config (highest priority)
     2. ``AGENTS.md``        — standard location
     3. ``agents.md``        — lowercase variant (mutually exclusive with 2)
 
-    Within a single directory, ``.kimi/AGENTS.md`` and ``AGENTS.md``/``agents.md``
-    are **both** loaded (with ``.kimi/`` first), but ``AGENTS.md`` and ``agents.md``
+    Within a single directory, ``.cran/AGENTS.md`` and ``AGENTS.md``/``agents.md``
+    are **both** loaded (with ``.cran/`` first), but ``AGENTS.md`` and ``agents.md``
     are mutually exclusive (uppercase wins).
 
     All discovered files are concatenated root→leaf, separated by ``\\n\\n``, with
@@ -108,14 +108,14 @@ async def load_agents_md(work_dir: KaosPath) -> str | None:
     # Phase 1: collect all candidate files (root → leaf order)
     discovered: list[tuple[KaosPath, str]] = []  # (path, content)
     for d in dirs:
-        # .kimi/AGENTS.md is always checked independently (can coexist with root-level file)
-        kimi_path = d / ".cran" / "AGENTS.md"
+        # .cran/AGENTS.md is always checked independently (can coexist with root-level file)
+        cran_path = d / ".cran" / "AGENTS.md"
         # AGENTS.md and agents.md are mutually exclusive (uppercase wins)
         root_candidates = [d / "AGENTS.md", d / "agents.md"]
 
         candidates: list[KaosPath] = []
-        if await kimi_path.is_file():
-            candidates.append(kimi_path)
+        if await cran_path.is_file():
+            candidates.append(cran_path)
         for rc in root_candidates:
             if await rc.is_file():
                 candidates.append(rc)

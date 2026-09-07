@@ -54,30 +54,30 @@ async def test_uppercase_over_lowercase(temp_work_dir: KaosPath):
 
 
 # ---------------------------------------------------------------------------
-# .kimi/ directory
+# .cran/ directory
 # ---------------------------------------------------------------------------
 
 
-async def test_kimi_dir_and_root_both_loaded(temp_work_dir: KaosPath):
-    """.kimi/AGENTS.md and AGENTS.md in the same dir are both loaded; .kimi/ first."""
-    kimi_dir = temp_work_dir / ".kimi"
-    await kimi_dir.mkdir()
-    await (kimi_dir / "AGENTS.md").write_text("kimi agents")
+async def test_cran_dir_and_root_both_loaded(temp_work_dir: KaosPath):
+    """.cran/AGENTS.md and AGENTS.md in the same dir are both loaded; .cran/ first."""
+    cran_dir = temp_work_dir / ".cran"
+    await cran_dir.mkdir()
+    await (cran_dir / "AGENTS.md").write_text("cran agents")
     await (temp_work_dir / "AGENTS.md").write_text("root agents")
 
     content = await load_agents_md(temp_work_dir)
 
     assert content is not None
-    assert content.index("kimi agents") < content.index("root agents")
+    assert content.index("cran agents") < content.index("root agents")
     assert content.count("<!-- From:") == 2
 
 
-async def test_kimi_dir_in_parent(temp_work_dir: KaosPath):
-    """.kimi/AGENTS.md in a parent directory is discovered via hierarchy."""
+async def test_cran_dir_in_parent(temp_work_dir: KaosPath):
+    """.cran/AGENTS.md in a parent directory is discovered via hierarchy."""
     await (temp_work_dir / ".git").mkdir()
-    kimi_dir = temp_work_dir / ".kimi"
-    await kimi_dir.mkdir()
-    await (kimi_dir / "AGENTS.md").write_text("parent kimi")
+    cran_dir = temp_work_dir / ".cran"
+    await cran_dir.mkdir()
+    await (cran_dir / "AGENTS.md").write_text("parent cran")
 
     child = temp_work_dir / "pkg"
     await child.mkdir()
@@ -86,9 +86,9 @@ async def test_kimi_dir_in_parent(temp_work_dir: KaosPath):
     content = await load_agents_md(child)
 
     assert content is not None
-    assert "parent kimi" in content
+    assert "parent cran" in content
     assert "child root" in content
-    assert content.index("parent kimi") < content.index("child root")
+    assert content.index("parent cran") < content.index("child root")
 
 
 # ---------------------------------------------------------------------------
