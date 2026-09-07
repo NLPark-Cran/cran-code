@@ -281,7 +281,12 @@ def run_web_server(
 
     import uvicorn
 
+    from cran_code.utils.oom_score import OOM_SCORE_SERVER, set_oom_score_adj
     from cran_code.utils.server import print_banner
+
+    # Protect the server from the OOM killer: session workers and background
+    # tasks are expendable, the server dropping every WS connection is not.
+    set_oom_score_adj(OOM_SCORE_SERVER)
 
     public_mode = not is_local_host(host)
     parsed_allowed_origins = normalize_allowed_origins(allowed_origins)

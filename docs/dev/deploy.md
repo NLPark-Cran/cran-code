@@ -22,13 +22,20 @@ grep -c "<新函数/特征串>" /root/.local/share/uv/tools/cran-code/lib/python
 
 ```bash
 cd /root/workspace/crys/web
-NODE_OPTIONS="--max-old-space-size=1800" npm run build   # 约 2-10 分钟
+NODE_OPTIONS="--max-old-space-size=1024" npm run build   # 约 2-10 分钟
 cp -r dist/* ../src/cran_code/web/static/                # 仓库内静态目录
 cp -r dist/* /root/.local/share/uv/tools/cran-code/lib/python3.14/site-packages/cran_code/web/static/  # 已安装工具目录
 systemctl restart cran-code.service
 # 验证：served index.html 的 bundle hash 与新构建一致
 curl -s https://crys.tt2.li/ | grep -o 'index-[A-Za-z0-9_-]*\.js' | head -1
 ```
+
+## 小内存机构建纪律（4GB RAM，OOM 教训 2026-09-07）
+
+- **前端构建堆上限不得超过 1024MB**（`--max-old-space-size=1024`）。1800MB 在此机会触发内核 OOM killer，且被排的往往是 cran-code 服务主进程（RSS 最大）→ 全线 WS 断连、后台任务丢失。
+- **同一时间只跑一个构建**；构建前 `free -m` 确认可用内存。
+- OOM 防护已代码化（`utils/oom_score.py`）：server -800 / session worker -300 / 后台任务 worker +800。即使 OOM 也应先杀构建任务（标记 failed 而非丢失服务）。
+- 若机器持续内存紧张，考虑在本地构建后 `rsync dist/` 到服务器（两个静态目录都要同步）。
 
 ## 数据库
 

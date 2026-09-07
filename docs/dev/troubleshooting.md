@@ -4,6 +4,12 @@
 
 ## 会话/连接类
 
+### 后台任务“已丢失”+ 会话卡死崩溃（2026-09-07 修复）
+- **症状**：后台构建任务通知“已丢失”（lost / Background worker heartbeat expired），随后整个 session 卡死、前端持续“正在连接…”。
+- **根因**：**不是心跳机制 bug，是 OOM**。生产机仅 4GB 内存且 swap 将满；agent 以 `NODE_OPTIONS=--max-old-space-size=1800` 跑 vite 构建（有时并行两个），内存耗尽后内核 OOM killer 按 RSS 挑最大的进程杀——恰是 cran-code 服务主进程（RSS 1.2GB）。服务死亡 → WS 全断（“正在连接…”）→ systemd 重启 → 后台任务心跳过期被判 lost → agent 重试构建 → 再次 OOM，循环崩溃（日志可见一晚 3 次 oom-kill）。
+- **修复**：OOM 优先级分层（`utils/oom_score.py`）：server `-800`、session worker `-300`、后台任务 worker `+800`（其子进程继承，构建先死、服务不断）。另见 deploy.md 的“小内存机构建纪律”。
+- **定位**：`journalctl -u cran-code.service | grep OOM`；`journalctl -k | grep -A2 oom-kill` 看被杀进程；任务目录 `tasks/*/runtime.json` 的 `failure_reason`。
+
 ### 刷新后会话卡死、WS 反复报错、对话"消失"（2026-07-26 修复）
 - **症状**：长会话刷新后页面冻结，"Websocket 连接错误"。
 - **根因**：wire 日志 98% 是流式碎片（13 万条），全量重放 + 前端 O(n²) 合并把标签页卡死。

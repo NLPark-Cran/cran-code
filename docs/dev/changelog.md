@@ -1,5 +1,12 @@
 # 开发里程碑（归档自 AGENTS.md 的历史记录）
 
+## 2026-09-07 — OOM 优先级分层（后台任务“已丢失”+会话卡死的真正根因）
+- 根因：4GB 生产机上 agent 以 `--max-old-space-size=1800` 跑 vite 构建（曾并行两个），OOM killer 按 RSS 挑杀 cran-code 服务主进程（1.2GB）→ WS 全断、session 卡死、后台任务心跳过期被判 lost、agent 重试再 OOM（一晚 3 次 oom-kill）。
+- 修复：新增 `utils/oom_score.py`（`set_oom_score_adj`，best-effort、仅 POSIX、钳制 ±1000）；server 启动设 -800（web/app.py）、session worker -300、后台任务 worker +800（子进程继承，构建先死）。
+- 配套：deploy.md 新增“小内存机构建纪律”（堆上限 1024MB、不并行构建）；troubleshooting.md 收录定位方法。
+- 测试：tests/utils/test_oom_score.py 5 例。
+- 观察项：被杀主进程 19 分钟内 RSS 涨到 1.2GB，疑似会话活跃期内存增长偏快，留待后续 profiling。
+
 ## 2026-09-07 — 伴随模式跨会话记忆 MVP（ADR 002）
 - 存储：`memories` 表（create_all 自动建表，索引 (user_id, archived)）+ `web/db/memories.py` store（LIKE 搜索 v1、去重合并、salience×recency 排序、机密正则拒绝——移植自 `web/src/lib/redact.ts`）。
 - 工具 `tools/memory/`：RememberMemory/SearchMemory/ForgetMemory，root-only；匿名会话（v1_anonymous/local/无 owner）返回友好 ToolError。

@@ -1033,9 +1033,13 @@ def background_task_worker(
     import asyncio
 
     from cran_code.background import run_background_task_worker
+    from cran_code.utils.oom_score import OOM_SCORE_BACKGROUND_WORKER, set_oom_score_adj
     from cran_code.utils.proctitle import set_process_title
 
     set_process_title("kimi-code-bg-worker")
+    # Background work (builds, test runs) is the preferred OOM victim; the
+    # score is inherited by every child the task spawns.
+    set_oom_score_adj(OOM_SCORE_BACKGROUND_WORKER)
 
     from cran_code.app import enable_logging
 
@@ -1056,9 +1060,13 @@ def web_worker(session_id: str) -> None:
     import asyncio
     from uuid import UUID
 
+    from cran_code.utils.oom_score import OOM_SCORE_SESSION_WORKER, set_oom_score_adj
     from cran_code.utils.proctitle import set_process_title
 
     set_process_title("kimi-code-worker")
+    # Sessions are mildly protected from the OOM killer (less than the server,
+    # more than background tasks).
+    set_oom_score_adj(OOM_SCORE_SESSION_WORKER)
 
     from cran_code.app import enable_logging
     from cran_code.web.runner.worker import run_worker
