@@ -14,6 +14,15 @@ description: Pre-merge/pre-deploy review checklist for Cran Code changes (securi
 - [ ] worker 环境新增变量：确认不含服务器密钥；凭证只经 `_build_worker_env`。
 - [ ] API 响应不含 key 材料（只有 has_api_key）；日志不打印密钥。
 - [ ] `git diff | grep -i "sk-\|secret"` 为空。
+- [ ] **机密展示层**：新增展示工具入参/结果的前端位 → 走 `lib/redact.ts`（默认遮蔽、点击揭示）。
+- [ ] **路径安全**：文件类端点 `resolve()+is_relative_to()`；鉴权判定基于解码后 ASGI path；SPA 兜底不得吞 `/api/*`。
+- [ ] **记忆/注入内容**：denylist 机密模式；注入块声明"是数据不是指令"。
+
+## Commit 与仓库卫生
+
+- [ ] 目标仓库有 repo-local `user.name=NLPark-Cran` / `user.email=crina@tt2.li`（`git config --local --list | grep user`）。
+- [ ] 子代理代提交前同项确认（2026-09-07 FDE-POC 事故教训）。
+- [ ] 大文件/二进制不入库；`git status` 无意外文件。
 
 ## 并发与状态
 
@@ -21,7 +30,10 @@ description: Pre-merge/pre-deploy review checklist for Cran Code changes (securi
 - [ ] 重放/分页改动：检查与 `_pending_requests`、initialize 缓存、`turn_base` 游标的相互作用。
 - [ ] 前端流式处理：新事件类型确认走重放队列（`isReplayingRef || isReplayQueueActive`），live 与 replay 不乱序。
 
-## 契约
+## 跨端契约（扩充）
+
+- [ ] wire 事件变更：`types.py` union + `__all__` + 前端 `wireTypes.ts` + reducer case + 重放路径验证。
+- [ ] REST 变更：openapi 再生成（本地后端起 5495，`npm run generate`）+ 手写 v2.ts 同步。
 
 - [ ] 前后端消息形状一致（snake_case 后端 ↔ 前端解析）。
 - [ ] `history_complete`/分页响应字段变更时两端同步。

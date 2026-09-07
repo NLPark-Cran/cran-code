@@ -149,7 +149,7 @@ def test_shell_params_schema(shell_tool: Shell):
                     "type": "string",
                 },
                 "timeout": {
-                    "default": 60,
+                    "default": 300,
                     "description": "The timeout in seconds for the command to execute. If the command takes longer than this, it will be killed.",
                     "maximum": 86400,
                     "minimum": 1,

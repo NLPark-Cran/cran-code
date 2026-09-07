@@ -42,8 +42,7 @@ def test_load_default_agent_spec():
             "cran_code.tools.web:SearchWeb",
             "cran_code.tools.web:FetchURL",
             "cran_code.tools.plan:ExitPlanMode",
-            "cran_code.tools.plan.enter:EnterPlanMode",
-        ]
+            "cran_code.tools.plan.enter:EnterPlanMode", "cran_code.tools.goal:CreateGoal", "cran_code.tools.goal:GetGoal", "cran_code.tools.goal:UpdateGoal", "cran_code.tools.goal:SetGoalBudget", "cran_code.tools.memory:RememberMemory", "cran_code.tools.memory:SearchMemory", "cran_code.tools.memory:ForgetMemory", "cran_code.tools.minimax_consult:MiniMaxConsult"]
     )
     subagents = {
         name: (spec.path.relative_to(DEFAULT_AGENT_FILE.parent).as_posix(), spec.description)
@@ -83,8 +82,7 @@ def test_load_default_agent_spec():
             "cran_code.tools.file:WriteFile",
             "cran_code.tools.file:StrReplaceFile",
             "cran_code.tools.web:SearchWeb",
-            "cran_code.tools.web:FetchURL",
-        ]
+            "cran_code.tools.web:FetchURL", "cran_code.tools.minimax_consult:MiniMaxConsult"]
     )
     assert subagent_specs["coder"].exclude_tools == snapshot(
         [
@@ -113,8 +111,7 @@ def test_load_default_agent_spec():
             "cran_code.tools.web:SearchWeb",
             "cran_code.tools.web:FetchURL",
             "cran_code.tools.plan:ExitPlanMode",
-            "cran_code.tools.plan.enter:EnterPlanMode",
-        ]
+            "cran_code.tools.plan.enter:EnterPlanMode", "cran_code.tools.goal:CreateGoal", "cran_code.tools.goal:GetGoal", "cran_code.tools.goal:UpdateGoal", "cran_code.tools.goal:SetGoalBudget", "cran_code.tools.memory:RememberMemory", "cran_code.tools.memory:SearchMemory", "cran_code.tools.memory:ForgetMemory", "cran_code.tools.minimax_consult:MiniMaxConsult"]
     )
     sub_subagents = {
         name: (spec.path.relative_to(DEFAULT_AGENT_FILE.parent).as_posix(), spec.description)
@@ -196,8 +193,7 @@ You are meant to be a fast agent. Complete the search request efficiently and re
             "cran_code.tools.web:SearchWeb",
             "cran_code.tools.web:FetchURL",
             "cran_code.tools.plan:ExitPlanMode",
-            "cran_code.tools.plan.enter:EnterPlanMode",
-        ]
+            "cran_code.tools.plan.enter:EnterPlanMode", "cran_code.tools.goal:CreateGoal", "cran_code.tools.goal:GetGoal", "cran_code.tools.goal:UpdateGoal", "cran_code.tools.goal:SetGoalBudget", "cran_code.tools.memory:RememberMemory", "cran_code.tools.memory:SearchMemory", "cran_code.tools.memory:ForgetMemory", "cran_code.tools.minimax_consult:MiniMaxConsult"]
     )
     sub_subagents = {
         name: (spec.path.relative_to(DEFAULT_AGENT_FILE.parent).as_posix(), spec.description)
@@ -263,8 +259,7 @@ Before designing your implementation plan, consider whether you fully understand
             "cran_code.tools.web:SearchWeb",
             "cran_code.tools.web:FetchURL",
             "cran_code.tools.plan:ExitPlanMode",
-            "cran_code.tools.plan.enter:EnterPlanMode",
-        ]
+            "cran_code.tools.plan.enter:EnterPlanMode", "cran_code.tools.goal:CreateGoal", "cran_code.tools.goal:GetGoal", "cran_code.tools.goal:UpdateGoal", "cran_code.tools.goal:SetGoalBudget", "cran_code.tools.memory:RememberMemory", "cran_code.tools.memory:SearchMemory", "cran_code.tools.memory:ForgetMemory", "cran_code.tools.minimax_consult:MiniMaxConsult"]
     )
     sub_subagents = {
         name: (spec.path.relative_to(DEFAULT_AGENT_FILE.parent).as_posix(), spec.description)
@@ -359,8 +354,7 @@ agent:
                 "cran_code.tools.web:SearchWeb",
                 "cran_code.tools.web:FetchURL",
                 "cran_code.tools.plan:ExitPlanMode",
-                "cran_code.tools.plan.enter:EnterPlanMode",
-            ]
+                "cran_code.tools.plan.enter:EnterPlanMode", "cran_code.tools.goal:CreateGoal", "cran_code.tools.goal:GetGoal", "cran_code.tools.goal:UpdateGoal", "cran_code.tools.goal:SetGoalBudget", "cran_code.tools.memory:RememberMemory", "cran_code.tools.memory:SearchMemory", "cran_code.tools.memory:ForgetMemory", "cran_code.tools.minimax_consult:MiniMaxConsult"]
         )
         assert spec.exclude_tools == snapshot(
             ["cran_code.tools.web:SearchWeb", "cran_code.tools.web:FetchURL"]

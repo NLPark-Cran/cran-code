@@ -467,8 +467,7 @@ def test_wire_message_record_roundtrip():
             "message": {
                 "type": "TurnBegin",
                 "payload": {"user_input": [{"type": "text", "text": "hi"}]},
-            },
-        }
+            }, "author": None}
     )
 
     parsed = WireMessageRecord.model_validate_json(record.model_dump_json())
