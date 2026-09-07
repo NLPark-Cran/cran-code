@@ -75,6 +75,9 @@ class Session(BaseModel):
     owner_id: str | None = Field(default=None, description="UUID of the user who created the session")
     team_id: str | None = Field(default=None, description="UUID of the team this session belongs to")
     shared: bool = Field(default=False, description="Whether the session is shared with team members")
+    device_id: str | None = Field(
+        default=None, description="UUID of the Luoshu device this session is bound to"
+    )
 
 
 class UpdateSessionRequest(BaseModel):

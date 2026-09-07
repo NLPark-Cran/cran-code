@@ -334,6 +334,18 @@ class SessionProcess:
     async def _build_worker_env(self) -> dict[str, str]:
         """Build the environment for a new worker subprocess.
 
+        Combines provider credentials (:meth:`_build_provider_env`) with the
+        Luoshu device-relay entry (ADR 004) for device-bound sessions.
+        """
+        env = await self._build_provider_env()
+        from cran_code.web.runner.device_relay import device_mcp_env
+
+        env.update(await device_mcp_env(self.session_id))
+        return env
+
+    async def _build_provider_env(self) -> dict[str, str]:
+        """Resolve provider credentials for a new worker subprocess.
+
         Starts from the sanitized server env (web secrets stripped), then
         injects the session owner's provider credentials:
 

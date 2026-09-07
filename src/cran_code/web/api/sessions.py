@@ -739,6 +739,23 @@ async def create_session(
                     detail="You are not a member of the specified team",
                 )
         state.team_id = request.team_id
+    if request and request.device_id:
+        # Luoshu device binding (ADR 004): the device must exist and belong to
+        # the caller; anonymous/local callers cannot bind devices.
+        if current_user is None or current_user.id in ("v1_anonymous", "local"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Device binding requires a signed-in user",
+            )
+        from cran_code.web.db import devices as device_store
+
+        device = await device_store.get_owned(current_user.id, request.device_id)
+        if device is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Device not found",
+            )
+        state.device_id = request.device_id
     save_session_state(state, cran_code_session.dir)
 
     invalidate_sessions_cache()
@@ -762,6 +779,7 @@ async def create_session(
         owner_id=state.owner_id,
         team_id=state.team_id,
         shared=state.shared,
+        device_id=state.device_id,
     )
 
 
@@ -771,6 +789,7 @@ class CreateSessionRequest(BaseModel):
     work_dir: str | None = None
     create_dir: bool = False  # Whether to auto-create directory if it doesn't exist
     team_id: str | None = None  # Optional team to associate the session with
+    device_id: str | None = None  # Optional Luoshu device to bind (ADR 004)
 
 
 class ForkSessionRequest(BaseModel):
@@ -1026,6 +1045,11 @@ async def delete_session(
     if session_dir.exists():
         shutil.rmtree(session_dir)
     invalidate_sessions_cache()
+
+    # Drop any tunnel relay token minted for this session (ADR 004).
+    from cran_code.web import tunnel as tunnel_mod
+
+    tunnel_mod.registry.revoke_session(str(session_id))
 
 
 @router.patch("/{session_id}", summary="Update session")
@@ -1364,6 +1388,11 @@ async def fork_session_endpoint(
     new_state.team_id = source_state.team_id
     new_state.shared = source_state.shared
     new_state.shared_with = list(source_state.shared_with)
+    # Device binding only carries over within the same owner — a fork by a
+    # different user must not grant their worker access to the source
+    # owner's Luoshu device (ADR 004).
+    if new_state.owner_id == source_state.owner_id:
+        new_state.device_id = source_state.device_id
     save_session_state(new_state, new_session_dir)
 
     fork_title = new_state.custom_title or f"Fork: {source_title}"

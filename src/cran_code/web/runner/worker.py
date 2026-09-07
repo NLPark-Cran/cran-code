@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 from typing import Any
 from uuid import UUID
@@ -20,6 +21,33 @@ from cran_code.app import KimiCLI, enable_logging
 from cran_code.cli.mcp import get_global_mcp_config_file
 from cran_code.exception import MCPConfigError
 from cran_code.web.store.sessions import load_session_by_id
+
+
+def load_mcp_configs() -> list[dict[str, Any]]:
+    """Load MCP configs for this worker: the global ``~/.cran/mcp.json`` plus,
+    for device-bound sessions, the tunnel-relay fragment injected by the web
+    process as ``CRAN_DEVICE_MCP_CONFIG`` (ADR 004)."""
+    mcp_configs: list[dict[str, Any]] = []
+
+    default_mcp_file = get_global_mcp_config_file()
+    if default_mcp_file.exists():
+        raw = default_mcp_file.read_text(encoding="utf-8")
+        try:
+            mcp_configs.append(json.loads(raw))
+        except json.JSONDecodeError:
+            logger.warning(
+                "Invalid JSON in MCP config file: {path}",
+                path=default_mcp_file,
+            )
+
+    device_mcp = os.environ.get("CRAN_DEVICE_MCP_CONFIG")
+    if device_mcp:
+        try:
+            mcp_configs.append(json.loads(device_mcp))
+        except json.JSONDecodeError:
+            logger.warning("Invalid JSON in CRAN_DEVICE_MCP_CONFIG; skipping device relay")
+
+    return mcp_configs
 
 
 async def run_worker(session_id: UUID) -> None:
@@ -32,18 +60,7 @@ async def run_worker(session_id: UUID) -> None:
     # Get the kimi-cli session object
     session = joint_session.cran_code_session
 
-    # Load default MCP config file if it exists
-    default_mcp_file = get_global_mcp_config_file()
-    mcp_configs: list[dict[str, Any]] = []
-    if default_mcp_file.exists():
-        raw = default_mcp_file.read_text(encoding="utf-8")
-        try:
-            mcp_configs = [json.loads(raw)]
-        except json.JSONDecodeError:
-            logger.warning(
-                "Invalid JSON in MCP config file: {path}",
-                path=default_mcp_file,
-            )
+    mcp_configs = load_mcp_configs()
 
     # Detect whether this is a resumed session (has prior state on disk)
     # vs a brand-new session that should honor config.default_plan_mode.
@@ -56,8 +73,7 @@ async def run_worker(session_id: UUID) -> None:
         )
     except MCPConfigError as exc:
         logger.warning(
-            "Invalid MCP config in {path}: {error}. Starting without MCP.",
-            path=default_mcp_file,
+            "Invalid MCP config: {error}. Starting without MCP.",
             error=exc,
         )
         cran_code = await KimiCLI.create(session, mcp_configs=None, resumed=resumed, ui_mode="wire")

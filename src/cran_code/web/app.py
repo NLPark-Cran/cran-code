@@ -326,6 +326,9 @@ def run_web_server(
     # Workers using team/shared provider keys call back into the key proxy on
     # loopback; let the runner know where to point them.
     os.environ["CRAN_KEY_PROXY_PORT"] = str(actual_port)
+    # Workers bound to a Luoshu device call back into the tunnel relay on
+    # loopback; let the runner know where to point them (ADR 004).
+    os.environ["CRAN_WEB_PORT"] = str(actual_port)
     if actual_port != port:
         print(f"Port {port} is in use, using port {actual_port} instead")
 

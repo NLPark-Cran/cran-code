@@ -47,6 +47,9 @@ class SessionState(BaseModel):
     team_id: str | None = None
     shared: bool = False
     shared_with: list[str] = Field(default_factory=list)
+    # Luoshu device binding (ADR 004): when set, the worker's MCP client
+    # reaches this device through the cloud tunnel relay.
+    device_id: str | None = None
 
 
 _LEGACY_METADATA_FILENAME = "metadata.json"
