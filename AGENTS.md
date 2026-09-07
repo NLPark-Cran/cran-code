@@ -17,13 +17,13 @@ src/cran_code/            # 后端主包（~60k LOC）
                           # goal.py（Goal 模式）、blobstore.py（媒体外置）
   agents/default/         # 默认 agent 的 system.md + agent.yaml（工具注册表）
   prompts/compact.md      # 压缩提示词（第一人称交接笔记式）
-  tools/                  # 24 个内置工具（shell/file/web/agent/goal/background/...）
+  tools/                  # 24+3 个内置工具（shell/file/web/agent/goal/memory/background/...）
   wire/                   # 前后端 JSONRPC 协议 + 事件类型（types.py 单一注册表）
   web/
     runner/process.py     # SessionProcess：worker 生命周期/锁/广播/key 注入/闸门（1.4k 行）
     api/sessions.py       # v1 会话 API + WS + 分页重放 + goal/subagents 端点（1.9k 行）
-    api_v2/               # 协作 API（users/teams/providers/keyproxy/admin/fs/git/...，55 路由）
-    db/                   # sqlite 11 表 + key 解析链 + 配额
+    api_v2/               # 协作 API（users/teams/providers/keyproxy/admin/fs/git/memories/...）
+    db/                   # sqlite 12 表（含 memories 跨会话记忆）+ key 解析链 + 配额
     auth_v2/jwt.py        # v2 JWT + require_user/require_admin
   web/static/             # 前端构建产物（gitignored；index.html 需 git add -f）
 packages/kosong/          # vendored LLM 抽象层（跟随上游 0.56.0）
@@ -41,6 +41,7 @@ docs/dev/                 # 开发分册（见下）
 | 部署 SOP（含验证清单与回滚） | `docs/dev/deploy.md` |
 | 故障索引（症状→根因→修复，先查这个） | `docs/dev/troubleshooting.md` |
 | Goal 模式设计（移植自 kimi-code GOAL.md） | `docs/dev/goal-mode.md` |
+| 跨会话记忆 MVP（ADR 002） | `docs/dev/memory-mode.md` |
 | 里程碑归档 | `docs/dev/changelog.md` |
 | docs/ 写作规范（上游归档） | `docs/dev/documentation-style.md` |
 

@@ -11,7 +11,9 @@ from sqlalchemy import (
     Column,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -358,6 +360,45 @@ class ProviderGrant(Base):
         UniqueConstraint(
             "provider_key", "subject_type", "subject_id", name="uq_provider_grant"
         ),
+    )
+
+
+class Memory(Base):
+    """Cross-session user memory (companion mode, ADR 002).
+
+    Written by the RememberMemory tool (explicit, model-driven), injected as a
+    ``<user-memories>`` brief at session start, and managed over the v2 REST
+    API. Rows are never hard-deleted — ``archived`` is the delete semantics.
+    """
+
+    __tablename__ = "memories"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    project_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    """Reserved for project-scoped memories; always None in v1 (sessions carry no project id)."""
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    """fact | preference | decision | gotcha (validated at the store layer)."""
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    salience: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_session_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utc_now, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utc_now, onupdate=_utc_now, nullable=False
+    )
+
+    __table_args__ = (
+        Index("ix_memories_user_archived", "user_id", "archived"),
     )
 
 

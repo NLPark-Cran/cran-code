@@ -69,5 +69,15 @@ or two — do not pad it out. Include the critical data, identifiers, and
 references needed to continue, and omit anything that does not change the next
 move.
 
+If the conversation surfaced durable knowledge about the user — stable
+preferences, decisions with lasting rationale, environment facts or gotchas
+worth not rediscovering — end the note with a short "Memories to save" list,
+one line each, tagged fact / preference / decision / gotcha. You cannot call
+tools here; the next turn has its tools back and will save the genuinely
+durable items with the RememberMemory tool. Never list secrets, tokens, or
+credentials — those must not be remembered. Skip this section entirely when
+nothing durable came up; ephemeral task state belongs in the note body, not
+in long-term memory.
+
 Respond with text only. Do not call any tools — you already have everything you
 need in the conversation history.

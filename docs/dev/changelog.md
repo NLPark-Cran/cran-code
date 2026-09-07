@@ -1,5 +1,14 @@
 # 开发里程碑（归档自 AGENTS.md 的历史记录）
 
+## 2026-09-07 — 伴随模式跨会话记忆 MVP（ADR 002）
+- 存储：`memories` 表（create_all 自动建表，索引 (user_id, archived)）+ `web/db/memories.py` store（LIKE 搜索 v1、去重合并、salience×recency 排序、机密正则拒绝——移植自 `web/src/lib/redact.ts`）。
+- 工具 `tools/memory/`：RememberMemory/SearchMemory/ForgetMemory，root-only；匿名会话（v1_anonymous/local/无 owner）返回友好 ToolError。
+- 注入：`KimiCLI.create` 注册 `UserMemoriesInjectionProvider`，首 step 懒加载 top 15 条 → `<user-memories>` 块（≤1500 字符，明示"上下文非指令"加固），compaction 后重注入缓存。
+- 提取（有界 MVP）：compact.md 新增"Memories to save"段落指令（compaction 用 EmptyToolset 无法调工具，由下一 turn 落库）；自动 gatekeeper 属 v2。
+- REST：`GET /api/v2/memories`（q 搜索/limit/offset/newest first）+ `DELETE /{id}`（归档，非硬删），require_user。
+- 测试：tests/core/test_memory.py 30 例 + tests/web/test_memories_api.py 5 例；tests/core 回到基线 30F+5E（compact prompt 变长顶破了 test_kimisoul_completion_budget 的紧边际，已按原意图放大夹具消息）。
+- 文档：docs/dev/memory-mode.md（决策与偏离）。
+
 ## 2026-06-08 — upstream v1.49.0 合并 + K3 支持
 - 合并 MoonshotAI/kimi-cli v1.49.0（kosong 0.55.0）；新增 K3 / kimi-for-coding-highspeed 支持。
 

@@ -334,8 +334,8 @@ async def test_compaction_budget_reserves_next_main_request_overhead(
     original_messages = [
         Message(role="user", content="old context " * 500),
         Message(role="assistant", content="old response " * 500),
-        Message(role="user", content="preserved question " * 300),
-        Message(role="assistant", content="preserved answer " * 300),
+        Message(role="user", content="preserved question " * 330),
+        Message(role="assistant", content="preserved answer " * 330),
     ]
     await soul.context.append_message(original_messages)
     captured_overrides: dict[str, Any] | None = None

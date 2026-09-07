@@ -326,6 +326,19 @@ class KimiCLI:
         if isinstance(toolset, KimiToolset):
             sync_goal_tool_visibility(toolset, goal_store.load() is not None)
 
+        # Companion-mode memory (ADR 002): inject a brief of the user's top
+        # cross-session memories once at session start (re-injected after
+        # compaction). Anonymous/local sessions are skipped — memory requires
+        # an account. Registered here (like the goal hook above) so both the
+        # web worker and the shell CLI paths get identical semantics.
+        from cran_code.soul.dynamic_injections.user_memories import (
+            UserMemoriesInjectionProvider,
+        )
+
+        owner_id = session.state.owner_id
+        if owner_id and owner_id not in ("v1_anonymous", "local"):
+            soul.add_injection_provider(UserMemoriesInjectionProvider(user_id=owner_id))
+
         # Activate plan mode if requested (for new sessions or --plan flag)
         if plan_mode and not soul.plan_mode:
             await soul.set_plan_mode_from_manual(True)

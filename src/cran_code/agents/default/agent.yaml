@@ -28,6 +28,9 @@ agent:
     - "cran_code.tools.goal:GetGoal"
     - "cran_code.tools.goal:UpdateGoal"
     - "cran_code.tools.goal:SetGoalBudget"
+    - "cran_code.tools.memory:RememberMemory"
+    - "cran_code.tools.memory:SearchMemory"
+    - "cran_code.tools.memory:ForgetMemory"
     - "cran_code.tools.minimax_consult:MiniMaxConsult"
   subagents:
     coder:
