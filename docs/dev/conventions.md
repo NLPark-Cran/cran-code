@@ -52,7 +52,7 @@
 - 核心改动：`uv run pytest tests/core/ tests/tools/ -q`。**2026-09-07 起基线清零：1310 passed，0F/0E——红即真回归**（此前的品牌敏感快照已刷新为 fork 行为：`.kimi`→`.cran` 等）。
 - **已知挂起**：`tests/acp/test_protocol_v1.py`（存量问题，跑全量时排除 tests/acp）。
 - kosong 快照测试需要 `respx`（本环境未装），跳过 `packages/kosong/tests/api_snapshot_tests`。
-- 前端：`npx tsc -b --noEmit` 必须 0 错误；`npx vitest run` 全过；`npx biome check` 不超过基线（81 个存量错误，逐文件对比不得新增）。
+- 前端：`npx tsc -b --noEmit` 必须 0 错误；`npx vitest run` 全过；`npx biome check` 不超过基线（85 个存量错误，逐文件对比不得新增）。
 - 新后端逻辑必须带 pytest；测试放对应域目录（`tests/core|web|tools|...`）。
 - HTTP 端点测试范式：见 `tests/web/test_session_goal_api.py`（isolated_share_dir fixture + TestClient 上下文管理器跑 lifespan + Bearer session_token + owner_id 设为 v1_anonymous）。
 - 路径安全测试必须用 `raw_path` 构造请求（httpx 会规范化 `//`/`%2e`），范例 `tests/web/test_security_regressions.py`。
