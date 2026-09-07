@@ -3,6 +3,7 @@ export default {
   settings: "Settings",
   providers: "Providers",
   usage: "Usage",
+  memories: "Memories",
   logout: "Logout",
   dashboard: "Dashboard",
   selectTeam: "Select team",

@@ -3,6 +3,7 @@ export default {
   settings: "设置",
   providers: "服务提供方",
   usage: "用量统计",
+  memories: "记忆",
   logout: "退出登录",
   dashboard: "控制台",
   selectTeam: "选择团队",

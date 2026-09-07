@@ -251,6 +251,29 @@ export interface AdminUsageDailyPointRes extends UsageDailyPointRes {
   username: string;
 }
 
+export type MemoryKind = "fact" | "preference" | "decision" | "gotcha";
+
+export interface MemoryRes {
+  id: string;
+  kind: MemoryKind;
+  content: string;
+  salience: number;
+  evidence: string | null;
+  project_id: string | null;
+  source_session_id: string | null;
+  archived: boolean;
+  /** ISO 8601 strings. */
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryListParams {
+  q?: string;
+  includeArchived?: boolean;
+  limit?: number;
+  offset?: number;
+}
+
 export const v2Api = {
   auth: {
     register: (data: RegisterReq) =>
@@ -429,6 +452,22 @@ export const v2Api = {
         `/providers/models/${encodeURIComponent(modelKey)}/context`,
         { method: "POST", body: JSON.stringify(data) },
       ),
+  },
+  memories: {
+    list: (params: MemoryListParams = {}) => {
+      const qs = new URLSearchParams();
+      if (params.q?.trim()) qs.set("q", params.q.trim());
+      if (params.includeArchived) qs.set("include_archived", "true");
+      if (params.limit !== undefined) qs.set("limit", String(params.limit));
+      if (params.offset !== undefined) qs.set("offset", String(params.offset));
+      const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
+      return _fetch<MemoryRes[]>(`/memories${suffix}`);
+    },
+    /** DELETE archives (never hard-deletes); 404 if missing/foreign/archived. */
+    archive: (id: string) =>
+      _fetch<{ detail: string }>(`/memories/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      }),
   },
   fs: {
     list: (projectId: string, path?: string) =>

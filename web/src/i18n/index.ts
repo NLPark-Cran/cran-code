@@ -7,6 +7,7 @@ import enChat from "./en/chat";
 import enCommon from "./en/common";
 import enDashboard from "./en/dashboard";
 import enNav from "./en/nav";
+import enMemories from "./en/memories";
 import enProject from "./en/project";
 import enProviders from "./en/providers";
 import enSessions from "./en/sessions";
@@ -19,6 +20,7 @@ import zhChat from "./zh/chat";
 import zhCommon from "./zh/common";
 import zhDashboard from "./zh/dashboard";
 import zhNav from "./zh/nav";
+import zhMemories from "./zh/memories";
 import zhProject from "./zh/project";
 import zhProviders from "./zh/providers";
 import zhSessions from "./zh/sessions";
@@ -36,6 +38,7 @@ export const resources = {
     common: zhCommon,
     auth: zhAuth,
     nav: zhNav,
+    memories: zhMemories,
     teams: zhTeams,
     providers: zhProviders,
     settings: zhSettings,
@@ -50,6 +53,7 @@ export const resources = {
     common: enCommon,
     auth: enAuth,
     nav: enNav,
+    memories: enMemories,
     teams: enTeams,
     providers: enProviders,
     settings: enSettings,

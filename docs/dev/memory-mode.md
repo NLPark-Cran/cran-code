@@ -29,7 +29,11 @@ web/api_v2/memories.py（GET 列表+搜索+分页 / DELETE 归档，require_user
 5. **REST 面只读+归档**：写入只经会话内工具（模型驱动、有证据链）；DELETE 语义是 archive，永不硬删。
 6. **归档幂等性**：对已是 archived 的记录再归档返回 None（404），避免"忘记两次也算成功"的语义歧义。
 
+## 前端管理页（2026-09-07 已实现）
+
+`/settings/memories`（`web/src/pages/MemoriesPage.tsx`，Layout 用户菜单入口）：kind 徽章 + content + salience + 可折叠 evidence + 本地化时间戳；搜索框（300ms 防抖 → `q`）、「含已归档」开关、limit=50 + 「加载更多」分页；每条「归档」按钮（`window.confirm` 二次确认 → DELETE），默认视图归档后即移除，含已归档视图原地打上徽标。API client：`web/src/lib/api/v2.ts::v2Api.memories`（`MemoryRes`/`MemoryListParams`）；文案在新 `memories` namespace（zh/en 双语）。测试：`web/src/pages/MemoriesPage.test.tsx`（首个 jsdom + @testing-library/react 页面测试；`vitest.config.ts` 为此加了 `@` alias，jsdom 只经 per-file pragma 启用，全局环境仍为 node）。
+
 ## v2 路线（未做）
 
 - 自动提取 gatekeeper（compaction/session 结束时的 LLM 判定管线）。
-- FTS5 全文搜索、项目作用域启用、前端记忆管理页、记忆编辑端点。
+- FTS5 全文搜索、项目作用域启用、记忆编辑端点。
