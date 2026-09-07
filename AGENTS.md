@@ -22,7 +22,7 @@ src/cran_code/            # 后端主包（~60k LOC）
   web/
     runner/process.py     # SessionProcess：worker 生命周期/锁/广播/key 注入/闸门（1.4k 行）
     api/sessions.py       # v1 会话 API + WS + 分页重放 + goal/subagents 端点（1.9k 行）
-    api_v2/               # 协作 API（users/teams/providers/keyproxy/admin/fs/git/memories/...）
+    api_v2/               # 协作 API（users/teams/providers/keyproxy/admin/fs/git/memories/devices/...）
     db/                   # sqlite 12 表（含 memories 跨会话记忆）+ key 解析链 + 配额
     auth_v2/jwt.py        # v2 JWT + require_user/require_admin
   web/static/             # 前端构建产物（gitignored；index.html 需 git add -f）
@@ -60,6 +60,7 @@ docs/dev/                 # 开发分册（见下）
 - 已上线大特性：Goal 模式（P1+P2）、Swarm 可视化、媒体 blob-ref、千问办公风 v1（紫色，将被多主题系统取代）。
 - 已完成并上线：媒体 blob-ref 外置、swarm 可视化、Goal 模式（P1+P2）、多主题系统（石墨/朱砂粉金/青碧）、read-before-write、时区化用量统计、环境模板自动注入、git 自动初始化、机密脱敏。
 - 进行中：洛书 v2 已由 cran-code 会话接管（会话 56d0cf70-1f17-4f25-bfa7-e1b343bab442「洛书 v2 开发」，work_dir=/root/workspace/test0607/luoshu；任务清单见该仓库 AGENTS.md）；记忆管理 UI 页（下一轮）；知识库双轨 KB 侧。
+- 洛书反向隧道已落地（2026-09-07）：devices 表 + WS `/api/v2/devices/{id}/tunnel` + 中继 `POST …/mcp` + 会话 `device_id` 绑定（`SessionState.device_id` → `CRAN_DEVICE_MCP_CONFIG` 注入 worker）。设计见 luoshu 仓库 docs/004。
 - 观猹登录：申请流程已启动（材料草稿 docs/dev/guancha-application.md）。
 - 洛书 MVP v1 完成：Tauri 壳 + loopback MCP 设备桥（7 工具，28 Rust 测试绿），github.com/NLPark-Cran/luoshu。
 - 已完成并上线：媒体 blob-ref 外置、swarm 可视化、Goal 模式（P1+P2）、多主题系统、read-before-write、时区化用量统计、环境模板自动注入、git 自动初始化、机密脱敏、陪伴记忆 MVP（memories 表 + 三工具 + 启动注入 + REST）。

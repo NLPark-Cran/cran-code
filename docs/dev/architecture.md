@@ -37,6 +37,7 @@ Cran Code = MoonshotAI/kimi-cli (Python) 的 fork + 自建 Web 多用户层。�
 | `web/src/` | React 19 + Vite 7 + Tailwind 4 + shadcn 前端 | i18n 全量（zh 默认）；新字符串必须双语 |
 | `soul/goal.py` + `tools/goal/` | Goal 模式 P1：goal.json 存储/状态机/预算、`GoalDriver` 多轮自治循环、4 个 root-only 工具 | 无显式 turns 预算时默认 30 轮封顶；恢复时 active→paused 降级在 `KimiCLI.create` |
 | `web/db/memories.py` + `tools/memory/` + `web/api_v2/memories.py` | 伴随模式跨会话记忆（ADR 002）：memories 表、去重合并/机密拒绝/salience×recency 排序、3 个 root-only 工具、`<user-memories>` 会话首注入、REST 列表/归档 | 设计/偏离见 docs/dev/memory-mode.md；搜索 v1 为 LIKE（FTS5 为 v2 路径） |
+| `web/tunnel.py` + `web/api_v2/devices.py` + `web/db/devices.py` + `web/runner/device_relay.py` | 洛书设备反向隧道（luoshu ADR 004）：devices 表（token 只存 SHA-256 hash）、WS `/api/v2/devices/{id}/tunnel`（设备主动外连，逐字透传 MCP JSON-RPC，中继侧重写请求 id 防并发冲突）、`POST …/mcp` 中继（每会话 relay token）、`SessionState.device_id` 绑定 + `CRAN_DEVICE_MCP_CONFIG` 注入 worker | 隧道/relay token 全部内存态；设备 token 永不出主进程 |
 
 ## Key 体系与流量路径
 
