@@ -59,7 +59,9 @@ docs/dev/                 # 开发分册（见下）
 - 最新部署 bundle：`index-CHTQ-PFh.js`（后端与前端均已上线）。
 - 已上线大特性：Goal 模式（P1+P2）、Swarm 可视化、媒体 blob-ref、千问办公风 v1（紫色，将被多主题系统取代）。
 - 已完成并上线：媒体 blob-ref 外置、swarm 可视化、Goal 模式（P1+P2）、多主题系统（石墨/朱砂粉金/青碧）、read-before-write、时区化用量统计、环境模板自动注入、git 自动初始化、机密脱敏。
-- 进行中：洛书 MVP v2（反向隧道：云端 agent → 用户本地 loopback 的可达性是关键缺口；browser_eval 返回值；观猹登录/TokenPay）；记忆管理 UI 页；知识库双轨 KB 侧。
+- 进行中：洛书 v2 已由 cran-code 会话接管（会话 56d0cf70-1f17-4f25-bfa7-e1b343bab442「洛书 v2 开发」，work_dir=/root/workspace/test0607/luoshu；任务清单见该仓库 AGENTS.md）；记忆管理 UI 页（下一轮）；知识库双轨 KB 侧。
+- 观猹登录：申请流程已启动（材料草稿 docs/dev/guancha-application.md）。
+- 洛书 MVP v1 完成：Tauri 壳 + loopback MCP 设备桥（7 工具，28 Rust 测试绿），github.com/NLPark-Cran/luoshu。
 - 已完成并上线：媒体 blob-ref 外置、swarm 可视化、Goal 模式（P1+P2）、多主题系统、read-before-write、时区化用量统计、环境模板自动注入、git 自动初始化、机密脱敏、陪伴记忆 MVP（memories 表 + 三工具 + 启动注入 + REST）。
 - 仓库卫生：origin 只保留 main（33 个上游镜像分支 + crina 已清理；crina 独有文档已拣入 main）。
 - 信任模型：worker 以 root 执行 shell，多用户隔离靠配额/审批/团队边界，非 OS 沙箱（见 troubleshooting.md）。
